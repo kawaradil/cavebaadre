@@ -1,0 +1,179 @@
+{
+  "entities": {
+    "CivicReport": {
+      "title": "CivicReport",
+      "description": "A civic service report submitted by a citizen in Baadre district with an automatic numeric id.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "trackingCode": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "sector": {
+          "type": "string",
+          "enum": ["roads", "water", "lighting", "sanitation", "sewage", "other"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "resolved", "rejected"]
+        },
+        "urgency": {
+          "type": "string",
+          "enum": ["emergency", "high", "normal"]
+        },
+        "neighborhood": { "type": "string", "maxLength": 200 },
+        "street": { "type": "string", "maxLength": 300 },
+        "landmark": { "type": "string", "maxLength": 300 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "citizenId": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "citizenName": { "type": "string", "maxLength": 200 },
+        "citizenPhone": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 },
+        "resolvedAt": { "type": "string", "maxLength": 64 },
+        "responseTimeHours": { "type": "number" },
+        "assignedTeam": { "type": "string", "maxLength": 300 },
+        "officialNote": { "type": "string", "maxLength": 3000 },
+        "adminNotes": { "type": "string", "maxLength": 3000 },
+        "images": { "type": "array" },
+        "resolvedImages": { "type": "array" },
+        "isOpened": { "type": "boolean" },
+        "openedAt": { "type": "string", "maxLength": 64 },
+        "upvotes": { "type": "number" }
+      },
+      "required": [
+        "id",
+        "trackingCode",
+        "title",
+        "description",
+        "sector",
+        "status",
+        "urgency",
+        "neighborhood",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CompletedWork": {
+      "title": "CompletedWork",
+      "description": "A completed municipal or organization work in Baadre with an automatic numeric id, linked to the resolved CivicReport via reportId.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "reportId": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "trackingCode": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "completionNotes": { "type": "string", "maxLength": 3000 },
+        "beforeImage": { "type": "string" },
+        "afterImages": { "type": "array" },
+        "images": { "type": "array" },
+        "sector": {
+          "type": "string",
+          "enum": ["roads", "water", "lighting", "sanitation", "sewage", "other"]
+        },
+        "neighborhood": { "type": "string", "maxLength": 300 },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "ongoing", "planned"]
+        },
+        "organizationName": { "type": "string", "maxLength": 300 },
+        "completedDepartment": { "type": "string", "maxLength": 300 },
+        "durationText": { "type": "string", "maxLength": 100 },
+        "reportedAt": { "type": "string", "maxLength": 64 },
+        "completedAt": { "type": "string", "maxLength": 64 },
+        "reporterName": { "type": "string", "maxLength": 200 },
+        "reporterPhone": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "title", "description", "sector", "neighborhood", "status"]
+    },
+    "MunicipalDepartment": {
+      "title": "MunicipalDepartment",
+      "description": "A municipal service department in Baadre with an automatic numeric id.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "nameAr": { "type": "string", "maxLength": 300 },
+        "sector": {
+          "type": "string",
+          "enum": ["roads", "water", "lighting", "sanitation", "sewage", "other"]
+        },
+        "availability": {
+          "type": "string",
+          "enum": ["available", "on_mission", "standby"]
+        },
+        "phone": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "nameAr", "sector", "availability", "phone"]
+    },
+    "RegisteredCitizen": {
+      "title": "RegisteredCitizen",
+      "description": "A registered citizen in Baadre with an automatic numeric id.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "name": { "type": "string", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "neighborhood": { "type": "string", "maxLength": 200 },
+        "reportsSubmittedCount": { "type": "number" },
+        "resolvedReportsCount": { "type": "number" },
+        "joinedAt": { "type": "string", "maxLength": 64 },
+        "verified": { "type": "boolean" }
+      },
+      "required": ["id", "name", "phone", "neighborhood", "reportsSubmittedCount", "joinedAt"]
+    },
+    "CommunitySurvey": {
+      "title": "CommunitySurvey",
+      "description": "A community survey created by Baadre administration for citizens with an automatic numeric id.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "title": { "type": "string", "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "isPublishedToCitizens": { "type": "boolean" },
+        "totalResponses": { "type": "number" }
+      },
+      "required": ["id", "title", "description", "createdAt", "isPublishedToCitizens", "totalResponses"]
+    },
+    "CitizenSurveyResponse": {
+      "title": "CitizenSurveyResponse",
+      "description": "A citizen answer submission linked to a specific survey id with an automatic numeric id.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "surveyId": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "surveyTitle": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "surveyId", "surveyTitle", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/CivicReport" },
+      "description": "Civic reports submitted by citizens in Baadre."
+    },
+    "/CompletedWork/{workId}": {
+      "schema": { "$ref": "#/entities/CompletedWork" },
+      "description": "Completed works (before & after) in Baadre."
+    },
+    "/departments/{departmentId}": {
+      "schema": { "$ref": "#/entities/MunicipalDepartment" },
+      "description": "Municipal service departments in Baadre."
+    },
+    "/citizens/{citizenId}": {
+      "schema": { "$ref": "#/entities/RegisteredCitizen" },
+      "description": "Citizens directory and reporting statistics in Baadre."
+    },
+    "/surveys/{surveyId}": {
+      "schema": { "$ref": "#/entities/CommunitySurvey" },
+      "description": "Community surveys for citizens in Baadre."
+    },
+    "/SurveyResponses/{responseId}": {
+      "schema": { "$ref": "#/entities/CitizenSurveyResponse" },
+      "description": "Citizen answers to community surveys, each linked to surveyId."
+    }
+  }
+}

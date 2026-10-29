@@ -1,0 +1,45 @@
+{
+  "short_name": "CAVE BAADRE",
+  "name": "CAVE BAADRE | SMART BAADRÊ EYE - عين باعدرى الذكية",
+  "description": "منصة عين باعدرى الذكية (CAVE BAADRE) لإدارة ومتابعة البلاغات والخدمات البلدية والحضرية في ناحية باعدرى",
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1E3725",
+  "theme_color": "#46674D",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "categories": ["government", "utilities", "productivity"],
+  "lang": "ar",
+  "dir": "rtl"
+}

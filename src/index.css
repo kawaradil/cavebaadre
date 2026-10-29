@@ -1,0 +1,361 @@
+@import "tailwindcss";
+@import "./styles/light-theme.css";
+
+@theme {
+  /* نظام ألوان السمة الموحد (Semantic Theme Colors) */
+  --color-main: var(--bg-main);
+  --color-surface: var(--bg-surface);
+  --color-surface-hover: var(--bg-surface-hover);
+  --color-card: var(--bg-card);
+  --color-card-subtle: var(--bg-card-subtle);
+  --color-input: var(--bg-input);
+
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-border-theme: var(--border-theme);
+  --color-border-subtle: var(--border-subtle);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-light: var(--accent-light);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-badge-sale: var(--badge-sale);
+  --color-badge-rent: var(--badge-rent);
+
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+
+  --color-amber-50: #FAF6EE;
+  --color-amber-100: #F4EBD9;
+  --color-amber-200: #EAD8B5;
+  --color-amber-300: #DFC18C;
+  --color-amber-400: #D3AA66;
+  --color-amber-500: #C39E5C;
+  --color-amber-600: #AB8545;
+  --color-amber-700: #8C6A32;
+  --color-amber-800: #715528;
+  --color-amber-900: #5C4522;
+  --color-amber-950: #33240F;
+
+  --color-yellow-50: #FAF6EE;
+  --color-yellow-100: #F4EBD9;
+  --color-yellow-200: #EAD8B5;
+  --color-yellow-300: #DFC18C;
+  --color-yellow-400: #D3AA66;
+  --color-yellow-500: #C39E5C;
+  --color-yellow-600: #AB8545;
+  --color-yellow-700: #8C6A32;
+  --color-yellow-800: #715528;
+  --color-yellow-900: #5C4522;
+  --color-yellow-950: #33240F;
+
+  --color-gold-50: #FAF6EE;
+  --color-gold-100: #F4EBD9;
+  --color-gold-200: #EAD8B5;
+  --color-gold-300: #DFC18C;
+  --color-gold-400: #D3AA66;
+  --color-gold-500: #C39E5C;
+  --color-gold-600: #AB8545;
+  --color-gold-700: #8C6A32;
+  --color-gold-800: #715528;
+  --color-gold-900: #5C4522;
+  --color-gold-950: #33240F;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@utility bg-main {
+  background-color: var(--bg-main);
+}
+@utility bg-surface {
+  background-color: var(--bg-surface);
+}
+@utility bg-surface-hover {
+  background-color: var(--bg-surface-hover);
+}
+@utility bg-card {
+  background-color: var(--bg-card);
+}
+@utility text-main {
+  color: var(--text-main);
+}
+@utility text-muted {
+  color: var(--text-muted);
+}
+@utility text-subtle {
+  color: var(--text-subtle);
+}
+@utility border-theme {
+  border-color: var(--border-theme);
+}
+@utility border-subtle {
+  border-color: var(--border-subtle);
+}
+
+@layer base {
+  :root {
+    --baadre-light: #F4EBD9;
+    --baadre-gold: #C39E5C;
+    --baadre-amber: #C39E5C;
+    --baadre-slate: #0F172A;
+    --baadre-dark: #0F172A;
+    --app-header-height: 4.5rem;
+
+    /* متغيرات السمة اللونية الديناميكية (تُحدث تلقائياً من ColorContext) */
+    --theme-primary: #257EB8;
+    --theme-accent: #2BB3B6;
+    --theme-primary-hover: #1D6899;
+    --theme-secondary: #185A80;
+    --theme-gradient-to: #2BB3B6;
+    --theme-text-dark: #0F314A;
+    --theme-bg-light: #E6F5FA;
+    --theme-bg-soft: #F2FAFC;
+    --theme-bg-hover: #D0ECF5;
+    --theme-border: #A5D9EA;
+    --theme-rgb: 37, 126, 184;
+  }
+
+  html, body {
+    font-family: 'Noto Kufi Arabic', sans-serif;
+    overflow-x: hidden;
+    background-color: var(--bg-main) !important;
+    color: var(--text-main) !important;
+  }
+}
+
+/* ==========================================================================
+   Dynamic ColorContext Utility Bindings
+   ربط جميع كلاسات الألوان في التطبيق بـ ColorContext ليتغير لون التطبيق بالكامل فوراً
+   ========================================================================== */
+
+/* 1. Backgrounds */
+.bg-\[\#46674D\] { background-color: var(--theme-primary) !important; }
+.bg-\[\#46674D\]\/10 { background-color: color-mix(in srgb, var(--theme-primary) 10%, transparent) !important; }
+.bg-\[\#46674D\]\/15 { background-color: color-mix(in srgb, var(--theme-primary) 15%, transparent) !important; }
+.bg-\[\#46674D\]\/20 { background-color: color-mix(in srgb, var(--theme-primary) 20%, transparent) !important; }
+.hover\:bg-\[\#46674D\]:hover { background-color: var(--theme-primary) !important; }
+.bg-\[\#36593F\] { background-color: var(--theme-primary-hover) !important; }
+.hover\:bg-\[\#36593F\]:hover { background-color: var(--theme-primary-hover) !important; }
+.bg-\[\#2D4833\] { background-color: var(--theme-secondary) !important; }
+.bg-\[\#1E3725\] { background-color: var(--theme-text-dark) !important; }
+.bg-\[\#1E3725\]\/20 { background-color: color-mix(in srgb, var(--theme-text-dark) 20%, transparent) !important; }
+.bg-\[\#1E3725\]\/40 { background-color: color-mix(in srgb, var(--theme-text-dark) 40%, transparent) !important; }
+.bg-\[\#1E3725\]\/50 { background-color: color-mix(in srgb, var(--theme-text-dark) 50%, transparent) !important; }
+.bg-\[\#1E3725\]\/60 { background-color: color-mix(in srgb, var(--theme-text-dark) 60%, transparent) !important; }
+
+.bg-\[\#E8F4EA\] { background-color: var(--theme-bg-light) !important; }
+.bg-\[\#E8F4EA\]\/40 { background-color: color-mix(in srgb, var(--theme-bg-light) 40%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/50 { background-color: color-mix(in srgb, var(--theme-bg-light) 50%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/60 { background-color: color-mix(in srgb, var(--theme-bg-light) 60%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/70 { background-color: color-mix(in srgb, var(--theme-bg-light) 70%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/80 { background-color: color-mix(in srgb, var(--theme-bg-light) 80%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/90 { background-color: color-mix(in srgb, var(--theme-bg-light) 90%, transparent) !important; }
+.hover\:bg-\[\#E8F4EA\]:hover { background-color: var(--theme-bg-light) !important; }
+.hover\:bg-\[\#E8F4EA\]\/70:hover { background-color: color-mix(in srgb, var(--theme-bg-light) 70%, transparent) !important; }
+.hover\:bg-\[\#E8F4EA\]\/80:hover { background-color: color-mix(in srgb, var(--theme-bg-light) 80%, transparent) !important; }
+
+.bg-\[\#F4F9F5\],
+.bg-\[\#F8FBF9\] { background-color: var(--theme-bg-soft) !important; }
+.bg-\[\#F4F9F5\]\/50 { background-color: color-mix(in srgb, var(--theme-bg-soft) 50%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/60 { background-color: color-mix(in srgb, var(--theme-bg-soft) 60%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/70 { background-color: color-mix(in srgb, var(--theme-bg-soft) 70%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/75 { background-color: color-mix(in srgb, var(--theme-bg-soft) 75%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/80 { background-color: color-mix(in srgb, var(--theme-bg-soft) 80%, transparent) !important; }
+.hover\:bg-\[\#F4F9F5\]:hover { background-color: var(--theme-bg-soft) !important; }
+
+.bg-\[\#D4EADB\] { background-color: var(--theme-bg-hover) !important; }
+.hover\:bg-\[\#D4EADB\]:hover { background-color: var(--theme-bg-hover) !important; }
+
+/* 2. Text Colors */
+.text-\[\#46674D\] { color: var(--theme-primary) !important; }
+.text-\[\#36593F\],
+.text-\[\#3E5E44\] { color: var(--theme-primary-hover) !important; }
+.text-\[\#2D4833\] { color: var(--theme-secondary) !important; }
+.text-\[\#1E3725\],
+.text-\[\#223E2A\] { color: var(--theme-text-dark) !important; }
+.hover\:text-\[\#1E3725\]:hover { color: var(--theme-text-dark) !important; }
+.hover\:text-\[\#46674D\]:hover { color: var(--theme-primary) !important; }
+.group:hover .group-hover\:text-\[\#46674D\] { color: var(--theme-primary) !important; }
+
+/* 3. Borders & Rings */
+.border-\[\#BBDDC6\] { border-color: var(--theme-border) !important; }
+.border-\[\#BBDDC6\]\/50 { border-color: color-mix(in srgb, var(--theme-border) 50%, transparent) !important; }
+.border-\[\#BBDDC6\]\/60 { border-color: color-mix(in srgb, var(--theme-border) 60%, transparent) !important; }
+.border-\[\#BBDDC6\]\/70 { border-color: color-mix(in srgb, var(--theme-border) 70%, transparent) !important; }
+.border-\[\#BBDDC6\]\/80 { border-color: color-mix(in srgb, var(--theme-border) 80%, transparent) !important; }
+.border-\[\#E8F4EA\] { border-color: var(--theme-bg-light) !important; }
+.border-\[\#46674D\] { border-color: var(--theme-primary) !important; }
+.border-\[\#88B793\] { border-color: var(--theme-accent) !important; }
+.hover\:border-\[\#46674D\]:hover { border-color: var(--theme-primary) !important; }
+.hover\:border-\[\#46674D\]\/40:hover { border-color: color-mix(in srgb, var(--theme-primary) 40%, transparent) !important; }
+.focus\:border-\[\#46674D\]:focus { border-color: var(--theme-primary) !important; }
+.focus\:ring-\[\#46674D\]\/20:focus { --tw-ring-color: color-mix(in srgb, var(--theme-primary) 20%, transparent) !important; }
+
+/* 4. Gradients */
+.from-\[\#46674D\],
+.from-\[\#2F5238\] {
+  --tw-gradient-from: var(--theme-primary) !important;
+}
+.via-\[\#2D4833\],
+.via-\[\#46674D\] {
+  --tw-gradient-via: var(--theme-secondary) !important;
+}
+.to-\[\#2D4833\],
+.to-\[\#88B793\] {
+  --tw-gradient-to: var(--theme-gradient-to) !important;
+}
+.to-\[\#1E3725\] {
+  --tw-gradient-to: var(--theme-text-dark) !important;
+}
+
+/* Noto Kufi Arabic for Arabic, Kurdish & English */
+html,
+body,
+button,
+input,
+select,
+textarea,
+html *,
+.lang-ar,
+.lang-ar *,
+.lang-ku,
+.lang-ku *,
+.lang-en,
+.lang-en * {
+  font-family: 'Noto Kufi Arabic', sans-serif !important;
+  letter-spacing: -0.012em;
+}
+
+/* Unified Font Sizing Across All Languages (Matches the Kurdish Scale) */
+html {
+  font-size: 92%;
+}
+
+html .text-xs,
+.text-xs {
+  font-size: 0.72rem !important;
+  line-height: 1.15rem !important;
+}
+
+html .text-sm,
+.text-sm {
+  font-size: 0.825rem !important;
+  line-height: 1.25rem !important;
+}
+
+html .text-base,
+.text-base {
+  font-size: 0.925rem !important;
+  line-height: 1.45rem !important;
+}
+
+/* Hide scrollbars globally for a sleek interface */
+/* Hide up and down spinner arrows on number inputs */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+html, body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Glassmorphism helpers */
+.baadre-glass {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #D3AA66;
+  box-shadow: 0 10px 25px -5px rgba(195, 158, 92, 0.12);
+}
+
+.baadre-glass-dark {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid #D3AA66;
+  box-shadow: 0 10px 25px -5px rgba(195, 158, 92, 0.14);
+}
+
+.baadre-vip-card {
+  background: #FFFFFF;
+  border: none !important;
+  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.16), 0 4px 10px -2px rgba(0, 0, 0, 0.08);
+}
+
+/* Leaflet Map in Light Theme */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  font-family: 'Noto Kufi Arabic', sans-serif !important;
+  z-index: 10 !important;
+  background-color: #FAFAF8 !important;
+}
+
+.custom-leaflet-popup .leaflet-popup-content-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.custom-leaflet-popup .leaflet-popup-content {
+  margin: 0 !important;
+  line-height: inherit !important;
+}
+
+.custom-leaflet-popup .leaflet-popup-tip-container {
+  margin-top: -1px !important;
+}
+
+.custom-leaflet-popup .leaflet-popup-tip {
+  background: #FFFFFF !important;
+  border: 1px solid #D3AA66 !important;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.8s infinite linear;
+}

@@ -1,0 +1,133 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sector", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "neighborhood", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "urgency", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "CompletedWork",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "CompletedWork",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sector", "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "departments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sector", "order": "ASCENDING" },
+        { "fieldPath": "availability", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "surveys",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isPublishedToCitizens", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "SurveyResponses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "surveyId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "reports",
+      "fieldPath": "description",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reports",
+      "fieldPath": "images",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reports",
+      "fieldPath": "resolvedImages",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "CompletedWork",
+      "fieldPath": "description",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "CompletedWork",
+      "fieldPath": "completionNotes",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "CompletedWork",
+      "fieldPath": "images",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "CompletedWork",
+      "fieldPath": "beforeImage",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "CompletedWork",
+      "fieldPath": "afterImages",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "surveys",
+      "fieldPath": "description",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "surveys",
+      "fieldPath": "questions",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "SurveyResponses",
+      "fieldPath": "answers",
+      "indexes": []
+    }
+  ]
+}

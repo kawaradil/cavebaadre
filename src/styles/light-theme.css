@@ -1,0 +1,52 @@
+/**
+ * RABA Theme Design Tokens
+ * نظام متغيرات السمة اللونية المستوحاة من شعار منظمة رابه (RABA Blue & Turquoise)
+ */
+
+:root,
+:root[data-theme="light"],
+html:not(.dark),
+html[data-theme="light"] {
+  /* الخلفيات والأسطح (Backgrounds & Surfaces) */
+  --bg-main: #FFFFFF;
+  --bg-surface: #FFFFFF;
+  --bg-surface-hover: #F2FAFC;
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #F2FAFC;
+  --bg-input: #FFFFFF;
+  --bg-input-focus: #FFFFFF;
+
+  /* النصوص والطباعة (Typography & Text) */
+  --text-main: #0F314A;
+  --text-muted: #185A80;
+  --text-subtle: #64748B;
+  --text-inverse: #FFFFFF;
+
+  /* اللون الأساسي للعلامة التجارية (RABA Primary Blue) */
+  --primary: #257EB8;
+  --primary-hover: #1D6899;
+  --primary-light: #E6F5FA;
+  --primary-foreground: #FFFFFF;
+
+  /* الحدود والفواصل (Borders & Dividers) */
+  --border-theme: #A5D9EA;
+  --border-subtle: #E6F5FA;
+  --border-focus: #257EB8;
+
+  /* لون التمييز التركوازي (RABA Accent Turquoise) */
+  --accent: #2BB3B6;
+  --accent-hover: #229A9D;
+  --accent-light: #E6F5FA;
+  --accent-foreground: #FFFFFF;
+
+  /* شارات وحالات (Badges & Statuses) */
+  --badge-sale: #257EB8;
+  --badge-rent: #0F314A;
+  --success: #10B981;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+
+  /* الظلال وتأثيرات العمق (Shadows) */
+  --shadow-card: 0 8px 24px rgba(37, 126, 184, 0.08);
+  --shadow-card-hover: 0 20px 40px rgba(37, 126, 184, 0.14);
+}
