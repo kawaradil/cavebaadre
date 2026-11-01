@@ -17,6 +17,7 @@ import {
   Sparkles,
   ExternalLink,
   ClipboardList,
+  Building,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../context/LanguageContext';
@@ -69,14 +70,14 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
     playClickSound();
     const shareData = {
       title: tr(
-        'CAVE BAADRE | عين باعدرى الذكية',
-        'CAVE BAADRE | چاوی زیرەکی باعەدرێ',
-        'CAVE BAADRE | Smart Baadre Eye'
+        'ÇAVÊ BAADRÊ | عين باعذرة - منظمة RABA',
+        'ÇAVÊ BAADRÊ | چاڤێ باعدرێ - ڕێکخراوی RABA',
+        'ÇAVÊ BAADRÊ | Baadre Eye - RABA Organization'
       ),
       text: tr(
-        'منصة منظمة CAVE BAADRE الرقمية لاستقبال بلاغات المواطنين وإحالتها إلى الدوائر الخدمية المعنية في ناحية باعدرى',
-        'سەکۆی دیجیتاڵی ڕێکخراوی CAVE BAADRE بۆ وەرگرتنی سکاڵای هاووڵاتیان و ناردنی بۆ فەرمانگە پەیوەندیدارەکان لە باعەدرێ',
-        'CAVE BAADRE digital platform for receiving citizen reports and referring them to relevant departments in Baadre'
+        'تطبيق ÇAVÊ BAADRÊ التابع لمنظمة RABA لاستقبال بلاغات المواطنين ومتابعة الخدمات في ناحية باعذرة',
+        'ئەپی ÇAVÊ BAADRÊ سەربە ڕێکخراوی RABA بۆ وەرگرتنی سکاڵای هاووڵاتیان و بەدواداچوونی خزمەتگوزارییەکان لە باعەدرێ',
+        'ÇAVÊ BAADRÊ app by RABA Organization for citizen reporting and municipal service tracking in Baadre'
       ),
       url: window.location.origin,
     };
@@ -127,10 +128,10 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   <AqqarAppIcon size="sm" variant="clean" showText={false} />
                   <div>
                     <span className="font-black text-base text-[#1E3725] tracking-wide block leading-tight">
-                      CAVE BAADRE
+                      ÇAVÊ BAADRÊ
                     </span>
                     <span className="text-[10px] font-bold text-[#46674D]">
-                      {tr('عين باعدرى الذكية', 'چاوی زیرەکی باعەدرێ', 'Smart Baadre Eye')}
+                      {tr('عين باعذرة • Baadre Eye', 'چاڤێ باعه‌درێ • Baadre Eye', 'Baadre Eye • عين باعذرة')}
                     </span>
                   </div>
                 </div>
@@ -340,9 +341,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                           <div className="p-3.5 pt-0 space-y-2 text-xs text-[#2D4833] leading-relaxed">
                             <p className="font-bold text-[#1E3725] bg-white/70 p-2.5 rounded-xl">
                               {tr(
-                                'منظمة CAVE BAADRE (عين باعدرى الذكية) منصة رقمية مجتمعية تربط المواطنين مباشرة بالدوائر الخدمية في ناحية باعدرى.',
-                                'ڕێکخراوی CAVE BAADRE سەکۆیەکی دیجیتاڵییە بۆ پەیوەندی ڕاستەوخۆ لە نێوان هاووڵاتیان و فەرمانگە خزمەتگوزارییەکان لە باعەدرێ.',
-                                'CAVE BAADRE is a digital platform connecting citizens directly with municipal departments in Baadre.'
+                                'تطبيق ÇAVÊ BAADRÊ (عين باعذرة) مبادرة مجتمعية رقمية تابعة لمنظمة RABA، تربط المواطنين مباشرة بالدوائر الخدمية ومسؤولي الصيانة الميدانية في ناحية باعذرة.',
+                                'ئەپی ÇAVÊ BAADRÊ (چاڤێ باعدرێ) دەستپێشخەرییەکی دیجیتاڵییە سەربە ڕێکخراوی RABA، هاووڵاتیان ڕاستەوخۆ دەبەستێتەوە بە فەرمانگە خزمەتگوزارییەکان لە ناحیەی باعەدرێ.',
+                                'ÇAVÊ BAADRÊ is a civic digital initiative by RABA Organization connecting citizens directly with municipal service departments in Baadre.'
                               )}
                             </p>
                             <ul className="space-y-1.5 text-[11px] font-bold text-[#1E3725] px-1">
@@ -408,9 +409,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                           <div className="p-3.5 pt-0 space-y-2 text-xs text-[#2D4833] leading-relaxed">
                             <p className="font-bold text-[#1E3725] bg-white/70 p-2.5 rounded-xl">
                               {tr(
-                                'تلتزم منصة CAVE BAADRE بالحفاظ الكامل على سرية بيانات المواطنين وأرقام هواتفهم، وتستخدم المعلومات فقط لغرض معالجة البلاغات الخدمية.',
-                                'سەکۆی CAVE BAADRE پابەندە بە پاراستنی تەواوی نهێنی داتای هاووڵاتیان و تەنها بۆ چارەسەرکردنی سکاڵاکان بەکاردەهێنرێت.',
-                                'CAVE BAADRE is committed to safeguarding citizen privacy. Data is used strictly for municipal resolution.'
+                                'تلتزم منظمة RABA في تطبيق ÇAVÊ BAADRÊ بالحفاظ الكامل على خصوصية وسرية بيانات المواطنين وأرقام هواتفهم، وتُستخدم المعلومات فقط لمعالجة البلاغات الخدمية الميدانية في ناحية باعذرة.',
+                                'ڕێکخراوی RABA لە ئەپی ÇAVÊ BAADRÊ بە تەواوی پابەندە بە پاراستنی نهێنی و تایبەتمەندی داتای هاووڵاتیان و تەنها بۆ چارەسەرکردنی سکاڵا خزمەتگوزارییەکان بەکاردەهێنرێت.',
+                                'RABA Organization strictly safeguards citizen privacy in ÇAVÊ BAADRÊ. Data is used solely for civic service resolution in Baadre.'
                               )}
                             </p>
                             <button
@@ -618,9 +619,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               {/* Footer (بدون إطارات) */}
               <div className="p-3 bg-[#F4F9F5]/80 text-center text-[10px] font-bold text-[#46674D]">
                 {tr(
-                  `منظمة CAVE BAADRE • SMART BAADRÊ EYE © ${new Date().getFullYear()}`,
-                  `ڕێکخراوی CAVE BAADRE • SMART BAADRÊ EYE © ${new Date().getFullYear()}`,
-                  `CAVE BAADRE Org • SMART BAADRÊ EYE © ${new Date().getFullYear()}`
+                  `منظمة RABA • تطبيق ÇAVÊ BAADRÊ © ${new Date().getFullYear()}`,
+                  `ڕێکخراوی RABA • ئەپی ÇAVÊ BAADRÊ © ${new Date().getFullYear()}`,
+                  `RABA Organization • ÇAVÊ BAADRÊ App © ${new Date().getFullYear()}`
                 )}
               </div>
             </motion.div>
@@ -633,7 +634,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
         {isAboutModalOpen && (
           <div
             dir={dir}
-            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-[#1E3725]/40 backdrop-blur-xs"
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-[#0F263D]/50 backdrop-blur-xs"
             onClick={() => setIsAboutModalOpen(false)}
           >
             <motion.div
@@ -641,28 +642,29 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               onClick={(e) => e.stopPropagation()}
-              className={`w-full max-w-lg rounded-3xl bg-white shadow-[0_24px_60px_rgba(30,55,37,0.22)] overflow-hidden ${
+              className={`w-full max-w-xl max-h-[88vh] rounded-3xl bg-white shadow-[0_24px_60px_rgba(15,38,61,0.22)] border border-[#CCE3F5] overflow-hidden flex flex-col ${
                 isRTL ? 'text-right' : 'text-left'
               }`}
             >
-              <div className="p-5 bg-[#F4F9F5] flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-[#46674D] text-white flex items-center justify-center shadow-xs">
+              {/* Modal Header */}
+              <div className="p-5 bg-[#F4F9FD] border-b border-[#E2EEF7] flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[#1F4C73] text-white flex items-center justify-center shadow-xs">
                     <Info className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-[#1E3725]">
+                    <h3 className="text-base font-black text-[#153450]">
                       {tr(
-                        'من نحن — منظمة CAVE BAADRE',
-                        'ئێمە کێین — ڕێکخراوی CAVE BAADRE',
-                        'About Us — CAVE BAADRE Organization'
+                        'من نحن — منظمة RABA وتطبيق ÇAVÊ BAADRÊ',
+                        'ئێمە کێین — ڕێکخراوی RABA و ئەپی ÇAVÊ BAADRÊ',
+                        'About Us — RABA Organization & ÇAVÊ BAADRÊ'
                       )}
                     </h3>
-                    <p className="text-xs font-bold text-[#46674D]">
+                    <p className="text-xs font-bold text-[#295B86]">
                       {tr(
-                        'عين باعدرى الذكية لخدمة المجتمع',
-                        'چاوی زیرەکی باعەدرێ بۆ خزمەتی کۆمەڵگە',
-                        'Smart Baadre Eye for Community Service'
+                        'منصة الخدمات المجتمعية في ناحية باعذرة',
+                        'سەکۆی خزمەتگوزارییە کۆمەڵایەتییەکان لە ناحیەی باعەدرێ',
+                        'Civic & Community Service Platform in Baadre'
                       )}
                     </p>
                   </div>
@@ -670,55 +672,92 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAboutModalOpen(false)}
-                  className="p-2 rounded-xl text-[#46674D] hover:bg-[#E8F4EA] transition-colors cursor-pointer"
+                  className="p-2 rounded-xl text-[#295B86] hover:bg-[#E2EEF7] transition-colors cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-5 sm:p-6 space-y-4 text-sm text-[#2D4833] leading-relaxed">
-                <p className="font-bold text-[#1E3725]">
-                  {tr(
-                    'منظمة CAVE BAADRE (عين باعدرى الذكية) هي مبادرة ومنصة مجتمعية رقمية تهدف إلى تعزيز التواصل المباشر بين مواطني ناحية باعدرى والدوائر الخدمية المعنية.',
-                    'ڕێکخراوی CAVE BAADRE (چاوی زیرەکی باعەدرێ) دەستپێشخەری و سەکۆیەکی دیجیتاڵی کۆمەڵایەتییە بە ئامانجی بەهێزکردنی پەیوەندی ڕاستەوخۆ لە نێوان هاووڵاتیانی ناحیەی باعەدرێ و فەرمانگە خزمەتگوزارییە پەیوەندیدارەکان.',
-                    'CAVE BAADRE (Smart Baadre Eye) is a digital community organization and platform dedicated to connecting citizens of Baadre sub-district directly with relevant municipal and service departments.'
-                  )}
-                </p>
-
-                <div className="p-4 rounded-2xl bg-[#F4F9F5] space-y-2 shadow-xs">
-                  <p className="text-xs font-black text-[#46674D]">
-                    {tr('أهدافنا ورسالتنا:', 'ئامانج و پەیاممان:', 'Our Mission & Goals:')}
+              {/* Modal Scrollable Content */}
+              <div className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm text-[#1E3F66] leading-relaxed overflow-y-auto custom-scrollbar">
+                {/* قسم نبذة عن منظمة RABA */}
+                <div className="p-4 rounded-2xl bg-[#F4F9FD] border border-[#CCE3F5] space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-black text-[#153450]">
+                    <Building className="w-4 h-4 text-[#256BA6]" />
+                    <span>
+                      {tr(
+                        'نبذة عن منظمة RABA (ڕێکخراوی RABA)',
+                        'دەربارەی ڕێکخراوی RABA',
+                        'About RABA Organization'
+                      )}
+                    </span>
+                  </div>
+                  <p className="font-medium text-[#294B6F] text-xs leading-relaxed">
+                    {tr(
+                      'منظمة RABA هي منظمة مجتمعية غير حكومية تهدف إلى تمكين المجتمعات المحلية، دعم التنمية الحضرية المستدامة، وتوظيف التقنيات الذكية لتعزيز التواصل المباشر بين المواطنين والمؤسسات الخدمية لرفع مستوى جودة الحياة.',
+                      'ڕێکخراوی RABA ڕێکخراوێکی کۆمەڵایەتی ناحکومییە بە مەبەستی بەهێزکردنی کۆمەڵگە، پەرەپێدانی بەردەوام، و بەکارهێنانی تەکنەلۆژیای زیرەک بۆ نزیککردنەوەی هاووڵاتیان لە دامەزراوە خزمەتگوزارییەکان.',
+                      'RABA Organization is a non-governmental civic organization dedicated to community empowerment, sustainable development, and smart digital governance to enhance local living standards.'
+                    )}
                   </p>
-                  <ul className="space-y-1.5 text-xs font-bold text-[#1E3725] list-disc list-inside">
-                    <li>
-                      {tr(
-                        'استقبال بلاغات المواطنين الموثقة بالصور وإحداثيات GPS بدقة وسهولة.',
-                        'وەرگرتنی سکاڵای هاووڵاتیان بە وێنە و شوێنی GPS بە شێوەیەکی ورد و ئاسان.',
-                        'Receiving citizen reports documented with photos and accurate GPS coordinates.'
-                      )}
+                </div>
+
+                {/* قسم تطبيق ÇAVÊ BAADRÊ */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-black text-[#153450]">
+                    {tr(
+                      'تطبيق ÇAVÊ BAADRÊ (عين باعذرة / چاڤێ باعدرێ)',
+                      'ئەپی ÇAVÊ BAADRÊ (چاڤێ باعدرێ)',
+                      'The ÇAVÊ BAADRÊ Application'
+                    )}
+                  </h4>
+                  <p className="font-medium text-[#294B6F] text-xs leading-relaxed">
+                    {tr(
+                      'تطبيق ÇAVÊ BAADRÊ هو المنصة الرقمية الميدانية المعتمدة من منظمة RABA لخدمة أهالي ناحية باعذرة (المركز، المجمعات، والقرى التابعة). يوفر التطبيق حلاً تقنياً آمناً لتوثيق المشاكل والأعطال بالصور والموقع الجغرافي، وإحالتها فورياً إلى الدوائر الخدمية المختصة ومتابعة مراحل إنجازها.',
+                      'ئەپی ÇAVÊ BAADRÊ سەکۆی دیجیتاڵی فەرمی ڕێکخراوی RABAیە بۆ خزمەتکردنی هاووڵاتیانی ناحیەی باعەدرێ و کۆمەڵگە و گوندەکانی. ئەپەکە ڕێگەیەکی ئاسانە بۆ وەرگرتنی سکاڵاکان بە وێنە و GPS و ناردنی بۆ فەرمانگە پەیوەندیدارەکان و بەدواداچوونی چاککردنەوەیان.',
+                      'ÇAVÊ BAADRÊ is the verified civic platform launched by RABA Organization to serve Baadre sub-district, enabling photo-documented GPS reporting, instant municipal referral, and transparent work verification.'
+                    )}
+                  </p>
+                </div>
+
+                {/* الأهداف والرسالة */}
+                <div className="p-4 rounded-2xl bg-[#F4F9FD] space-y-2 border border-[#E2EEF7]">
+                  <p className="text-xs font-black text-[#1F4C73] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#256BA6]" />
+                    <span>{tr('أهداف ورسالة منظمة RABA عبر التطبيق:', 'ئامانجەکانی ڕێکخراوی RABA لە ڕێگەی ئەپەکە:', 'RABA Organization Strategic Goals:')}</span>
+                  </p>
+                  <ul className="space-y-2 text-xs font-medium text-[#1E3F66]">
+                    <li className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#256BA6] mt-1.5 shrink-0" />
+                      <span>{tr('تسهيل إرسال بلاغات المواطنين الموثقة بالصور وإحداثيات GPS بدقة وسرعة.', 'ئاسانکاری بۆ ناردنی سکاڵای هاووڵاتیان بە وێنە و شوێنی GPS بە شێوەیەکی ورد.', 'Facilitating citizen report submission with photos and GPS precision.')}</span>
                     </li>
-                    <li>
-                      {tr(
-                        'إحالة البلاغات رسمياً إلى الدوائر الخدمية المعنية في ناحية باعدرى ومتابعة إنجازها.',
-                        'ناردنی فەرمی سکاڵاکان بۆ فەرمانگە خزمەتگوزارییە پەیوەندیدارەکان لە باعەدرێ و بەدواداچوونیان.',
-                        'Officially referring reports to the relevant service departments in Baadre and tracking completion.'
-                      )}
+                    <li className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#256BA6] mt-1.5 shrink-0" />
+                      <span>{tr('الإحالة الرسمية المباشرة للدوائر (البلدية، الماء، الكهرباء، الطرق، الصرف الصحي، والنظافة).', 'ناردنی فەرمی و ڕاستەوخۆ بۆ فەرمانگەکان (شارەوانی، ئاو، کارەبا، ڕێگاوبان، ئاوەڕۆ، ژینگە).', 'Direct referral to municipal departments (Municipality, Water, Electricity, Roads, Sanitation).')}</span>
                     </li>
-                    <li>
-                      {tr(
-                        'توثيق الأعمال المنجزة قبل وبعد المعالجة لتعزيز الشفافية وجودة الخدمات العامة.',
-                        'بەڵگەنامەکردنی کارە تەواوکراوەکان پێش و دوای چارەسەرکردن بۆ بەهێزکردنی شەفافیەت.',
-                        'Documenting completed works before and after resolution to promote transparency.'
-                      )}
+                    <li className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#256BA6] mt-1.5 shrink-0" />
+                      <span>{tr('توثيق وأرشفة المشاريع والأعمال المنجزة بصور (قبل وبعد الإنجاز) لتعزيز الشفافية.', 'بەڵگەنامەکردنی کارە تەواوکراوەکان بە وێنەی (پێش و دوای چاککردنەوە) بۆ شەفافیەت.', 'Documenting completed works with before/after photos for civic transparency.')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#256BA6] mt-1.5 shrink-0" />
+                      <span>{tr('استطلاعات الرأي المجتمعية لدراسة احتياجات وأولويات أهالي ناحية باعذرة.', 'ڕاپرسی کۆمەڵایەتی بۆ دیاریکردنی پێداویستییە لەپێشینەکانی خەڵکی باعەدرێ.', 'Community public surveys to assess service priorities in Baadre.')}</span>
                     </li>
                   </ul>
                 </div>
 
-                <div className="flex justify-end pt-2">
+                {/* تواصل منظمة RABA */}
+                <div className="pt-2 border-t border-[#E2EEF7] flex flex-wrap items-center justify-between gap-2 text-xs text-[#295B86] font-bold">
+                  <span>{tr('منظمة RABA • ناحية باعذرة', 'ڕێکخراوی RABA • ناحیەی باعەدرێ', 'RABA Organization • Baadre District')}</span>
+                  <span dir="ltr" className="font-mono text-[#153450]">+964 750 473 8358</span>
+                </div>
+
+                {/* زر الإغلاق */}
+                <div className="flex justify-end pt-1">
                   <button
                     type="button"
                     onClick={() => setIsAboutModalOpen(false)}
-                    className="px-5 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black cursor-pointer shadow-xs"
+                    className="px-6 py-2.5 rounded-xl bg-[#1F4C73] hover:bg-[#163854] text-white text-xs font-black cursor-pointer shadow-xs transition-colors"
                   >
                     {tr('إغلاق', 'داخستن', 'Close')}
                   </button>

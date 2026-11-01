@@ -13,34 +13,34 @@ export interface TranslationDictionary {
 
 export const translations: Record<Language, TranslationDictionary> = {
   ar: {
-    appName: 'CAVE BAADRE',
-    appSubName: 'عين باعدرى الذكية • منصة البلاغات والخدمات المجتمعية',
+    appName: 'ÇAVÊ BAADRÊ',
+    appSubName: 'عين باعذرة • تطبيق الخدمات المجتمعية (منظمة RABA)',
     offlineNotice: 'لا يوجد اتصال بالإنترنت حالياً',
     offlineNoticeDesc:
-      'يرجى التحقق من اتصال الشبكة لديك لاستكمال تصفح ومزامنة بلاغات واستبيانات ناحية باعدرى.',
-    installPwaTitle: 'تثبيت تطبيق عين باعدرى الذكية',
-    installPwaDesc: 'ثبّت التطبيق على شاشك الرئيسية للوصول السريع وتقديم البلاغات فوراً.',
+      'يرجى التحقق من اتصال الشبكة لديك لاستكمال تصفح ومزامنة بلاغات واستبيانات ناحية باعذرة.',
+    installPwaTitle: 'تثبيت تطبيق ÇAVÊ BAADRÊ',
+    installPwaDesc: 'ثبّت التطبيق على شاشتك الرئيسية للوصول السريع وتقديم البلاغات فوراً.',
     installBtn: 'تثبيت',
     dismissBtn: 'إغلاق',
   },
   ku: {
-    appName: 'CAVE BAADRE',
-    appSubName: 'چاوی زیرەکی باعەدرێ • سەکۆی سکاڵا و خزمەتگوزارییەکان',
+    appName: 'ÇAVÊ BAADRÊ',
+    appSubName: 'چاڤێ باعدرێ • ئەپی خزمەتگوزارییە کۆمەڵایەتییەکان (ڕێکخراوی RABA)',
     offlineNotice: 'لە ئێستادا هێڵی ئینتەرنێت نییە',
     offlineNoticeDesc:
       'تکایە دڵنیابەرەوە لە پەیوەندی ئینتەرنێتەکەت بۆ بەردەوامبوون لە ناردنی سکاڵا و ڕاپرسییەکان.',
-    installPwaTitle: 'داگرتنی ئەپی چاوی زیرەکی باعەدرێ',
+    installPwaTitle: 'داگرتنی ئەپی ÇAVÊ BAADRÊ',
     installPwaDesc: 'ئەپەکە لەسەر شاشەی سەرەکی مۆبایلەکەت جێگیر بکە بۆ دەستگەیشتنی خێرا.',
     installBtn: 'داگرتن',
     dismissBtn: 'داخستن',
   },
   en: {
-    appName: 'CAVE BAADRE',
-    appSubName: 'Smart Baadre Eye • Civic Reports & Community Services',
+    appName: 'ÇAVÊ BAADRÊ',
+    appSubName: 'Baadre Eye • Community Services App (RABA Organization)',
     offlineNotice: 'No Internet Connection',
     offlineNoticeDesc:
       'Please check your network connection to continue browsing and syncing Baadre reports and surveys.',
-    installPwaTitle: 'Install CAVE BAADRE App',
+    installPwaTitle: 'Install ÇAVÊ BAADRÊ App',
     installPwaDesc: 'Add the app to your home screen for quick access and instant reporting.',
     installBtn: 'Install',
     dismissBtn: 'Dismiss',

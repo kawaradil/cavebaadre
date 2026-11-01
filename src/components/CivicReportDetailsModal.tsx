@@ -44,6 +44,87 @@ import {
   FieldLimitBadge,
 } from '../lib/inputLimits';
 
+// Helper to convert report images to files in background for direct WhatsApp chat attachment
+const prepareReportImageFiles = async (
+  imageUrls: string[],
+  trackingCode: string
+): Promise<File[]> => {
+  const files: File[] = [];
+  for (let idx = 0; idx < imageUrls.length; idx++) {
+    const url = imageUrls[idx];
+    if (!url) continue;
+    try {
+      if (url.startsWith('data:')) {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const ext = blob.type.includes('png') ? 'png' : 'jpg';
+        files.push(
+          new File([blob], `CaveBaadre_${trackingCode}_photo_${idx + 1}.${ext}`, {
+            type: blob.type || 'image/jpeg',
+          })
+        );
+      } else {
+        const res = await fetch(url, { mode: 'cors' });
+        const blob = await res.blob();
+        const ext = blob.type.includes('png') ? 'png' : 'jpg';
+        files.push(
+          new File([blob], `CaveBaadre_${trackingCode}_photo_${idx + 1}.${ext}`, {
+            type: blob.type || 'image/jpeg',
+          })
+        );
+      }
+    } catch {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const loaded = await new Promise<boolean>((resolve) => {
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(false);
+          img.src = url;
+        });
+        if (loaded) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || 800;
+          canvas.height = img.naturalHeight || 600;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            const blob = await new Promise<Blob | null>((resolve) =>
+              canvas.toBlob(resolve, 'image/jpeg', 0.9)
+            );
+            if (blob) {
+              files.push(
+                new File([blob], `CaveBaadre_${trackingCode}_photo_${idx + 1}.jpg`, {
+                  type: 'image/jpeg',
+                })
+              );
+            }
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+  return files;
+};
+
+// Helper to trigger background download of images without storage links
+const triggerBackgroundDownload = (files: File[]) => {
+  files.forEach((file, index) => {
+    setTimeout(() => {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 12000);
+    }, index * 220);
+  });
+};
+
 interface CivicReportDetailsModalProps {
   report: CivicReport | null;
   onClose: () => void;
@@ -277,12 +358,9 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     'فەرمانگەی خزمەتگوزاری پەیوەندیدار لە باعەدرێ';
 
   const buildWhatsAppDispatchMessage = (adminNoteText: string) => {
-    const httpImageLinks = (report.images || []).filter(
-      (img) => img.startsWith('http://') || img.startsWith('https://')
-    );
-
     const lines: string[] = [
-      `🏛️ *إحالة بلاغ رسمي من منظمة CAVE BAADRE | ناردنی سکاڵای فەرمی لە ڕێکخراوی CAVE BAADRE*`,
+      `🏛️ *إحالة بلاغ رسمي - تطبيق ÇAVÊ BAADRÊ (منظمة Raba)*`,
+      `🏛️ *ناردنی سکاڵای فەرمی - ئەپی ÇAVÊ BAADRÊ (ڕێکخراوی Raba)*`,
       `━━━━━━━━━━━━━━━━━━`,
       `🏢 *الدائرة:* ${deptAr}`,
       `👤 *المستلم (${activeRecipient.roleAr}):* ${activeRecipient.name}`,
@@ -290,7 +368,7 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
       `📌 *عنوان البلاغ:* ${report.title}`,
       `📂 *القطاع الخدمي:* ${sector.ar}`,
       `🚨 *الأولوية:* ${urgency.labelAr}`,
-      `📍 *الموقع:* ناحية باعدرى - ${report.neighborhood} (${report.street})`,
+      `📍 *الموقع:* ناحية باعذرة - ${report.neighborhood} (${report.street})`,
       `📝 *تفاصيل البلاغ:* ${report.description}`,
       `👤 *مقدم البلاغ:* ${report.citizenName} (${report.citizenPhone})`,
     ];
@@ -299,11 +377,11 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
       lines.push(`📋 *ملاحظات الإدارة:* ${adminNoteText.trim()}`);
     }
 
-    lines.push(`📷 *الصور المرفقة:* ${report.images?.length || 1} صور توثيقية`);
-    if (httpImageLinks.length > 0) {
-      httpImageLinks.forEach((link, idx) => {
-        lines.push(`🔗 صورة ${idx + 1}: ${link}`);
-      });
+    const imgCount = report.images?.length || 0;
+    if (imgCount > 0) {
+      lines.push(
+        `📷 *الصور التوثيقية المرفقة:* (${imgCount} صور) تم تحميلها في الخلفية لإرفاقها مباشرة بالمحادثة`
+      );
     }
 
     lines.push(
@@ -467,10 +545,45 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
 
     if (stepStatus === 'in_progress') {
       const waMsg = buildWhatsAppDispatchMessage(rawNoteForStatus);
-      const waUrl = `https://wa.me/${formatWaNumber(
-        activeRecipient.phone
-      )}?text=${encodeURIComponent(waMsg)}`;
-      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      const waPhone = formatWaNumber(activeRecipient.phone);
+      const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(waMsg)}`;
+
+      const reportImages = report.images || [];
+      if (reportImages.length > 0) {
+        // Load and download photos in background for direct chat attachment without storage links
+        prepareReportImageFiles(reportImages, report.trackingCode)
+          .then(async (files) => {
+            if (files.length > 0) {
+              // On supported browsers/devices, launch native share sheet with the photos attached
+              if (
+                typeof navigator !== 'undefined' &&
+                navigator.share &&
+                navigator.canShare &&
+                navigator.canShare({ files })
+              ) {
+                try {
+                  await navigator.share({
+                    title: `ÇAVÊ BAADRÊ - ${report.title}`,
+                    text: waMsg,
+                    files,
+                  });
+                  return;
+                } catch {
+                  // User dismissed or system fallback
+                }
+              }
+
+              // Background download to device so files can be dragged or attached into WhatsApp
+              triggerBackgroundDownload(files);
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            window.open(waUrl, '_blank', 'noopener,noreferrer');
+          });
+      } else {
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
     }
 
     setEditingStep(null);

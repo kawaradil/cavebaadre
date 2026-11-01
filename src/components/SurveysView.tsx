@@ -711,7 +711,7 @@ export const SurveysView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-[#E8F4EA] text-[#46674D] text-[10px] font-black">
-                  CAVE BAADRE • SURVEYS
+                  ÇAVÊ BAADRÊ • منظمة RABA
                 </span>
               </div>
               <h1 className="text-base sm:text-xl font-black text-[#1E3725] mt-0.5">

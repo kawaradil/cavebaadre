@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baadre-smarteye-pwa-v1';
+const CACHE_NAME = 'baadre-cave-pwa-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -6,10 +6,12 @@ const ASSETS_TO_CACHE = [
   '/pwa-icon.svg',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',
+  '/pwa-maskable-512.png',
   '/pwa-192.png',
   '/pwa-512.png',
   '/apple-touch-icon.png',
-  '/favicon.png'
+  '/favicon.png',
+  '/assets/aistudio/cave_baadre_logo.png'
 ];
 
 // Install event - Cache core app shell

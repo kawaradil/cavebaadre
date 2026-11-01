@@ -147,13 +147,6 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
             'My Submitted Reports & Departmental Referral Tracking'
           )}
         </h2>
-        <p className="text-xs sm:text-sm text-[#46674D] font-bold leading-relaxed">
-          {tr(
-            'تستقبل منظمة CAVE BAADRE بلاغات المواطنين وتقوم بتوثيقها وإرسالها رسمياً إلى الدوائر الخدمية المعنية في ناحية باعدرى ومتابعة إنجازها خطوة بخطوة.',
-            'ڕێکخراوی CAVE BAADRE سکاڵای هاووڵاتیان وەردەگرێت و بەفەرمی دەیاننێرێت بۆ فەرمانگە خزمەتگوزارییە پەیوەندیدارەکان لە ناحیەی باعەدرێ و هەنگاو بە هەنگاو بەدواداچوونیان بۆ دەکات.',
-            'CAVE BAADRE receives citizen reports, documents them, and officially refers them to the relevant municipal departments in Baadre while tracking completion step by step.'
-          )}
-        </p>
       </div>
 
       {/* Citizen's Own Added Reports Grid */}

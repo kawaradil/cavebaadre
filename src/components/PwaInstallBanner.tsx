@@ -14,6 +14,7 @@ export const PwaInstallBanner: React.FC = () => {
   useEffect(() => {
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches ||
       (window.navigator as any).standalone === true;
 
     if (isStandalone) {
@@ -96,8 +97,8 @@ export const PwaInstallBanner: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-[#F4F9F5] flex items-center justify-center shrink-0 shadow-xs p-1.5 overflow-hidden">
                 <img
-                  src="/pwa-icon.svg"
-                  alt="CAVE BAADRE Icon"
+                  src="/assets/aistudio/cave_baadre_logo.png"
+                  alt="ÇAVÊ BAADRÊ"
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -151,10 +152,10 @@ export const PwaInstallBanner: React.FC = () => {
                 <Smartphone className="w-4 h-4 text-[#46674D]" />
                 <span>
                   {language === 'ar'
-                    ? 'تثبيت تطبيق CAVE BAADRE على الهاتف'
+                    ? 'تثبيت تطبيق ÇAVÊ BAADRÊ على الهاتف'
                     : language === 'ku'
-                    ? 'داگرتنی CAVE BAADRE بۆ مۆبایل'
-                    : 'Install CAVE BAADRE on Mobile'}
+                    ? 'داگرتنی ئەپی ÇAVÊ BAADRÊ بۆ مۆبایل'
+                    : 'Install ÇAVÊ BAADRÊ on Mobile'}
                 </span>
               </h3>
               <button
@@ -230,15 +231,15 @@ export const PwaInstallBanner: React.FC = () => {
                 <span>
                   {language === 'ar' ? (
                     <>
-                      اضغط <strong>إضافة (Add)</strong> وسيصبح تطبيق CAVE BAADRE جاهزاً على هاتفك.
+                      اضغط <strong>إضافة (Add)</strong> وسيصبح تطبيق ÇAVÊ BAADRÊ جاهزاً على هاتفك.
                     </>
                   ) : language === 'ku' ? (
                     <>
-                      کرتە لە <strong>Add</strong> بکە و ئەپی CAVE BAADRE ئامادە دەبێت.
+                      کرتە لە <strong>Add</strong> بکە و ئەپی ÇAVÊ BAADRÊ ئامادە دەبێت.
                     </>
                   ) : (
                     <>
-                      Tap <strong>Add</strong> and CAVE BAADRE will be ready on your home screen.
+                      Tap <strong>Add</strong> and ÇAVÊ BAADRÊ will be ready on your home screen.
                     </>
                   )}
                 </span>

@@ -374,13 +374,6 @@ export const OrganizationProjectsView: React.FC<OrganizationProjectsViewProps> =
               'No Completed Works Recorded Yet'
             )}
           </h3>
-          <p className="text-xs font-bold text-[#46674D] max-w-md mx-auto leading-relaxed">
-            {tr(
-              'عند تحديث حالة أي بلاغ إلى (تم الإنجاز) مع إرفاق صور وتفاصيل الإنجاز في كارت تفاصيل البلاغ، سيُضاف تلقائياً هنا وفي كولكشن CompletedWork في قاعدة البيانات.',
-              'کاتێک دۆخی هەر سکاڵایەک دەکرێت بە (ئەنجامدرا) لەگەڵ وێنە و وردەکاری ئەنجامدان، ڕاستەوخۆ لێرە و لە بنکەی زانیاری CompletedWork زیاد دەکرێت.',
-              'When any report status is updated to Completed with photos and resolution details, it will automatically appear here and in the CompletedWork database collection.'
-            )}
-          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

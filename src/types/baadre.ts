@@ -588,7 +588,7 @@ export function formatWhatsAppReportMessage(report: CivicReport): string {
   const lng = report.longitude ?? report.lng;
 
   return [
-    `🏛️ *بلاغ رسمي - منصة CAVE BAADRE | سکاڵای فەرمی - سەکۆی CAVE BAADRE*`,
+    `🏛️ *بلاغ رسمي - تطبيق ÇAVÊ BAADRÊ (منظمة RABA) | سکاڵای فەرمی - ئەپی ÇAVÊ BAADRÊ (ڕێکخراوی RABA)*`,
     `━━━━━━━━━━━━━━━━━━`,
     `🇮🇶 *العربية:*`,
     `🔖 *رمز البلاغ:* ${report.trackingCode}`,
@@ -596,7 +596,7 @@ export function formatWhatsAppReportMessage(report: CivicReport): string {
     `🛠️ *القطاع الخدمي:* ${sectorAr}`,
     `🚨 *الأولوية:* ${urgencyAr}`,
     `📊 *الحالة:* ${statusAr}`,
-    `📍 *الموقع:* ناحية باعدرى - ${report.neighborhood} (${report.street})`,
+    `📍 *الموقع:* ناحية باعذرة - ${report.neighborhood} (${report.street})`,
     report.landmark ? `🧭 *نقطة دالة:* ${report.landmark}` : '',
     `👤 *المبلّغ:* ${report.citizenName} (${report.citizenPhone})`,
     `📝 *التفاصيل:* ${report.description}`,
@@ -613,7 +613,7 @@ export function formatWhatsAppReportMessage(report: CivicReport): string {
     `📝 *وردەکاری:* ${report.description}`,
     `━━━━━━━━━━━━━━━━━━`,
     `🌐 *GPS:* https://www.google.com/maps?q=${lat},${lng}`,
-    `✨ CAVE BAADRE • SMART BAADRÊ EYE`,
+    `✨ تطبيق ÇAVÊ BAADRÊ • منظمة RABA`,
   ]
     .filter(Boolean)
     .join('\n');

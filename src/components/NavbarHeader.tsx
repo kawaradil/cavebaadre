@@ -24,6 +24,7 @@ import {
   isReportSentToDepartment,
 } from '../types/baadre';
 import { motion, AnimatePresence } from 'motion/react';
+import { AqqarAppIcon } from './AqqarAppIcon';
 
 interface NavbarHeaderProps {
   onOpenSidebar?: () => void;
@@ -183,15 +184,18 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
               <Menu className="w-5 h-5" />
             </button>
 
-            <span
+            <div
               onClick={() => {
                 if (activeRole === 'citizen') setCitizenTab('works');
                 else setAdminTab('analytics');
               }}
-              className="text-sm sm:text-base font-black tracking-wider text-[#1E3725] font-mono whitespace-nowrap cursor-pointer select-none"
+              className="flex items-center gap-2 cursor-pointer select-none"
             >
-              ÇAVÊ BAADRÊ
-            </span>
+              <AqqarAppIcon size="sm" variant="clean" />
+              <span className="text-sm sm:text-base font-black tracking-wider text-[#1B3E60] font-['Montserrat',sans-serif] whitespace-nowrap">
+                ÇAVÊ BAADRÊ
+              </span>
+            </div>
           </div>
 
           {/* Center Desktop Navigation Tabs (Admin & Citizen) */}
