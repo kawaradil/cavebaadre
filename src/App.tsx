@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Bell, Eye, X, MapPin } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { BaadreProvider, useBaadre } from './context/BaadreContext';
 import { ColorProvider } from './context/ColorContext';
 import { NavbarHeader } from './components/NavbarHeader';
@@ -12,6 +13,7 @@ import { PwaInstallBanner } from './components/PwaInstallBanner';
 import { OfflineBanner } from './components/OfflineBanner';
 import { SplashLoading } from './components/SplashLoading';
 import { CitizenSurveyPopupModal } from './components/CitizenSurveyPopupModal';
+import { AuthModal } from './components/AuthModal';
 import { SECTOR_META, isReportSentToDepartment } from './types/baadre';
 import { playClickSound } from './lib/sound';
 
@@ -60,6 +62,8 @@ const ViewLoadingFallback: React.FC = () => (
 
 const BaadreMainLayout: React.FC = () => {
   const { dir, language } = useLanguage();
+  const { currentUser, isAdmin, isSuperAdmin, openAuthModal } = useAuth();
+  const canAccessAdmin = Boolean(currentUser && (isAdmin || isSuperAdmin));
   const {
     activeRole,
     isSurveysViewOpen,
@@ -116,9 +120,13 @@ const BaadreMainLayout: React.FC = () => {
   const handleOpenDrawer = useCallback(() => setIsDrawerOpen(true), []);
   const handleCloseDrawer = useCallback(() => setIsDrawerOpen(false), []);
   const handleOpenSubmit = useCallback(() => {
+    if (!currentUser) {
+      openAuthModal('login');
+      return;
+    }
     setEditingCitizenReport(null);
     setIsSubmitModalOpen(true);
-  }, [setEditingCitizenReport]);
+  }, [currentUser, openAuthModal, setEditingCitizenReport]);
   const handleCloseSubmit = useCallback(() => {
     setIsSubmitModalOpen(false);
     setEditingCitizenReport(null);
@@ -152,17 +160,17 @@ const BaadreMainLayout: React.FC = () => {
 
       <OfflineBanner />
 
-      {/* رسالة لطيفة ونظيفة عند تغيير حالة البلاغ */}
+      {/* رسالة لطيفة ونظيفة عند تغيير حالة البلاغ بدون التفاف (nowrap) */}
       {statusUpdateToast && (
-        <div className="fixed top-6 inset-x-0 z-[150] flex justify-center px-4 pointer-events-none">
+        <div className="fixed top-6 inset-x-0 z-[150] flex justify-center px-3 pointer-events-none">
           <div
             onClick={clearStatusUpdateToast}
-            className="pointer-events-auto px-5 py-3 rounded-2xl bg-white/95 backdrop-blur-xl text-[#1E3725] border border-[#BBDDC6] shadow-[0_12px_32px_rgba(30,55,37,0.16)] flex items-center gap-2.5 cursor-pointer transition-all"
+            className="pointer-events-auto max-w-full px-4 py-2.5 rounded-2xl bg-white/95 backdrop-blur-xl text-[#1E3725] border border-sky-200/90 shadow-[0_12px_32px_rgba(14,116,144,0.14)] flex items-center flex-nowrap gap-2.5 cursor-pointer transition-all whitespace-nowrap overflow-hidden"
           >
             <span className="w-6 h-6 rounded-full bg-[#46674D] text-white text-xs font-black flex items-center justify-center shrink-0">
               ✓
             </span>
-            <span className="text-xs sm:text-sm font-black text-[#1E3725]">
+            <span className="text-xs sm:text-sm font-black text-[#1E3725] whitespace-nowrap truncate">
               {tr(
                 `تم تغيير حالة البلاغ إلى "${getStatusLabelForToast(
                   statusUpdateToast.toStatus
@@ -179,44 +187,40 @@ const BaadreMainLayout: React.FC = () => {
         </div>
       )}
 
-      {/* رسالة لطيفة على شاشة حساب الإدارة عند وصول بلاغ جديد (يتم إغلاقه أو النقر على العين للدخول لتفاصيل البلاغ) */}
-      {activeRole === 'admin' &&
+      {/* إشعار لطيف بدون التفاف (nowrap) على شاشة الإدارة عند وصول بلاغ جديد */}
+      {canAccessAdmin &&
+        activeRole === 'admin' &&
         newAdminReportAlert &&
         !isReportSentToDepartment(newAdminReportAlert) && (
-          <div className="fixed top-20 inset-x-0 z-[140] flex justify-center px-4 pointer-events-none">
-            <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-white/95 backdrop-blur-xl border border-[#BBDDC6] shadow-[0_14px_36px_rgba(30,55,37,0.18)] p-3.5 flex items-center justify-between gap-3 transition-all">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="w-10 h-10 rounded-2xl bg-[#E8F4EA] text-[#46674D] border border-[#BBDDC6] flex items-center justify-center shrink-0">
-                  <Bell className="w-5 h-5" />
+          <div className="fixed top-20 inset-x-0 z-[140] flex justify-center px-3 pointer-events-none">
+            <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-white/95 backdrop-blur-xl border border-sky-200/90 shadow-[0_14px_36px_rgba(14,116,144,0.16)] px-3.5 py-2.5 flex items-center flex-nowrap justify-between gap-2.5 transition-all overflow-hidden">
+              <div className="flex items-center flex-nowrap gap-2.5 min-w-0 flex-1 overflow-hidden">
+                <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 border border-sky-200/80 flex items-center justify-center shrink-0">
+                  <Bell className="w-4 h-4" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-[#1E3725]">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <div className="flex items-center flex-nowrap gap-1.5 whitespace-nowrap">
+                    <span className="text-xs font-black text-[#1E3725] whitespace-nowrap">
                       {tr(
-                        'يوجد بلاغ جديد وارد',
-                        'سکاڵایەکی نوێ گەیشت',
-                        'New Report Received'
+                        'بلاغ جديد وارد',
+                        'سکاڵایەکی نوێ',
+                        'New Report'
                       )}
                     </span>
                     <span
                       dir="ltr"
-                      className="text-[10px] font-mono font-black text-[#46674D] bg-[#F4F9F5] px-2 py-0.5 rounded-md border border-[#BBDDC6]/60 tabular-nums"
+                      className="text-[10px] font-mono font-black text-sky-800 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200/70 tabular-nums shrink-0 whitespace-nowrap"
                     >
                       {newAdminReportAlert.trackingCode}
                     </span>
                   </div>
-                  <p className="text-xs font-bold text-[#2D4833] truncate mt-0.5">
-                    {SECTOR_META[newAdminReportAlert.sector]?.badgeEmoji}{' '}
-                    {newAdminReportAlert.title}
-                  </p>
-                  <p className="text-[10px] font-semibold text-[#46674D] inline-flex items-center gap-1 truncate">
-                    <MapPin className="w-3 h-3 shrink-0" />
-                    <span>{newAdminReportAlert.neighborhood}</span>
+                  <p className="text-[11px] font-bold text-[#2D4833] truncate whitespace-nowrap mt-0.5">
+                    {newAdminReportAlert.title} • {newAdminReportAlert.neighborhood}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center flex-nowrap gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -234,7 +238,7 @@ const BaadreMainLayout: React.FC = () => {
                     'بینینی وردەکاری سکاڵا',
                     'View Report Details'
                   )}
-                  className="w-9 h-9 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white flex items-center justify-center transition-colors shadow-xs cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white flex items-center justify-center transition-colors shadow-xs cursor-pointer shrink-0"
                 >
                   <Eye className="w-4 h-4" />
                 </button>
@@ -246,7 +250,7 @@ const BaadreMainLayout: React.FC = () => {
                   }}
                   title={tr('إغلاق', 'داخستن', 'Close')}
                   aria-label={tr('إغلاق', 'داخستن', 'Close')}
-                  className="w-9 h-9 rounded-xl bg-[#F4F9F5] hover:bg-[#E8F4EA] text-slate-500 hover:text-[#1E3725] border border-[#E8F4EA] flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-[#F4F9F5] hover:bg-[#E8F4EA] text-slate-500 hover:text-[#1E3725] border border-[#E8F4EA] flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -264,11 +268,11 @@ const BaadreMainLayout: React.FC = () => {
 
       {/* Main Content Area: Lazy-loaded Views with Suspense */}
       <Suspense fallback={<ViewLoadingFallback />}>
-        {isSurveysViewOpen ? (
+        {canAccessAdmin && isSurveysViewOpen ? (
           <main className="relative z-10">
             <SurveysView />
           </main>
-        ) : activeRole === 'admin' ? (
+        ) : canAccessAdmin && activeRole === 'admin' ? (
           <main className="relative z-10">
             <MunicipalControlDashboard
               onSelectReport={setSelectedReport}
@@ -285,8 +289,8 @@ const BaadreMainLayout: React.FC = () => {
         )}
       </Suspense>
 
-      {/* Citizen Published Survey Dismissible Pop-up */}
-      <CitizenSurveyPopupModal />
+      {/* Citizen Published Survey Dismissible Pop-up (لا يظهر للزائرين غير المسجلين) */}
+      {Boolean(currentUser) && <CitizenSurveyPopupModal />}
 
       {/* On-demand Modals & Drawer */}
       <Suspense fallback={null}>
@@ -302,7 +306,7 @@ const BaadreMainLayout: React.FC = () => {
           />
         )}
 
-        {(isSubmitModalOpen || Boolean(editingCitizenReport)) && (
+        {Boolean(currentUser) && (isSubmitModalOpen || Boolean(editingCitizenReport)) && (
           <SubmitReportWizardModal
             isOpen={isSubmitModalOpen || Boolean(editingCitizenReport)}
             onClose={handleCloseSubmit}
@@ -338,6 +342,9 @@ const BaadreMainLayout: React.FC = () => {
 
       {/* PWA Install Prompt Banner */}
       <PwaInstallBanner />
+
+      {/* Auth Modal for Login, Registration, and Recovery */}
+      <AuthModal />
     </div>
   );
 };
@@ -347,9 +354,11 @@ export function App() {
     <ColorProvider>
       <ThemeProvider>
         <LanguageProvider>
-          <BaadreProvider>
-            <BaadreMainLayout />
-          </BaadreProvider>
+          <AuthProvider>
+            <BaadreProvider>
+              <BaadreMainLayout />
+            </BaadreProvider>
+          </AuthProvider>
         </LanguageProvider>
       </ThemeProvider>
     </ColorProvider>

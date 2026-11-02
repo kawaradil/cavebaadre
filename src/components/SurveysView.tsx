@@ -19,9 +19,11 @@ import {
   FileText,
   Pencil,
   PauseCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBaadre } from '../context/BaadreContext';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { playClickSound, playSuccessSound } from '../lib/sound';
 import {
@@ -38,6 +40,7 @@ interface DraftQuestion {
 
 export const SurveysView: React.FC = () => {
   const { language } = useLanguage();
+  const { currentUser, isAdmin, isSuperAdmin } = useAuth();
   const isRTL = language === 'ar' || language === 'ku';
   const dir: 'rtl' | 'ltr' = isRTL ? 'rtl' : 'ltr';
 
@@ -75,6 +78,9 @@ export const SurveysView: React.FC = () => {
 
   // Toast feedback when publishing to citizens
   const [publishFeedbackId, setPublishFeedbackId] = useState<string | null>(null);
+  const [surveyToDelete, setSurveyToDelete] = useState<{ id: string; title: string } | null>(
+    null
+  );
 
   // Create / Edit Survey Screen State
   const [title, setTitle] = useState('');
@@ -328,6 +334,10 @@ export const SurveysView: React.FC = () => {
     }
   };
 
+  if (!currentUser || (!isAdmin && !isSuperAdmin)) {
+    return null;
+  }
+
   // ============================================================================
   // SCREEN 2: شاشة إنشاء استبيان جديد (Separate Create Survey Screen)
   // ============================================================================
@@ -494,17 +504,6 @@ export const SurveysView: React.FC = () => {
                   )}
                 </h2>
               </div>
-
-              <button
-                type="button"
-                onClick={handleAddQuestion}
-                className="px-3.5 py-2 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#1E3725] text-xs font-black flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4 text-[#46674D]" />
-                <span>
-                  {tr('إضافة سؤال جديد', 'زیادکردنی پرسیاری نوێ', 'Add Question')}
-                </span>
-              </button>
             </div>
 
             {draftQuestions.map((q, qIndex) => (
@@ -645,14 +644,14 @@ export const SurveysView: React.FC = () => {
             <button
               type="button"
               onClick={handleAddQuestion}
-              className="w-full py-3 rounded-2xl bg-[#F4F9F5] hover:bg-[#E8F4EA] text-[#2D4833] font-black text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+              className="w-full py-3 rounded-2xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#1E3725] font-black text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 text-[#46674D]" />
               <span>
                 {tr(
-                  'إضافة سؤال آخر للاستبيان',
-                  'زیادکردنی پرسیارێکی تر بۆ ڕاپرسییەکە',
-                  'Add Another Question to Survey'
+                  'إضافة سؤال جديد',
+                  'زیادکردنی پرسیاری نوێ',
+                  'Add New Question'
                 )}
               </span>
             </button>
@@ -1040,7 +1039,7 @@ export const SurveysView: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 playClickSound();
-                                deleteSurvey(survey.id);
+                                setSurveyToDelete({ id: survey.id, title: survey.title });
                               }}
                               className="py-2.5 px-3.5 rounded-2xl bg-rose-50/80 hover:bg-rose-100/90 text-rose-700 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_4px_14px_rgba(225,29,72,0.07)] active:scale-95 transition-all cursor-pointer"
                             >
@@ -1344,6 +1343,59 @@ export const SurveysView: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* نافذة تأكيد حذف الاستبيان */}
+      {surveyToDelete && (
+        <div
+          dir={dir}
+          onClick={() => setSurveyToDelete(null)}
+          className="fixed inset-0 z-[170] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl bg-white border border-rose-200 shadow-2xl p-6 text-center space-y-4"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h4 className="text-base font-black text-[#1E3725]">
+                {tr('تأكيد حذف الاستبيان', 'پشتڕاستکردنەوەی سڕینەوەی ڕاپرسی', 'Confirm Delete Survey')}
+              </h4>
+              <p className="text-xs font-bold text-[#46674D] leading-relaxed">
+                {tr(
+                  'هل أنت متأكد من حذف هذا الاستبيان نهائياً؟',
+                  'ئایا دڵنیایت لە سڕینەوەی ئەم ڕاپرسییە؟',
+                  'Are you sure you want to permanently delete this survey?'
+                )}
+              </p>
+              <p className="text-xs font-black text-rose-700 line-clamp-2">
+                {surveyToDelete.title}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  deleteSurvey(surveyToDelete.id);
+                  setSurveyToDelete(null);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer transition-colors shadow-xs"
+              >
+                {tr('نعم، حذف الاستبيان', 'بەڵێ، سڕینەوە', 'Yes, Delete')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSurveyToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
+              >
+                {tr('إلغاء', 'پاشگەزبوونەوە', 'Cancel')}
+              </button>
+            </div>
           </div>
         </div>
       )}

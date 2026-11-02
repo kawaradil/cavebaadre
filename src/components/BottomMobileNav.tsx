@@ -8,6 +8,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { useBaadre } from '../context/BaadreContext';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { playClickSound } from '../lib/sound';
 
@@ -21,6 +22,7 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
   onOpenSubmitReport,
 }) => {
   const { language } = useLanguage();
+  const { currentUser, isAdmin, isSuperAdmin, isLoggedIn, openAuthModal } = useAuth();
   const {
     activeRole,
     citizenTab,
@@ -30,10 +32,16 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
     setIsSurveysViewOpen,
   } = useBaadre();
 
+  const canAccessAdmin = Boolean(currentUser && (isAdmin || isSuperAdmin));
+
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
 
   const handleOpenAdd = () => {
+    if (!isLoggedIn) {
+      openAuthModal('login');
+      return;
+    }
     if (onOpenSubmitReport) onOpenSubmitReport();
     else if (onOpenAddProperty) onOpenAddProperty();
   };
@@ -45,8 +53,8 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 pointer-events-none">
       {/* الشريط السفلي أبيض شفاف (Transparent White) بدون إطارات وبحواف ناعمة */}
-      <div className={`mx-auto bg-white/70 backdrop-blur-xl border-0 rounded-3xl shadow-[0_8px_30px_rgba(30,55,37,0.10)] px-3 py-1.5 flex items-center ${activeRole === 'citizen' ? 'max-w-sm justify-around' : 'max-w-md justify-around'} pointer-events-auto relative`}>
-        {activeRole === 'citizen' ? (
+      <div className={`mx-auto bg-white/70 backdrop-blur-xl border-0 rounded-3xl shadow-[0_8px_30px_rgba(30,55,37,0.10)] px-3 py-1.5 flex items-center ${activeRole === 'citizen' || !canAccessAdmin ? 'max-w-sm justify-around' : 'max-w-md justify-around'} pointer-events-auto relative`}>
+        {activeRole === 'citizen' || !canAccessAdmin ? (
           <>
             {/* 1. Completed Works (الأعمال المنجزة) */}
             <button
@@ -73,7 +81,7 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
               </span>
             </button>
 
-            {/* 2. Center Add Report Button (داخل الشريط، ألوان خفيفة، حواف غير قائمة، فقط علامة + بارز) */}
+            {/* 2. Center Add Report Button (يظهر للجميع، وعند نقره من قبل زائر يفتح شاشة تسجيل الدخول) */}
             <div className="px-2">
               <button
                 onClick={() => {
@@ -88,7 +96,7 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
               </button>
             </div>
 
-            {/* 3. Track My Reports (تتبع بلاغاتي) */}
+            {/* 3. Track My Reports (تتبع بلاغاتي - يظهر للمواطن والزائر) */}
             <button
               onClick={() => {
                 playClickSound();

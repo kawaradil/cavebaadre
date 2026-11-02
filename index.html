@@ -30,16 +30,19 @@
     <!-- Persistent Firebase Phone Auth reCAPTCHA Container (Never unmounted by React) -->
     <div id="recaptcha-container"></div>
     <div id="root">
-      <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#FFFFFF;">
-        <div style="width:48px;height:3px;background:rgba(70,103,77,0.15);border-radius:999px;overflow:hidden;position:relative;">
-          <div style="width:50%;height:100%;background:#46674D;border-radius:999px;animation:aqqarPreloadPulse 1s infinite ease-in-out;"></div>
+      <div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#DDF2FF;overflow:hidden;">
+        <img
+          src="/assets/aistudio/file_00000000a96882108a7b95ddc566c771_eb4ccf09.png"
+          alt=""
+          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:bottom;transform:scale(1.09);transform-origin:bottom;"
+        />
+        <div style="position:relative;z-index:10;display:flex;flex-direction:column;align-items:center;margin-top:-80px;">
+          <img
+            src="/assets/aistudio/cave_baadre_logo.png"
+            alt="ÇAVÊ BAADRÊ"
+            style="width:176px;height:auto;object-fit:contain;filter:drop-shadow(0 14px 28px rgba(4,72,156,0.22));"
+          />
         </div>
-        <style>
-          @keyframes aqqarPreloadPulse {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(200%); }
-          }
-        </style>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

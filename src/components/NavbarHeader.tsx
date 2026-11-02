@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useBaadre } from '../context/BaadreContext';
+import { useAuth } from '../context/AuthContext';
 import { playClickSound } from '../lib/sound';
 import {
   AdminSectionTab,
@@ -57,6 +58,7 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
     myReports,
     setSelectedReport,
   } = useBaadre();
+  const { currentUser, isSuperAdmin, isAdmin, isLoggedIn, openAuthModal } = useAuth();
 
   const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
   const notifMenuRef = useRef<HTMLDivElement>(null);
@@ -199,7 +201,7 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
           </div>
 
           {/* Center Desktop Navigation Tabs (Admin & Citizen) */}
-          {activeRole === 'admin' ? (
+          {activeRole === 'admin' && Boolean(currentUser && (isAdmin || isSuperAdmin)) ? (
             <nav className="hidden lg:flex items-center gap-1 bg-[#E8F4EA]/70 p-1 rounded-2xl border border-[#BBDDC6]/60">
               {adminSections.map((sec) => {
                 const IconComp = sec.icon;
@@ -276,12 +278,17 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
 
           {/* Right Controls: Add Report Button & Notifications Bell */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* زر تقديم بلاغ / إضافة لطيف وبدون إطارات */}
+
+            {/* زر تقديم بلاغ / إضافة (يظهر للجميع، وعند نقره من قبل زائر يفتح شاشة تسجيل الدخول) */}
             {onOpenSubmitReport && (
               <button
                 type="button"
                 onClick={() => {
                   playClickSound();
+                  if (!isLoggedIn) {
+                    openAuthModal('login');
+                    return;
+                  }
                   onOpenSubmitReport();
                 }}
                 className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-tr from-[#315338] via-[#46674D] to-[#5C8564] text-white text-xs font-black shadow-[0_4px_16px_rgba(45,72,51,0.28)] hover:brightness-105 hover:scale-105 active:scale-95 transition-all cursor-pointer border-0 outline-none"
@@ -292,6 +299,7 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
               </button>
             )}
 
+            {isLoggedIn && (
             <div className="static sm:relative" ref={notifMenuRef}>
               <button
                 type="button"
@@ -362,14 +370,14 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
                       } z-50 rounded-3xl flex flex-col overflow-hidden shadow-[0_20px_50px_rgba(30,55,37,0.22)] border border-[#BBDDC6] bg-white text-[#1E3725]`}
                     >
                       {/* رأس نافذة التنبيهات */}
-                      <div className="px-4 py-3.5 bg-gradient-to-l from-[#E8F4EA]/90 via-[#F4F9F5] to-white border-b border-[#BBDDC6]/70 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-[#46674D] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <div className="px-4 py-3 bg-gradient-to-l from-sky-50/90 via-[#F4F9F5] to-white border-b border-sky-200/70 flex items-center flex-nowrap justify-between gap-2.5">
+                        <div className="flex items-center flex-nowrap gap-2.5 min-w-0 overflow-hidden">
+                          <div className="w-8 h-8 rounded-xl bg-[#46674D] text-white flex items-center justify-center shrink-0 shadow-2xs">
                             <Bell className="w-4 h-4" />
                           </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-xs sm:text-sm font-black text-[#1E3725] truncate">
+                          <div className="min-w-0 overflow-hidden">
+                            <div className="flex items-center flex-nowrap gap-2 whitespace-nowrap">
+                              <h4 className="text-xs sm:text-sm font-black text-[#1E3725] truncate whitespace-nowrap">
                                 {activeRole === 'admin'
                                   ? language === 'ku'
                                     ? 'سکاڵا نەنێردراوەکان'
@@ -384,24 +392,11 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
                               </h4>
                               <span
                                 dir="ltr"
-                                className="px-2 py-0.5 rounded-full bg-[#46674D]/15 text-[#1E3725] text-[10px] font-mono font-black tabular-nums shrink-0"
+                                className="px-2 py-0.5 rounded-full bg-[#46674D]/15 text-[#1E3725] text-[10px] font-mono font-black tabular-nums shrink-0 whitespace-nowrap"
                               >
                                 {toEnglishDigits(notifBadgeCount)}
                               </span>
                             </div>
-                            <p className="text-[11px] text-[#46674D] font-bold truncate mt-0.5">
-                              {activeRole === 'admin'
-                                ? language === 'ku'
-                                  ? 'تەنها ئەو سکاڵایانەی نەنێردراون بۆ فەرمانگە'
-                                  : language === 'en'
-                                  ? 'Reports not yet sent to the department'
-                                  : 'البلاغات التي لم يتم إرسالها للدائرة المعنية'
-                                : language === 'ku'
-                                ? 'سکاڵاکانت کە چاوەڕوانی ناردنن'
-                                : language === 'en'
-                                ? 'Your reports waiting to be sent'
-                                : 'بلاغاتك المستلمة بانتظار إرسالها للدائرة'}
-                            </p>
                           </div>
                         </div>
 
@@ -418,11 +413,11 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
                       {/* قائمة البلاغات غير المرسلة */}
                       <div className="p-3 overflow-y-auto max-h-[62vh] sm:max-h-[380px] space-y-2 custom-scrollbar bg-[#F8FBF9]">
                         {notifList.length === 0 ? (
-                          <div className="py-9 px-4 text-center rounded-2xl bg-white border border-[#E8F4EA]">
-                            <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center mx-auto mb-2.5">
-                              <CheckCircle2 className="w-6 h-6" />
+                          <div className="py-8 px-4 text-center rounded-2xl bg-white border border-[#E8F4EA]">
+                            <div className="w-10 h-10 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center mx-auto mb-2">
+                              <CheckCircle2 className="w-5 h-5" />
                             </div>
-                            <p className="text-xs sm:text-sm font-black text-[#1E3725]">
+                            <p className="text-xs font-black text-[#1E3725] whitespace-nowrap truncate">
                               {activeRole === 'admin'
                                 ? language === 'ku'
                                   ? 'هەموو سکاڵاکان نێردراون بۆ فەرمانگەکان'
@@ -455,40 +450,35 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
                                   setSelectedReport(rep);
                                   if (onSelectReport) onSelectReport(rep);
                                 }}
-                                className="group p-3 rounded-2xl bg-white hover:bg-[#E8F4EA]/70 border border-[#BBDDC6]/80 hover:border-[#46674D] shadow-2xs transition-all cursor-pointer flex items-center justify-between gap-3"
+                                className="group p-3 rounded-2xl bg-white hover:bg-sky-50/60 border border-sky-200/80 hover:border-sky-300 shadow-2xs transition-all cursor-pointer flex items-center flex-nowrap justify-between gap-2.5 overflow-hidden"
                               >
-                                {/* أيقونة القطاع */}
-                                <div className="w-10 h-10 rounded-xl bg-[#F4F9F5] group-hover:bg-white border border-[#BBDDC6]/70 flex items-center justify-center text-base shrink-0">
-                                  {sec.badgeEmoji}
-                                </div>
-
-                                {/* تفاصيل البلاغ بشكل متناسق */}
-                                <div className="min-w-0 flex-1 space-y-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-black text-[#1E3725] truncate">
+                                {/* تفاصيل البلاغ بشكل متناسق وبدون التفاف (nowrap) */}
+                                <div className="min-w-0 flex-1 space-y-1 overflow-hidden">
+                                  <div className="flex items-center flex-nowrap justify-between gap-2 whitespace-nowrap">
+                                    <span className="text-xs font-black text-[#1E3725] truncate whitespace-nowrap">
                                       {rep.title}
                                     </span>
                                     <span
                                       dir="ltr"
-                                      className="text-[10px] font-mono font-black text-[#46674D] bg-[#F4F9F5] px-1.5 py-0.5 rounded-md border border-[#BBDDC6]/60 tabular-nums shrink-0"
+                                      className="text-[10px] font-mono font-black text-sky-900 bg-sky-50 px-1.5 py-0.5 rounded-md border border-sky-200/70 tabular-nums shrink-0 whitespace-nowrap"
                                     >
                                       {toEnglishDigits(rep.trackingCode)}
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-[#46674D]">
-                                    <span className="inline-flex items-center gap-1 truncate">
+                                  <div className="flex items-center flex-nowrap justify-between gap-2 text-[11px] font-bold text-[#46674D] whitespace-nowrap">
+                                    <span className="inline-flex items-center flex-nowrap gap-1 truncate whitespace-nowrap">
                                       <MapPin className="w-3 h-3 shrink-0" />
-                                      <span className="truncate">
+                                      <span className="truncate whitespace-nowrap">
                                         {secLabel} • {rep.neighborhood}
                                       </span>
                                     </span>
 
                                     <span
                                       dir="ltr"
-                                      className="text-[10px] font-mono text-slate-500 inline-flex items-center gap-1 tabular-nums shrink-0"
+                                      className="text-[10px] font-mono text-slate-500 inline-flex items-center flex-nowrap gap-1 tabular-nums shrink-0 whitespace-nowrap"
                                     >
-                                      <Clock className="w-2.5 h-2.5" />
+                                      <Clock className="w-2.5 h-2.5 shrink-0" />
                                       <span>{formatShortTime(rep.createdAt)}</span>
                                     </span>
                                   </div>
@@ -525,6 +515,7 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
                 )}
               </AnimatePresence>
             </div>
+            )}
           </div>
         </div>
       </div>

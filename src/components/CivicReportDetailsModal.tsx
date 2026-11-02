@@ -146,6 +146,7 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     updateReportUrgency,
     deleteReport,
     departments,
+    contactSettings,
   } = useBaadre();
   const { language, dir, isRTL } = useLanguage();
   const [copiedCode, setCopiedCode] = useState(false);
@@ -286,7 +287,9 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
   );
 
   const formatWaNumber = (phoneStr?: string) => {
-    if (!phoneStr) return MUNICIPAL_WHATSAPP_NUMBER.replace(/\D/g, '');
+    if (!phoneStr) {
+      return MUNICIPAL_WHATSAPP_NUMBER;
+    }
     const digits = phoneStr.replace(/\D/g, '');
     if (digits.startsWith('964')) return digits;
     if (digits.startsWith('0')) return `964${digits.slice(1)}`;
@@ -297,19 +300,19 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     matchedDept?.engineerName ||
     matchedDept?.headName ||
     tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer');
-  const engineerPhone = matchedDept?.engineerPhone || matchedDept?.phone || '07504738358';
+  const engineerPhone = matchedDept?.engineerPhone || matchedDept?.phone || '9647749019911';
 
   const deputyName =
     matchedDept?.deputyName ||
     tr('معاون المدير', 'جێگری بەڕێوەبەر', 'Deputy Director');
-  const deputyPhone = matchedDept?.deputyPhone || matchedDept?.phone || '07504738358';
+  const deputyPhone = matchedDept?.deputyPhone || matchedDept?.phone || '9647749019911';
 
   const managerName =
     matchedDept?.managerName ||
     matchedDept?.headName ||
     tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director');
   const managerPhone =
-    matchedDept?.managerPhone || matchedDept?.emergencyPhone || '07504738358';
+    matchedDept?.managerPhone || matchedDept?.emergencyPhone || '9647749019911';
 
   const recipientOptions: {
     key: RecipientRoleKey;

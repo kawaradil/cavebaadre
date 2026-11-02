@@ -10,8 +10,10 @@ import {
   Compass,
   Clock,
   AlertTriangle,
+  LogIn,
 } from 'lucide-react';
 import { useBaadre } from '../context/BaadreContext';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
   CivicReport,
@@ -38,8 +40,10 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
   onOpenSubmitReport,
 }) => {
   const { myReports, citizenTab, deleteReport, setEditingCitizenReport } = useBaadre();
+  const { isLoggedIn, openAuthModal } = useAuth();
   const { language, dir, isRTL } = useLanguage();
   const [reportToDelete, setReportToDelete] = useState<CivicReport | null>(null);
+  const [visibleCount, setVisibleCount] = useState<number>(9);
 
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
@@ -65,6 +69,67 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
 
   if (citizenTab === 'works' || citizenTab === 'projects') {
     return <OrganizationProjectsView />;
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-5 space-y-6">
+        <div
+          className={`p-5 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-2xl border border-[#BBDDC6] shadow-[0_12px_36px_rgba(70,103,77,0.1)] space-y-1.5 ${
+            isRTL ? 'text-right' : 'text-left'
+          }`}
+        >
+          <h2
+            className={`${
+              language === 'ku'
+                ? 'text-base sm:text-lg font-bold'
+                : 'text-xl sm:text-2xl font-black'
+            } text-[#1E3725] leading-snug`}
+          >
+            {tr(
+              'تتبع بلاغاتي',
+              'سکاڵاکانم',
+              'Track My Reports'
+            )}
+          </h2>
+        </div>
+
+        <div className="p-8 sm:p-10 rounded-3xl bg-white/95 border border-[#BBDDC6] text-center space-y-4 shadow-[0_8px_28px_rgba(70,103,77,0.08)]">
+          <div className="w-14 h-14 rounded-2xl bg-[#E8F4EA] border border-[#BBDDC6] flex items-center justify-center text-[#46674D] mx-auto">
+            <LogIn className="w-7 h-7" />
+          </div>
+          <div className="space-y-1.5 max-w-md mx-auto">
+            <h3 className="text-base sm:text-lg font-black text-[#1E3725]">
+              {tr(
+                'قم بالتسجيل لتتبع بلاغاتك',
+                'خۆت تۆمار بکە بۆ بەدواداچوونی سکاڵاکانت',
+                'Please register or sign in to track your reports'
+              )}
+            </h3>
+            <p className="text-xs text-[#46674D] font-bold leading-relaxed">
+              {tr(
+                'يرجى تسجيل الدخول أو إنشاء حساب مواطن جديد لتتمكن من إضافة البلاغات ومتابعة حالتها.',
+                'تکایە چوونەژوورەوە ئەنجام بدە یان هەژمارێکی نوێ دروست بکە بۆ زیادکردن و بەدواداچوونی سکاڵاکانت.',
+                'Sign in or create a citizen account to submit reports and track their status.'
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound();
+              openAuthModal('login');
+            }}
+            className="px-6 py-3 rounded-2xl bg-gradient-to-tr from-[#33553C] via-[#46674D] to-[#5C8564] text-white font-black text-xs sm:text-sm inline-flex items-center gap-2 shadow-[0_8px_22px_rgba(70,103,77,0.28)] hover:brightness-105 hover:scale-105 active:scale-95 transition-all cursor-pointer border-0 outline-none"
+          >
+            <LogIn className="w-4.5 h-4.5 stroke-[2.5]" />
+            <span>
+              {tr('تسجيل الدخول / إنشاء حساب', 'چوونەژوورەوە / خۆتۆمارکردن', 'Sign In / Register')}
+            </span>
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -151,8 +216,9 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
 
       {/* Citizen's Own Added Reports Grid */}
       {myReports.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {myReports.map((report) => {
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {myReports.slice(0, visibleCount).map((report) => {
             const sectorMeta = SECTOR_META[report.sector] || SECTOR_META.other;
             const sectorLabel =
               language === 'ku'
@@ -276,14 +342,14 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
                   <div>
                     {/* Title */}
                     <h3
-                      className="text-base sm:text-[17px] font-black text-slate-900 group-hover:text-[#46674D] transition-colors line-clamp-2 leading-snug"
+                      className="text-base sm:text-[17px] font-black text-[#1E3725] group-hover:text-[#46674D] transition-colors line-clamp-2 leading-snug"
                       title={report.title}
                     >
-                      {report.title}
+                      <bdi>{report.title}</bdi>
                     </h3>
 
                     {/* Location */}
-                    <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-500 font-bold mt-2">
+                    <div className="flex items-center justify-start gap-1.5 text-xs sm:text-[13px] text-[#46674D] font-bold mt-2">
                       <MapPin className="w-4 h-4 text-[#46674D] shrink-0" />
                       <span className="truncate">
                         {tr('باعدرى', 'باعەدرێ', 'Baadre')} • {report.neighborhood}
@@ -292,38 +358,38 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
                     </div>
 
                     {/* Date and Time Row (English Format) */}
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold mt-1.5">
+                    <div className="flex items-center justify-start gap-1.5 text-xs text-[#46674D] font-bold mt-1.5">
                       <Clock className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                      <span dir="ltr" className="font-mono tabular-nums">
+                      <bdi dir="ltr" className="font-mono tabular-nums text-[#1E3725]">
                         {formatDateAndTime(report.createdAt)}
-                      </span>
+                      </bdi>
                     </div>
 
                     {/* Specs Row with Subtle Divider (بدون إظهار نوع الأولوية، فقط حالة فتح البلاغ وتحديد الأولوية) */}
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-2 flex-wrap text-xs sm:text-[13px] text-slate-700 font-bold">
+                    <div className="mt-3 pt-2.5 border-t border-[#E8F4EA] flex items-center justify-start gap-2 flex-wrap text-xs sm:text-[13px] text-[#2D4833] font-bold">
                       {/* 1. رمز البلاغ */}
-                      <span
-                        className="inline-flex items-center gap-1 font-mono font-black text-slate-900 tabular-nums"
+                      <bdi
+                        className="inline-flex items-center gap-1 font-mono font-black text-[#1E3725] tabular-nums"
                         dir="ltr"
                       >
                         <Hash className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
                         <span>{toEnglishDigits(report.trackingCode)}</span>
-                      </span>
+                      </bdi>
 
-                      <span className="text-slate-300">•</span>
+                      <span className="text-[#BBDDC6]">•</span>
 
                       {/* 2. القطاع الخدمي */}
-                      <span className="inline-flex items-center gap-1 font-bold text-slate-900">
+                      <span className="inline-flex items-center gap-1 font-bold text-[#1E3725]">
                         <Layers className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
                         <span>{sectorLabel}</span>
                       </span>
 
-                      <span className="text-slate-300">•</span>
+                      <span className="text-[#BBDDC6]">•</span>
 
                       {/* 3. فتح البلاغ وتحديد الأولوية (بدون ذكر نوع الأولوية) */}
                       <span
                         className={`inline-flex items-center gap-1 font-black ${
-                          isUrgencySet ? 'text-[#46674D]' : 'text-slate-400'
+                          isUrgencySet ? 'text-[#46674D]' : 'text-[#46674D]/70'
                         }`}
                       >
                         <Compass className="w-3.5 h-3.5 shrink-0" />
@@ -345,7 +411,7 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
                   </div>
 
                   {/* Bottom Status & Citizen Row with Views on the Left */}
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2.5">
+                  <div className="mt-3 pt-2.5 border-t border-[#E8F4EA] space-y-2.5">
                     <div className="flex items-end justify-between gap-2">
                       <div className="flex flex-col min-w-0">
                         <span
@@ -356,21 +422,23 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
                           />
                           <span className="truncate">{statusDisplay.text}</span>
                         </span>
-                        <div className="flex items-center gap-1 text-xs text-slate-500 font-bold mt-1 truncate">
-                          <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{report.citizenName}</span>
+                        <div className="flex items-center gap-1 text-xs text-[#46674D] font-bold mt-1 truncate">
+                          <User className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
+                          <span className="truncate">
+                            <bdi>{report.citizenName}</bdi>
+                          </span>
                         </div>
                       </div>
 
                       <div
-                        className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0 select-none"
+                        className="flex items-center gap-1.5 text-xs text-[#46674D] shrink-0 select-none"
                         title={tr('عدد المشاهدات', 'ژمارەی بینین', 'Views')}
                         dir="ltr"
                       >
-                        <span className="font-mono text-xs font-bold text-slate-400 tabular-nums">
+                        <span className="font-mono text-xs font-bold text-[#46674D] tabular-nums">
                           {toEnglishDigits(report.viewsCount || 1)}
                         </span>
-                        <Eye className="w-4 h-4 text-slate-400 opacity-80" />
+                        <Eye className="w-4 h-4 text-[#46674D] opacity-80" />
                       </div>
                     </div>
 
@@ -378,7 +446,7 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
                     {!isSentToDept && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="pt-2 border-t border-slate-100/80 flex items-center justify-end gap-4"
+                        className="pt-2 border-t border-[#E8F4EA] flex items-center justify-end gap-4"
                       >
                         <button
                           type="button"
@@ -399,7 +467,7 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
                             playClickSound();
                             setReportToDelete(report);
                           }}
-                          className="text-[11px] font-bold text-rose-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          className="text-[11px] font-bold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
                         >
                           {tr('حذف البلاغ', 'سڕینەوەی سکاڵا', 'Delete Report')}
                         </button>
@@ -410,6 +478,28 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
               </div>
             );
           })}
+        </div>
+
+          {myReports.length > visibleCount && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setVisibleCount((prev) => prev + 9);
+                }}
+                className="px-6 py-2.5 rounded-2xl bg-[#46674D] text-white font-black text-xs inline-flex items-center gap-2 hover:bg-[#33553C] transition-all cursor-pointer shadow-sm border-0"
+              >
+                <span>
+                  {tr(
+                    `عرض المزيد من البلاغات (${Math.min(visibleCount, myReports.length)} من ${myReports.length})`,
+                    `پیشاندانی سکاڵای زیاتر (${Math.min(visibleCount, myReports.length)} لە ${myReports.length})`,
+                    `Show More Reports (${Math.min(visibleCount, myReports.length)} of ${myReports.length})`
+                  )}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="p-8 sm:p-10 rounded-3xl bg-white/95 border border-[#BBDDC6] text-center space-y-4 shadow-[0_8px_28px_rgba(70,103,77,0.08)]">

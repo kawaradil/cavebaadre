@@ -26,9 +26,24 @@ import {
   UserCog,
   Send,
   HelpCircle,
+  Key,
+  Shield,
+  ShieldAlert,
+  Lock,
+  Mail,
+  Calendar,
+  UserPlus,
 } from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useBaadre } from '../context/BaadreContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+import { RoleManagementModal } from './RoleManagementModal';
+import { AdminRecoveryCodeModal } from './AdminRecoveryCodeModal';
+import { authService } from '../services/authService';
+import { AdminCitizenDTO, toAdminCitizenDTO } from '../types/dto';
+import { UserProfileDocument, UserRole } from '../types/auth';
 import {
   CivicReport,
   SECTOR_META,
@@ -76,9 +91,63 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
     deleteDepartment,
     toggleBlockCitizen,
     setIsAddProjectOpen,
+    loadMoreReports,
+    hasMoreReports,
+    reportsLimitCount,
   } = useBaadre();
   const { language, isRTL } = useLanguage();
+  const { currentUser, isSuperAdmin, isAdmin } = useAuth();
+
   const [reportToDelete, setReportToDelete] = useState<CivicReport | null>(null);
+  const [deptToDelete, setDeptToDelete] = useState<MunicipalDepartment | null>(null);
+  const [selectedCitizenForRole, setSelectedCitizenForRole] = useState<AdminCitizenDTO | null>(null);
+  const [grantAdminDirectTarget, setGrantAdminDirectTarget] = useState<AdminCitizenDTO | null>(null);
+  const [selectedAdminForRecovery, setSelectedAdminForRecovery] = useState<AdminCitizenDTO | null>(null);
+  const [registeredUsersList, setRegisteredUsersList] = useState<AdminCitizenDTO[]>([]);
+
+  // Fetch remote registered users with verified RBAC roles + real-time Firestore listener on users collection
+  React.useEffect(() => {
+    if (!currentUser) return;
+
+    authService
+      .fetchCitizensList(currentUser)
+      .then((users) => {
+        setRegisteredUsersList(users);
+      })
+      .catch(() => {});
+
+    const unsubUsers = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const liveUsers: AdminCitizenDTO[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data() as UserProfileDocument;
+          const uid = docSnap.id;
+          const isDesig = data.email?.trim().toLowerCase() === '11kattak11@gmail.com';
+          const effectiveRole: UserRole = isDesig ? 'super_admin' : data.role || 'citizen';
+          liveUsers.push(
+            toAdminCitizenDTO(
+              {
+                ...data,
+                uid,
+                fullName: isDesig ? 'كاوار عادل طاهر' : data.fullName || 'مواطن مسجل',
+                role: effectiveRole,
+              },
+              effectiveRole === 'admin' || effectiveRole === 'super_admin'
+            )
+          );
+        });
+        if (liveUsers.length > 0) {
+          setRegisteredUsersList(liveUsers);
+        }
+      },
+      () => {}
+    );
+
+    return () => {
+      unsubUsers();
+    };
+  }, [currentUser, isAdmin, isSuperAdmin]);
 
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
@@ -125,6 +194,8 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
   const [tempTeam, setTempTeam] = useState('');
   const [tempNote, setTempNote] = useState('');
   const [savedBannerId, setSavedBannerId] = useState<string | null>(null);
+  const [adminVisibleReportsCount, setAdminVisibleReportsCount] = useState<number>(12);
+  const [adminVisibleCitizensCount, setAdminVisibleCitizensCount] = useState<number>(12);
 
   const activeIncomingReports = React.useMemo(() => {
     return reports.filter((r) => {
@@ -223,16 +294,96 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
     [reports]
   );
 
-  const filteredCitizens = React.useMemo(() => {
-    if (!citizenSearch.trim()) return citizens;
-    const q = citizenSearch.trim().toLowerCase();
-    return citizens.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.phone.includes(q) ||
-        c.neighborhood.toLowerCase().includes(q)
+  const filteredCitizens = React.useMemo<AdminCitizenDTO[]>(() => {
+    const submittedByUid: Record<string, number> = {};
+    const resolvedByUid: Record<string, number> = {};
+
+    reports.forEach((r) => {
+      const owner = String(r.ownerUid || r.citizenId || '').trim();
+      if (owner) {
+        submittedByUid[owner] = (submittedByUid[owner] || 0) + 1;
+        if (r.status === 'resolved') {
+          resolvedByUid[owner] = (resolvedByUid[owner] || 0) + 1;
+        }
+      }
+    });
+
+    const mergedMap = new Map<string, AdminCitizenDTO>();
+
+    // 1. Registered users from users collection (primary source of truth for app accounts)
+    registeredUsersList.forEach((ru) => {
+      const cMatch = citizens.find(
+        (c) => c.id === ru.uid || (ru.phone && c.phone && ru.phone === c.phone)
+      );
+      const isDesig = ru.email?.trim().toLowerCase() === '11kattak11@gmail.com';
+      mergedMap.set(ru.uid, {
+        ...ru,
+        fullName: isDesig
+          ? 'كاوار عادل طاهر'
+          : ru.fullName || cMatch?.name || 'مواطن مسجل',
+        phone: ru.phone || cMatch?.phone || '',
+        neighborhood: ru.neighborhood || cMatch?.neighborhood || 'ناحية باعدرى',
+        role: isDesig ? 'super_admin' : ru.role || 'citizen',
+        reportsSubmittedCount: Math.max(
+          ru.reportsSubmittedCount || 0,
+          cMatch?.reportsSubmittedCount || 0,
+          submittedByUid[ru.uid] || 0
+        ),
+        resolvedReportsCount: Math.max(
+          ru.resolvedReportsCount || 0,
+          cMatch?.resolvedReportsCount || 0,
+          resolvedByUid[ru.uid] || 0
+        ),
+        joinedAt: ru.joinedAt || cMatch?.joinedAt || new Date().toISOString(),
+        isBlocked: Boolean(ru.isBlocked ?? cMatch?.isBlocked ?? false),
+      });
+    });
+
+    // 2. Also include any records in citizens collection not yet in mergedMap
+    citizens.forEach((c) => {
+      if (!mergedMap.has(c.id)) {
+        const match = registeredUsersList.find(
+          (u) => u.uid === c.id || (u.phone && c.phone && u.phone.includes(c.phone))
+        );
+        if (match && mergedMap.has(match.uid)) return;
+
+        mergedMap.set(c.id, {
+          uid: c.id,
+          fullName: c.name || 'مواطن مسجل',
+          email: match?.email || '',
+          phone: c.phone || '',
+          birthDate: match?.birthDate || '',
+          role: match?.role || 'citizen',
+          neighborhood: c.neighborhood || 'ناحية باعدرى',
+          reportsSubmittedCount: Math.max(
+            c.reportsSubmittedCount || 0,
+            submittedByUid[c.id] || 0
+          ),
+          resolvedReportsCount: Math.max(
+            c.resolvedReportsCount || 0,
+            resolvedByUid[c.id] || 0
+          ),
+          joinedAt: c.joinedAt || new Date().toISOString(),
+          isBlocked: Boolean(c.isBlocked),
+          hasRecoveryCodeConfigured: match?.hasRecoveryCodeConfigured,
+        });
+      }
+    });
+
+    const list = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
     );
-  }, [citizens, citizenSearch]);
+
+    if (!citizenSearch.trim()) return list;
+    const q = citizenSearch.trim().toLowerCase();
+    return list.filter(
+      (c) =>
+        c.fullName.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        c.neighborhood.toLowerCase().includes(q) ||
+        (c.email && c.email.toLowerCase().includes(q))
+    );
+  }, [citizens, registeredUsersList, reports, citizenSearch]);
 
   const formatWaNumber = (phoneStr?: string) => {
     if (!phoneStr) return '9647504738358';
@@ -311,12 +462,12 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
 
   const weeklyAnalyticsData = React.useMemo(() => {
     const dayLabels = [
-      tr('السبت', 'شەممە', 'Sat'),
-      tr('الأحد', 'یەکشەممە', 'Sun'),
-      tr('الإثنين', 'دووشەممە', 'Mon'),
-      tr('الثلاثاء', 'سێشەممە', 'Tue'),
-      tr('الأربعاء', 'چوارشەممە', 'Wed'),
-      tr('الخميس', 'پێنجشەممە', 'Thu'),
+      tr('السبت', 'شەمە', 'Sat'),
+      tr('الأحد', 'یەك شەم', 'Sun'),
+      tr('الإثنين', 'دووشەم', 'Mon'),
+      tr('الثلاثاء', 'سێ شەم', 'Tue'),
+      tr('الأربعاء', 'چوار شەم', 'Wed'),
+      tr('الخميس', 'بێنچ شەم', 'Thu'),
       tr('الجمعة', 'هەینی', 'Fri'),
     ];
     const counts = dayLabels.map((day) => ({ day, incoming: 0, resolved: 0 }));
@@ -365,12 +516,12 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <h1 className="text-xl sm:text-2xl font-black text-[#1E3725]">
-                  Dashboard
+                  {tr('لوحة الإحصاءات والمؤشرات', 'تەختەی ئامار و نیشاندەرەکان', 'Analytics Dashboard')}
                 </h1>
               </div>
             </div>
 
-            {/* Unified Long Horizontal Cards (9 مؤشرات مرتبة حسب الطلب بدون أي ظل وبدون إطارات Flat تماماً) */}
+            {/* Unified Long Horizontal Cards (9 مؤشرات مرتبة حسب الطلب بدون أي ظل وبدون إطارات Flat تماماً وبألوان متناسقة) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* 1. اجمالي البلاغات */}
               <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
@@ -378,7 +529,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <div className="w-11 h-11 rounded-2xl bg-[#46674D] text-white flex items-center justify-center shrink-0">
                     <ClipboardList className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <p className="text-sm font-black text-[#1E3725] truncate">
                       {tr('اجمالي البلاغات', 'کۆی گشتی سکاڵاکان', 'Total Reports')}
                     </p>
@@ -404,7 +555,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <div className="w-11 h-11 rounded-2xl bg-rose-100/80 text-rose-600 flex items-center justify-center shrink-0">
                     <AlertTriangle className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-black text-rose-700 truncate">
                         {tr('الحالات الطارئة', 'حاڵەتە فریاگوزارییەکان', 'Emergency Cases')}
@@ -433,9 +584,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-black text-emerald-800 truncate">
+                      <p className="text-sm font-black text-[#1E3725] truncate">
                         {tr('الأعمال المنجزة', 'کارە ئەنجامدراوەکان', 'Completed Works')}
                       </p>
                       <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -459,11 +610,11 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
               {/* 4. نسبة الانجاز */}
               <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-emerald-700 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
                     <TrendingUp className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-emerald-800 truncate">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
+                    <p className="text-sm font-black text-[#1E3725] truncate">
                       {tr('نسبة الانجاز', 'ڕێژەی ئەنجامدان', 'Completion Rate')}
                     </p>
                     <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
@@ -476,30 +627,30 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   </div>
                 </div>
                 <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-xl font-black text-emerald-800 tabular-nums leading-none">
+                  <span className="text-xl font-black text-[#1E3725] tabular-nums leading-none">
                     {reportCardTotals.completionRate}%
                   </span>
                 </div>
               </div>
 
               {/* 5. تم الارسال قيد المعالجة */}
-              <div className="px-4 py-3.5 rounded-2xl bg-blue-50/50 border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-blue-100/80 text-blue-600 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
                     <Wrench className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-black text-blue-700 truncate">
+                      <p className="text-sm font-black text-[#1E3725] truncate">
                         {tr(
                           'تم الارسال قيد المعالجة',
                           'نێردراوە لەژێر چارەسەر',
                           'Sent / In-Progress'
                         )}
                       </p>
-                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-[#46674D] shrink-0" />
                     </div>
-                    <p className="text-xs text-blue-700/90 font-bold mt-0.5 truncate">
+                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
                       {tr(
                         `الفرق في الموقع (${reportCardTotals.pending} بلاغ جديد)`,
                         `تیمەکان لە شوێنەکەن (${reportCardTotals.pending} سکاڵای نوێ)`,
@@ -509,23 +660,23 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   </div>
                 </div>
                 <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-blue-700 tabular-nums leading-none">
+                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
                     {reportCardTotals.inProgress}
                   </span>
                 </div>
               </div>
 
               {/* 6. البلاغات المرفوضة */}
-              <div className="px-4 py-3.5 rounded-2xl bg-slate-100/70 border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-slate-200/70 text-slate-600 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
                     <Ban className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-slate-700 truncate">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
+                    <p className="text-sm font-black text-[#1E3725] truncate">
                       {tr('البلاغات المرفوضة', 'سکاڵا ڕەتکراوەکان', 'Rejected Reports')}
                     </p>
-                    <p className="text-xs text-slate-500 font-bold mt-0.5 truncate">
+                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
                       {tr(
                         'بلاغات غير مطابقة أو خارج الاختصاص',
                         'سکاڵای ناگونجاو یان لە دەرەوەی پسپۆڕی',
@@ -535,7 +686,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   </div>
                 </div>
                 <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-slate-700 tabular-nums leading-none">
+                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
                     {reportCardTotals.rejected}
                   </span>
                 </div>
@@ -547,7 +698,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
                     <Building2 className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <p className="text-sm font-black text-[#1E3725] truncate">
                       {tr('الدوائر الخدمية', 'فەرمانگە خزمەتگوزارییەکان', 'Service Departments')}
                     </p>
@@ -573,7 +724,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
                     <Users className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <p className="text-sm font-black text-[#1E3725] truncate">
                       {tr('المواطنين المسجلين', 'هاوڵاتییە تۆمارکراوەکان', 'Registered Citizens')}
                     </p>
@@ -599,7 +750,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
                     <UserCheck className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <p className="text-sm font-black text-[#1E3725] truncate">
                       {tr('المواطنين المبلغين', 'هاوڵاتییە سکاڵاکارەکان', 'Reporting Citizens')}
                     </p>
@@ -710,11 +861,11 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="p-5 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-xl space-y-4 shadow-[0_12px_36px_rgba(37,126,184,0.08)]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-black text-[#1E3725] flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-[#46674D]" />
-                    <span>
+              <div className="flex flex-col gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-[11px] sm:text-xs font-black text-[#1E3725] flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+                    <TrendingUp className="w-4 h-4 text-[#46674D] shrink-0" />
+                    <span className="whitespace-nowrap">
                       {tr(
                         'المخطط الأسبوعي: البلاغات المستلمة مقابل المنجزة',
                         'خشتەی هەفتانە: سکاڵا وەرگیراوەکان بەرامبەر ئەنجامدراوەکان',
@@ -722,7 +873,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                       )}
                     </span>
                   </h3>
-                  <p className="text-xs text-[#46674D] font-semibold">
+                  <p className="text-[11px] text-[#46674D] font-semibold mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
                     {tr(
                       'مقارنة الأداء الميداني اليومي لفرق بلدية باعدرى خلال الأسبوع',
                       'بەراوردکردنی ئەدای مەیدانی ڕۆژانەی تیمەکانی شارەوانی باعەدرێ لەم هەفتەیەدا',
@@ -730,19 +881,19 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                     )}
                   </p>
                 </div>
-                <div className="flex items-center gap-3 text-[11px] font-bold">
-                  <span className="flex items-center gap-1 text-[#2D4833]">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-[#88B793]" />{' '}
+                <div className="flex items-center gap-3 text-[11px] font-bold whitespace-nowrap">
+                  <span className="flex items-center gap-1 text-[#2D4833] whitespace-nowrap">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-[#88B793] shrink-0" />{' '}
                     {tr('الواردة', 'هاتوو', 'Incoming')}
                   </span>
-                  <span className="flex items-center gap-1 text-[#1E3725]">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-[#46674D]" />{' '}
+                  <span className="flex items-center gap-1 text-[#1E3725] whitespace-nowrap">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-[#46674D] shrink-0" />{' '}
                     {tr('المنجزة', 'ئەنجامدراو', 'Completed')}
                   </span>
                 </div>
               </div>
 
-              <div className="h-60 pt-6 flex items-end justify-between gap-2 pb-2 px-2 bg-[#F4F9F5]/70 rounded-2xl shadow-inner">
+              <div className="h-60 pt-6 flex items-end justify-between gap-1.5 sm:gap-2 pb-2 px-1.5 sm:px-2 bg-[#F4F9F5]/70 rounded-2xl shadow-inner">
                 {weeklyAnalyticsData.map((item) => {
                   const maxVal = Math.max(
                     1,
@@ -753,7 +904,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   return (
                     <div
                       key={item.day}
-                      className="flex-1 flex flex-col items-center gap-2 h-full justify-end"
+                      className="flex-1 flex flex-col items-center gap-2 h-full justify-end min-w-0"
                     >
                       <div className="w-full flex items-end justify-center gap-1.5 h-44">
                         <div
@@ -773,7 +924,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                           </span>
                         </div>
                       </div>
-                      <span className="text-[10px] font-black text-[#2D4833]">{item.day}</span>
+                      <span className="text-[9.5px] sm:text-[10px] font-black text-[#2D4833] whitespace-nowrap">
+                        {item.day}
+                      </span>
                     </div>
                   );
                 })}
@@ -857,7 +1010,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setAdminSectorFilter('ALL')}
-                className={`px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap border-0 transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap border-0 transition-all cursor-pointer ${
                   adminSectorFilter === 'ALL'
                     ? 'bg-[#46674D] text-white'
                     : 'bg-[#F4F9F5] text-[#2D4833] hover:bg-[#E8F4EA]'
@@ -869,13 +1022,12 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                 <button
                   key={sec.key}
                   onClick={() => setAdminSectorFilter(sec.key)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border-0 transition-all flex items-center gap-1 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap border-0 transition-all flex items-center justify-center cursor-pointer ${
                     adminSectorFilter === sec.key
                       ? 'bg-[#46674D] text-white'
                       : 'bg-[#F4F9F5] text-[#2D4833] hover:bg-[#E8F4EA]'
                   }`}
                 >
-                  <span>{sec.badgeEmoji}</span>
                   <span>{getSectorLabel(sec.key)}</span>
                 </button>
               ))}
@@ -884,7 +1036,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
 
           {/* Report Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {activeIncomingReports.map((rep) => {
+            {activeIncomingReports.slice(0, adminVisibleReportsCount).map((rep) => {
               const sec = SECTOR_META[rep.sector];
 
               const getStatusStepInfo = () => {
@@ -1074,6 +1226,48 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
               );
             })}
           </div>
+
+          {(activeIncomingReports.length > adminVisibleReportsCount || hasMoreReports) && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
+              {activeIncomingReports.length > adminVisibleReportsCount && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    setAdminVisibleReportsCount((prev) => prev + 12);
+                  }}
+                  className="px-6 py-2.5 rounded-2xl bg-[#46674D] text-white font-black text-xs inline-flex items-center gap-2 hover:bg-[#33553C] transition-all cursor-pointer shadow-sm border-0"
+                >
+                  <span>
+                    {tr(
+                      `عرض المزيد من البلاغات (${Math.min(adminVisibleReportsCount, activeIncomingReports.length)} من ${activeIncomingReports.length})`,
+                      `پیشاندانی سکاڵای زیاتر (${Math.min(adminVisibleReportsCount, activeIncomingReports.length)} لە ${activeIncomingReports.length})`,
+                      `Show More Reports (${Math.min(adminVisibleReportsCount, activeIncomingReports.length)} of ${activeIncomingReports.length})`
+                    )}
+                  </span>
+                </button>
+              )}
+              {hasMoreReports && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    loadMoreReports();
+                    setAdminVisibleReportsCount((prev) => prev + 24);
+                  }}
+                  className="px-5 py-2.5 rounded-2xl bg-[#E8F4EA] text-[#1E3725] font-black text-xs inline-flex items-center gap-2 hover:bg-[#BBDDC6] transition-all cursor-pointer border border-[#BBDDC6]"
+                >
+                  <span>
+                    {tr(
+                      'تحميل المزيد من السيرفر',
+                      'بارکردنی زیاتر لە سێرڤەرەوە',
+                      'Load More From Cloud'
+                    )}
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1534,7 +1728,10 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
               )}
 
               {/* كروت الدوائر */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div
+                dir={isRTL ? 'rtl' : 'ltr'}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+              >
                 {filteredDepartments.map((dept) => {
                   const engPhone = dept.engineerPhone || dept.phone || '07504738358';
                   const completedCount = getDepartmentCompletedCount(dept);
@@ -1542,11 +1739,14 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   return (
                     <div
                       key={dept.id}
+                      dir={isRTL ? 'rtl' : 'ltr'}
                       onClick={() => {
                         playClickSound();
                         setSelectedDeptModal(dept);
                       }}
-                      className="p-5 rounded-3xl bg-white shadow-[0_8px_26px_rgba(70,103,77,0.07)] hover:shadow-[0_14px_34px_rgba(70,103,77,0.14)] hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between gap-4"
+                      className={`p-5 rounded-3xl bg-white border border-[#E8F4EA] shadow-[0_8px_26px_rgba(70,103,77,0.07)] hover:shadow-[0_14px_34px_rgba(70,103,77,0.14)] hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between gap-4 ${
+                        isRTL ? 'text-right' : 'text-left'
+                      }`}
                     >
                       {/* اسم الدائرة */}
                       <div className="flex items-start justify-between gap-3">
@@ -1555,26 +1755,34 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                             <Building2 className="w-5 h-5" />
                           </div>
                           <h4 className="text-base font-black text-[#1E3725] leading-snug">
-                            {getDeptDisplayName(dept)}
+                            <bdi>{getDeptDisplayName(dept)}</bdi>
                           </h4>
                         </div>
                       </div>
 
-                      {/* رقم المهندس وعدد الأعمال المنجزة */}
+                      {/* رقم المهندس وعدد الأعمال المنجزة بمحاذاة RTL متناسقة */}
                       <div className="grid grid-cols-2 gap-2.5">
-                        <div className="p-3 rounded-2xl bg-[#F4F9F5] flex flex-col justify-center">
+                        <div
+                          className={`p-3 rounded-2xl bg-[#F4F9F5] flex flex-col justify-center ${
+                            isRTL ? 'items-start text-right' : 'items-start text-left'
+                          }`}
+                        >
                           <span className="text-[10px] font-bold text-[#46674D]">
                             {tr('رقم المهندس', 'ژمارەی ئەندازیار', 'Engineer Phone')}
                           </span>
-                          <span
+                          <bdi
                             className="text-xs font-mono font-black text-[#1E3725] mt-0.5"
                             dir="ltr"
                           >
                             {engPhone}
-                          </span>
+                          </bdi>
                         </div>
 
-                        <div className="p-3 rounded-2xl bg-[#E8F4EA]/75 flex flex-col justify-center">
+                        <div
+                          className={`p-3 rounded-2xl bg-[#E8F4EA]/75 flex flex-col justify-center ${
+                            isRTL ? 'items-start text-right' : 'items-start text-left'
+                          }`}
+                        >
                           <span className="text-[10px] font-bold text-[#46674D]">
                             {tr('الأعمال المنجزة', 'کارە ئەنجامدراوەکان', 'Completed Works')}
                           </span>
@@ -1597,7 +1805,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   <div
                     dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full max-w-lg rounded-3xl bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(30,55,37,0.22)] space-y-5"
+                    className={`w-full max-w-lg rounded-3xl bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(30,55,37,0.22)] space-y-5 ${
+                      isRTL ? 'text-right' : 'text-left'
+                    }`}
                   >
                     {/* Header */}
                     <div className="flex items-start justify-between gap-3">
@@ -1607,7 +1817,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                         </div>
                         <div>
                           <h3 className="text-base sm:text-lg font-black text-[#1E3725]">
-                            {getDeptDisplayName(selectedDeptModal)}
+                            <bdi>{getDeptDisplayName(selectedDeptModal)}</bdi>
                           </h3>
                           <p className="text-xs font-bold text-[#46674D] mt-0.5">
                             {tr('الأعمال المنجزة:', 'کارە ئەنجامدراوەکان:', 'Completed Works:')}{' '}
@@ -1640,18 +1850,20 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                           '07504738358';
                         return (
                           <div className="p-3.5 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-                            <div className="min-w-0">
+                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
                               <span className="text-[10px] font-black text-[#46674D] block">
                                 {tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer')}
                               </span>
                               <p className="text-sm font-black text-[#1E3725] truncate mt-0.5">
-                                {engName}
+                                <bdi>{engName}</bdi>
                               </p>
-                              <p
-                                className="text-xs font-mono font-bold text-[#2D4833] mt-0.5"
-                                dir="ltr"
-                              >
-                                {engPhone}
+                              <p className="mt-0.5">
+                                <bdi
+                                  className="text-xs font-mono font-bold text-[#2D4833]"
+                                  dir="ltr"
+                                >
+                                  {engPhone}
+                                </bdi>
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -1687,18 +1899,20 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                           '07504738358';
                         return (
                           <div className="p-3.5 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-                            <div className="min-w-0">
+                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
                               <span className="text-[10px] font-black text-[#46674D] block">
                                 {tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director')}
                               </span>
                               <p className="text-sm font-black text-[#1E3725] truncate mt-0.5">
-                                {depName}
+                                <bdi>{depName}</bdi>
                               </p>
-                              <p
-                                className="text-xs font-mono font-bold text-[#2D4833] mt-0.5"
-                                dir="ltr"
-                              >
-                                {depPhone}
+                              <p className="mt-0.5">
+                                <bdi
+                                  className="text-xs font-mono font-bold text-[#2D4833]"
+                                  dir="ltr"
+                                >
+                                  {depPhone}
+                                </bdi>
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -1735,7 +1949,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                           '07504738358';
                         return (
                           <div className="p-3.5 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-                            <div className="min-w-0">
+                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
                               <span className="text-[10px] font-black text-[#46674D] block">
                                 {tr(
                                   'مدير الدائرة (عند الضرورة)',
@@ -1744,13 +1958,15 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                                 )}
                               </span>
                               <p className="text-sm font-black text-[#1E3725] truncate mt-0.5">
-                                {mgrName}
+                                <bdi>{mgrName}</bdi>
                               </p>
-                              <p
-                                className="text-xs font-mono font-bold text-[#2D4833] mt-0.5"
-                                dir="ltr"
-                              >
-                                {mgrPhone}
+                              <p className="mt-0.5">
+                                <bdi
+                                  className="text-xs font-mono font-bold text-[#2D4833]"
+                                  dir="ltr"
+                                >
+                                  {mgrPhone}
+                                </bdi>
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -1782,8 +1998,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                         type="button"
                         onClick={() => {
                           playClickSound();
-                          deleteDepartment(selectedDeptModal.id);
-                          setSelectedDeptModal(null);
+                          setDeptToDelete(selectedDeptModal);
                         }}
                         className="px-4 py-2 rounded-xl bg-[#F4F9F5] hover:bg-rose-50 text-rose-600 text-xs font-black flex items-center gap-1.5 cursor-pointer"
                       >
@@ -1802,96 +2017,397 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   </div>
                 </div>
               )}
+
+              {/* نافذة تأكيد حذف الدائرة */}
+              {deptToDelete && (
+                <div
+                  dir={isRTL ? 'rtl' : 'ltr'}
+                  onClick={() => setDeptToDelete(null)}
+                  className="fixed inset-0 z-[170] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
+                >
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className={`w-full max-w-sm rounded-3xl bg-white border border-rose-200 shadow-2xl p-6 text-center space-y-4`}
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h4 className="text-base font-black text-[#1E3725]">
+                        {tr('تأكيد حذف الدائرة', 'پشتڕاستکردنەوەی سڕینەوەی فەرمانگە', 'Confirm Delete Department')}
+                      </h4>
+                      <p className="text-xs font-bold text-[#46674D] leading-relaxed">
+                        {tr(
+                          'هل أنت متأكد من حذف هذه الدائرة الخدمية من الدليل؟',
+                          'ئایا دڵنیایت لە سڕینەوەی ئەم فەرمانگەیە؟',
+                          'Are you sure you want to delete this department?'
+                        )}
+                      </p>
+                      <p className="text-xs font-black text-rose-700">
+                        {getDeptDisplayName(deptToDelete)}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playClickSound();
+                          deleteDepartment(deptToDelete.id);
+                          setDeptToDelete(null);
+                          setSelectedDeptModal(null);
+                        }}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer transition-colors shadow-xs"
+                      >
+                        {tr('نعم، حذف الدائرة', 'بەڵێ، سڕینەوە', 'Yes, Delete')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeptToDelete(null)}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-[#F4F9F5] hover:bg-[#E8F4EA] text-[#2D4833] font-bold text-xs cursor-pointer transition-colors"
+                      >
+                        {tr('إلغاء', 'پاشگەزبوونەوە', 'Cancel')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Chip 2 Content: المواطنين المسجلين */}
+          {/* Chip 2 Content: المواطنين المسجلين في التطبيق مع تفاصيل حسابهم وزر منح صلاحية أدمن بعد 2 تأكيد */}
           {directoryChip === 'citizens' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCitizens.map((cit) => (
-                <div
-                  key={cit.id}
-                  className="p-5 rounded-3xl bg-white shadow-[0_8px_26px_rgba(70,103,77,0.07)] flex flex-col justify-between gap-4 transition-all"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-black text-sm text-[#1E3725] truncate">
-                            {cit.name}
-                          </span>
-                          {cit.verified && !cit.isBlocked && (
-                            <UserCheck className="w-3.5 h-3.5 text-[#46674D]" />
-                          )}
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                              cit.isBlocked
-                                ? 'bg-[#F4F9F5] text-rose-600'
-                                : 'bg-[#E8F4EA] text-[#1E3725]'
-                            }`}
-                          >
-                            {cit.isBlocked
-                              ? tr('محظور', 'بلۆککراو', 'Blocked')
-                              : tr('نشط', 'چالاک', 'Active')}
-                          </span>
-                        </div>
-                        <p className="text-xs font-mono text-[#46674D] font-bold mt-0.5" dir="ltr">
-                          {cit.phone}
-                        </p>
-                      </div>
-                    </div>
-
-                    <a
-                      href={`https://wa.me/${formatWaNumber(cit.phone)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2.5 rounded-2xl bg-[#E8F4EA] text-[#46674D] hover:bg-[#46674D] hover:text-white transition-all shrink-0"
-                      title={tr(
-                        'تواصل مباشر عبر واتساب',
-                        'پەیوەندی ڕاستەوخۆ بە واتسئەپ',
-                        'Direct WhatsApp Contact'
-                      )}
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </a>
+            <div className="space-y-4">
+              {filteredCitizens.length === 0 ? (
+                <div className="p-8 rounded-3xl bg-white/95 text-center space-y-2 shadow-[0_8px_26px_rgba(70,103,77,0.06)]">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center mx-auto">
+                    <Users className="w-6 h-6" />
                   </div>
+                  <p className="text-sm font-black text-[#1E3725]">
+                    {tr('لا يوجد مواطنون مسجلون مطابقون للبحث', 'هیچ هاووڵاتییەکی تۆمارکراو نەدۆزرایەوە', 'No registered citizens found')}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div
+                    dir={isRTL ? 'rtl' : 'ltr'}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
+                  {filteredCitizens.slice(0, adminVisibleCitizensCount).map((cit) => {
+                    const displayName = cit.fullName || (cit as any).name || 'مواطن';
+                    const citId = cit.uid || (cit as any).id;
+                    const isAnotherSuperAdmin =
+                      cit.role === 'super_admin' && currentUser?.uid !== cit.uid;
+                    const joinedDateFormatted = (() => {
+                      if (!cit.joinedAt) return '—';
+                      const d = new Date(cit.joinedAt);
+                      if (Number.isNaN(d.getTime())) return cit.joinedAt.slice(0, 10);
+                      return d.toISOString().slice(0, 10);
+                    })();
 
-                  <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-[#2D4833]">
-                      {cit.neighborhood} • {cit.reportsSubmittedCount}{' '}
-                      {tr('بلاغ', 'سکاڵا', 'reports')}
-                    </span>
+                    return (
+                      <div
+                        key={citId}
+                        dir={isRTL ? 'rtl' : 'ltr'}
+                        className={`p-5 rounded-3xl bg-white border border-[#E8F4EA] shadow-[0_10px_30px_rgba(70,103,77,0.08)] flex flex-col justify-between gap-4 transition-all hover:shadow-[0_14px_36px_rgba(70,103,77,0.12)] ${
+                          isRTL ? 'text-right' : 'text-left'
+                        }`}
+                      >
+                        {/* Top Header: Avatar + Name + Role & Status Badges + Contact */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
+                                cit.role === 'super_admin'
+                                  ? 'bg-[#E8F4EA] text-[#1E3725]'
+                                  : cit.role === 'admin'
+                                  ? 'bg-[#E8F4EA] text-[#46674D]'
+                                  : 'bg-[#F4F9F5] text-[#46674D]'
+                              }`}
+                            >
+                              {cit.role === 'super_admin' ? (
+                                <ShieldAlert className="w-6 h-6" />
+                              ) : cit.role === 'admin' ? (
+                                <ShieldCheck className="w-6 h-6" />
+                              ) : (
+                                <Users className="w-6 h-6" />
+                              )}
+                            </div>
+                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
+                              <h4
+                                className={`font-black text-sm sm:text-base text-[#1E3725] truncate ${
+                                  isRTL ? 'text-right' : 'text-left'
+                                }`}
+                              >
+                                <bdi>{displayName}</bdi>
+                              </h4>
+                              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                {/* Role Badge */}
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                                    cit.role === 'super_admin'
+                                      ? 'bg-[#E8F4EA] text-[#1E3725] border border-[#88B793]'
+                                      : cit.role === 'admin'
+                                      ? 'bg-[#E8F4EA] text-[#1E3725] border border-[#88B793]'
+                                      : 'bg-[#F4F9F5] text-[#2D4833] border border-[#BBDDC6]/80'
+                                  }`}
+                                >
+                                  {cit.role === 'super_admin'
+                                    ? tr('سوبر أدمن', 'سوپەر ئەدمین', 'Super Admin')
+                                    : cit.role === 'admin'
+                                    ? tr('مسؤول (أدمن)', 'بەڕێوەبەر', 'Admin')
+                                    : tr('مواطن مسجل', 'هاووڵاتی تۆمارکراو', 'Registered Citizen')}
+                                </span>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                    cit.isBlocked
+                                      ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                                      : 'bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6]/60'
+                                  }`}
+                                >
+                                  {cit.isBlocked
+                                    ? tr('محظور', 'بلۆککراو', 'Blocked')
+                                    : tr('نشط', 'چالاک', 'Active')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
+                          {cit.phone && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <a
+                                href={`tel:${cit.phone}`}
+                                className="p-2 rounded-xl bg-[#F4F9F5] text-[#46674D] hover:bg-[#E8F4EA] transition-all"
+                                title={tr('اتصال هاتفي', 'پەیوەندیکردن', 'Call Citizen')}
+                              >
+                                <Phone className="w-4 h-4" />
+                              </a>
+                              <a
+                                href={`https://wa.me/${formatWaNumber(cit.phone)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 rounded-xl bg-[#E8F4EA] text-[#46674D] hover:bg-[#46674D] hover:text-white transition-all"
+                                title={tr(
+                                  'تواصل مباشر عبر واتساب',
+                                  'پەیوەندی ڕاستەوخۆ بە واتسئەپ',
+                                  'Direct WhatsApp Contact'
+                                )}
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pleasant Account Details Box (تفاصيل الحساب بتصحيح RTL ومحاذاة نصوص وألوان متناسقة) */}
+                        <div
+                          dir={isRTL ? 'rtl' : 'ltr'}
+                          className={`p-3.5 rounded-2xl bg-[#F4F9F5]/95 border border-[#E8F4EA] space-y-2 text-xs ${
+                            isRTL ? 'text-right' : 'text-left'
+                          }`}
+                        >
+                          {/* 1. البريد */}
+                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
+                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
+                              <Mail className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                              <span>{tr('البريد:', 'ئیمەیڵ:', 'Email:')}</span>
+                            </span>
+                            <bdi
+                              className="font-mono font-bold text-[#1E3725] truncate text-[11px]"
+                              dir="ltr"
+                            >
+                              {cit.email || '—'}
+                            </bdi>
+                          </div>
+
+                          {/* 2. الموبايل */}
+                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
+                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
+                              <Phone className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                              <span>{tr('الموبايل:', 'مۆبایل:', 'Phone:')}</span>
+                            </span>
+                            <bdi
+                              className="font-mono font-black text-[#1E3725] text-[11px] tabular-nums"
+                              dir="ltr"
+                            >
+                              {cit.phone || '—'}
+                            </bdi>
+                          </div>
+
+                          {/* 3. تاريخ الميلاد وتاريخ التسجيل بمحاذاة RTL موحدة وأيقونات متناسقة */}
+                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
+                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
+                              <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                              <span>{tr('تاريخ الميلاد:', 'لەدایکبوون:', 'Birth Date:')}</span>
+                            </span>
+                            <bdi
+                              className="text-[11px] font-mono font-black text-[#1E3725] tabular-nums"
+                              dir="ltr"
+                            >
+                              {cit.birthDate || '—'}
+                            </bdi>
+                          </div>
+
+                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
+                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
+                              <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                              <span>{tr('تاريخ التسجيل:', 'بەرواری تۆمار:', 'Joined Date:')}</span>
+                            </span>
+                            <bdi
+                              className="text-[11px] font-mono font-black text-[#1E3725] tabular-nums"
+                              dir="ltr"
+                            >
+                              {joinedDateFormatted}
+                            </bdi>
+                          </div>
+
+                          {/* 4. الموقع وملخص البلاغات */}
+                          <div className="pt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-[#1E3725]">
+                            <span className="inline-flex items-center gap-1.5 text-[#46674D] truncate">
+                              <MapPin className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                              <span className="font-black text-[#1E3725] truncate">
+                                {cit.neighborhood || tr('ناحية باعدرى', 'ناحیا باعەدرێ', 'Baadre')}
+                              </span>
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="px-2 py-0.5 rounded-lg bg-white border border-[#E8F4EA] text-[#1E3725] font-black">
+                                {cit.reportsSubmittedCount} {tr('بلاغ', 'سکاڵا', 'reports')}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-lg bg-[#E8F4EA] text-[#1E3725] font-black">
+                                {cit.resolvedReportsCount} {tr('منجز', 'ئەنجامدراو', 'resolved')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Grant Admin Privilege Button (after 2 confirmations) & Role Management */}
+                        {(isSuperAdmin || (isAdmin && cit.role === 'citizen')) && (
+                          <div className="space-y-2">
+                            {isSuperAdmin && cit.role === 'citizen' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  playClickSound();
+                                  setGrantAdminDirectTarget(cit);
+                                  setSelectedCitizenForRole(cit);
+                                }}
+                                className="w-full py-2.5 px-3.5 rounded-2xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                              >
+                                <UserPlus className="w-4 h-4" />
+                                <span>
+                                  {tr(
+                                    'منح صلاحية أدمن',
+                                    'پێدانی دەسەڵاتی ئەدمین',
+                                    'Grant Admin Role'
+                                  )}
+                                </span>
+                              </button>
+                            )}
+
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              {isSuperAdmin && (
+                                <>
+                                  {isAnotherSuperAdmin ? (
+                                    <div
+                                      className="px-2.5 py-1.5 rounded-xl bg-[#F4F9F5] text-[#46674D] text-[10px] font-bold flex items-center gap-1 cursor-not-allowed"
+                                      title={tr(
+                                        'سوبر أدمن محمي - لا يمكن تعديل أو تخفيض صلاحيات سوبر أدمن آخر',
+                                        'سوپەر ئەدمینی پارێزراو',
+                                        'Protected Super Admin'
+                                      )}
+                                    >
+                                      <Lock className="w-3 h-3" />
+                                      <span>{tr('سوبر أدمن (محمي)', 'پارێزراو', 'Protected')}</span>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playClickSound();
+                                        setGrantAdminDirectTarget(null);
+                                        setSelectedCitizenForRole(cit);
+                                      }}
+                                      className="px-3 py-1.5 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#1E3725] text-[11px] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    >
+                                      <Shield className="w-3.5 h-3.5 text-[#46674D]" />
+                                      <span>{tr('تغيير الدور', 'گۆڕینی ڕۆڵ', 'Change Role')}</span>
+                                    </button>
+                                  )}
+
+                                  {(cit.role === 'admin' ||
+                                    (cit.role === 'super_admin' && currentUser?.uid === cit.uid)) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playClickSound();
+                                        setSelectedAdminForRecovery(cit);
+                                      }}
+                                      className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    >
+                                      <Key className="w-3.5 h-3.5 text-amber-700" />
+                                      <span>{tr('الرمز', 'کۆد', 'Code')}</span>
+                                    </button>
+                                  )}
+                                </>
+                              )}
+
+                              {!isAnotherSuperAdmin &&
+                                cit.role !== 'super_admin' &&
+                                (isSuperAdmin || cit.role === 'citizen') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playClickSound();
+                                      toggleBlockCitizen(citId);
+                                    }}
+                                    className={`px-3 py-1.5 rounded-xl text-[11px] font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                                      cit.isBlocked
+                                        ? 'bg-[#46674D] text-white'
+                                        : 'bg-[#F4F9F5] text-rose-600 hover:bg-rose-50'
+                                    }`}
+                                  >
+                                    {cit.isBlocked ? (
+                                      <>
+                                        <Unlock className="w-3.5 h-3.5" />
+                                        <span>{tr('إلغاء الحظر', 'لادانی بلۆک', 'Unblock')}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Ban className="w-3.5 h-3.5" />
+                                        <span>{tr('حظر', 'بلۆک', 'Block')}</span>
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {filteredCitizens.length > adminVisibleCitizensCount && (
+                  <div className="flex items-center justify-center pt-3">
                     <button
                       type="button"
                       onClick={() => {
                         playClickSound();
-                        toggleBlockCitizen(cit.id);
+                        setAdminVisibleCitizensCount((prev) => prev + 12);
                       }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                        cit.isBlocked
-                          ? 'bg-[#46674D] text-white'
-                          : 'bg-white text-[#2D4833] hover:bg-[#E8F4EA]'
-                      }`}
+                      className="px-6 py-2.5 rounded-2xl bg-[#46674D] text-white font-black text-xs inline-flex items-center gap-2 hover:bg-[#33553C] transition-all cursor-pointer shadow-sm border-0"
                     >
-                      {cit.isBlocked ? (
-                        <>
-                          <Unlock className="w-3.5 h-3.5" />
-                          <span>{tr('إلغاء الحظر', 'لادانی بلۆک', 'Unblock')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Ban className="w-3.5 h-3.5" />
-                          <span>{tr('حظر الحساب', 'بلۆککردنی هەژمار', 'Block Account')}</span>
-                        </>
-                      )}
+                      <span>
+                        {tr(
+                          `عرض المزيد من المواطنين (${Math.min(adminVisibleCitizensCount, filteredCitizens.length)} من ${filteredCitizens.length})`,
+                          `پیشاندانی هاووڵاتی زیاتر (${Math.min(adminVisibleCitizensCount, filteredCitizens.length)} لە ${filteredCitizens.length})`,
+                          `Show More Citizens (${Math.min(adminVisibleCitizensCount, filteredCitizens.length)} of ${filteredCitizens.length})`
+                        )}
+                      </span>
                     </button>
                   </div>
-                </div>
-              ))}
+                )}
+              </>
+            )}
             </div>
           )}
         </div>
@@ -1950,6 +2466,45 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Super Admin Role Management Modal (Supports 2-Confirmation Grant Admin Flow) */}
+      {selectedCitizenForRole && (
+        <RoleManagementModal
+          citizen={selectedCitizenForRole}
+          isOpen={Boolean(selectedCitizenForRole)}
+          initialTargetRole={
+            grantAdminDirectTarget && grantAdminDirectTarget.uid === selectedCitizenForRole.uid
+              ? 'admin'
+              : undefined
+          }
+          startWithConfirmation={Boolean(
+            grantAdminDirectTarget && grantAdminDirectTarget.uid === selectedCitizenForRole.uid
+          )}
+          onClose={() => {
+            setSelectedCitizenForRole(null);
+            setGrantAdminDirectTarget(null);
+          }}
+          onOpenRevealCode={(adminCit) => {
+            setSelectedCitizenForRole(null);
+            setGrantAdminDirectTarget(null);
+            setSelectedAdminForRecovery(adminCit);
+          }}
+          onRoleUpdated={(newRole, uid) => {
+            setRegisteredUsersList((prev) =>
+              prev.map((u) => (u.uid === uid ? { ...u, role: newRole } : u))
+            );
+          }}
+        />
+      )}
+
+      {/* Super Admin Reveal Admin Recovery Code Modal */}
+      {selectedAdminForRecovery && (
+        <AdminRecoveryCodeModal
+          adminCitizen={selectedAdminForRecovery}
+          isOpen={Boolean(selectedAdminForRecovery)}
+          onClose={() => setSelectedAdminForRecovery(null)}
+        />
       )}
     </div>
   );

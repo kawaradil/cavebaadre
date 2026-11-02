@@ -192,20 +192,9 @@ export const SmartAdaptiveImage: React.FC<SmartAdaptiveImageProps> = ({
                   </span>
                 )}
               </div>
-
-              {/* زر إغلاق الصور */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  playClickSound();
-                  setIsViewerOpen(false);
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-              >
-                <X className="w-4 h-4 stroke-[2.5]" />
-                <span>{tr('إغلاق الصورة', 'داخستنی وێنە', 'Close Photo')}</span>
-              </button>
+              <span className="text-xs font-bold text-white/80 truncate">
+                {alt || tr('معاينة الصورة بالحجم الكامل', 'پێشبینینی وێنە بە قەبارەی تەواو', 'Full-size photo preview')}
+              </span>
             </div>
 
             {/* المساحة الوسطى لعرض الصورة بقياس كامل وقابلة للتمرير بدون أن يختفي أي جزء منها تحت الشريط العلوي أو السفلي */}
@@ -258,12 +247,12 @@ export const SmartAdaptiveImage: React.FC<SmartAdaptiveImageProps> = ({
               </div>
             </div>
 
-            {/* الشريط السفلي المستقل للتمرير بين الصور — لا يغطي أي جزء من الصورة */}
+            {/* الشريط السفلي المستقل للتمرير بين الصور وزر الإغلاق في أسفل الصورة */}
             <div
               onClick={(e) => e.stopPropagation()}
-              className="shrink-0 w-full bg-[#1E3725] border-t border-white/15 px-4 py-2.5 flex items-center justify-center gap-2 overflow-x-auto z-20"
+              className="shrink-0 w-full bg-[#1E3725] border-t border-white/15 px-4 py-3 flex flex-col items-center justify-center gap-2.5 z-20"
             >
-              {normalizedGallery.length > 1 ? (
+              {normalizedGallery.length > 1 && (
                 <div className="flex items-center gap-2 overflow-x-auto max-w-full py-0.5 px-1">
                   {normalizedGallery.map((item, idx) => (
                     <button
@@ -288,11 +277,21 @@ export const SmartAdaptiveImage: React.FC<SmartAdaptiveImageProps> = ({
                     </button>
                   ))}
                 </div>
-              ) : (
-                <span className="text-xs font-bold text-white/80">
-                  {alt || tr('معاينة الصورة بالحجم الكامل', 'پێشبینینی وێنە بە قەبارەی تەواو', 'Full-size photo preview')}
-                </span>
               )}
+
+              {/* زر إغلاق الصور في أسفل الصورة */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playClickSound();
+                  setIsViewerOpen(false);
+                }}
+                className="px-6 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4 stroke-[2.5]" />
+                <span>{tr('إغلاق الصورة', 'داخستنی وێنە', 'Close Photo')}</span>
+              </button>
             </div>
           </div>,
           document.body

@@ -6,9 +6,11 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBaadre } from '../context/BaadreContext';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
   OrganizationProject,
@@ -148,12 +150,12 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
   return (
     <div
       dir={dir}
-      className={`rounded-3xl bg-white transition-all duration-300 overflow-hidden flex flex-col justify-between shadow-none border-0 group ${
+      className={`rounded-3xl bg-white transition-all duration-300 overflow-hidden flex flex-col justify-between border border-sky-200/90 hover:border-sky-300 shadow-[0_8px_28px_rgba(14,116,144,0.08)] hover:shadow-[0_12px_34px_rgba(14,116,144,0.13)] group ${
         isRTL ? 'text-right' : 'text-left'
       }`}
     >
       {/* معرض الصور المتسلسل: كل صور (بعد) أولاً ثم كل صور (قبل) */}
-      <div className="relative aspect-video w-full bg-[#1E3725] overflow-hidden">
+      <div className="relative aspect-video w-full bg-[#1E3725] overflow-hidden border-b border-sky-100">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${currentSlide.type}-${safeSlideIdx}`}
@@ -272,60 +274,66 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
         )}
       </div>
 
-      {/* تفاصيل الكارت */}
+      {/* تفاصيل الكارت المتناسقة والمرتبة */}
       <div
         dir={dir}
-        className={`p-5 flex-1 flex flex-col justify-between space-y-3.5 bg-white ${
+        className={`p-5 flex-1 flex flex-col justify-between gap-4 bg-gradient-to-b from-white to-[#F4F9F5]/50 ${
           isRTL ? 'text-right' : 'text-left'
         }`}
       >
         <div className="space-y-3">
-          {/* شريط القطاع والمدة */}
-          <div className="flex flex-wrap items-center justify-start gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#E8F4EA] text-[#1E3725] text-[11px] font-black shrink-0">
-              <span>{sec.badgeEmoji}</span>
+          {/* شريط القطاع والمدة المتناسق */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#E8F4EA]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6] text-[11px] font-black shrink-0">
               <span>{secLabel}</span>
             </span>
 
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#F4F9F5] text-[#2D4833] text-[11px] font-black">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#F4F9F5] text-[#2D4833] border border-[#BBDDC6]/70 text-[11px] font-black">
               <Clock className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
               <span>
-                {tr('مدة الإنجاز:', 'ماوەی ئەنجامدان:', 'Duration:')} {duration}
+                {tr('المدة:', 'ماوە:', 'Duration:')} {duration}
               </span>
             </span>
           </div>
 
           {/* عنوان العمل المنجز */}
-          <h3 className="text-base font-black text-[#1E3725] leading-snug">
-            {work.title}
+          <h3 className="text-[15px] sm:text-base font-black text-[#1E3725] leading-snug">
+            <bdi>{work.title}</bdi>
           </h3>
 
           {/* وصف مختصر للعمل المنجز */}
-          <p className="text-xs font-bold text-[#46674D] leading-relaxed">
-            {work.completionNotes || work.description}
-          </p>
+          {(work.completionNotes || work.description) && (
+            <p className="text-xs font-bold text-[#46674D] leading-relaxed line-clamp-3">
+              {work.completionNotes || work.description}
+            </p>
+          )}
+        </div>
 
-          {/* الدائرة المنجزة والموقع */}
-          <div className="p-3.5 rounded-2xl bg-[#F4F9F5] space-y-2.5">
-            <div className="flex items-start gap-2">
-              <span className="text-[11px] font-bold text-[#46674D] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-                <Building2 className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                <span>{tr('الدائرة المنجزة:', 'فەرمانگەی ئەنجامدەر:', 'Department:')}</span>
-              </span>
-              <span className="text-xs font-black text-[#1E3725] leading-snug">
-                {deptName}
-              </span>
-            </div>
+        {/* الدائرة المنجزة والموقع بتصميم بطاقة مرتبة ومحاذاة RTL سليمة */}
+        <div
+          dir={dir}
+          className={`p-3.5 rounded-2xl bg-[#F4F9F5] border border-[#E8F4EA] space-y-2 ${
+            isRTL ? 'text-right' : 'text-left'
+          }`}
+        >
+          <div className="flex items-center justify-start gap-2">
+            <Building2 className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
+            <span className="text-[11px] font-bold text-[#46674D] shrink-0">
+              {tr('الجهة المنجزة:', 'لایەنی ئەنجامدەر:', 'Department:')}
+            </span>
+            <span className="text-xs font-black text-[#1E3725] truncate">
+              <bdi>{deptName}</bdi>
+            </span>
+          </div>
 
-            <div className="flex items-start gap-2 pt-2 border-t border-[#E8F4EA]">
-              <span className="text-[11px] font-bold text-[#46674D] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-                <MapPin className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                <span>{tr('الموقع:', 'شوێن:', 'Location:')}</span>
-              </span>
-              <span className="text-xs font-black text-[#2D4833] leading-snug">
-                {work.neighborhood}
-              </span>
-            </div>
+          <div className="flex items-center justify-start gap-2 pt-2 border-t border-[#E8F4EA]">
+            <MapPin className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
+            <span className="text-[11px] font-bold text-[#46674D] shrink-0">
+              {tr('الموقع:', 'شوێن:', 'Location:')}
+            </span>
+            <span className="text-xs font-black text-[#1E3725] truncate">
+              <bdi>{work.neighborhood}</bdi>
+            </span>
           </div>
         </div>
       </div>
@@ -335,7 +343,11 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
 
 export const OrganizationProjectsView: React.FC<OrganizationProjectsViewProps> = () => {
   const { projects, reports } = useBaadre();
+  const { currentUser, isAdmin, isSuperAdmin } = useAuth();
   const { language } = useLanguage();
+  const [adminVisibleCount, setAdminVisibleCount] = useState<number>(5);
+
+  const canAccessAllProjects = Boolean(currentUser && (isAdmin || isSuperAdmin));
 
   const isRTL = language === 'ar' || language === 'ku';
   const dir: 'rtl' | 'ltr' = isRTL ? 'rtl' : 'ltr';
@@ -344,7 +356,7 @@ export const OrganizationProjectsView: React.FC<OrganizationProjectsViewProps> =
     language === 'ku' ? ku : language === 'en' ? en : ar;
 
   const visibleProjects = React.useMemo(() => {
-    return projects.filter((work) => {
+    const filtered = projects.filter((work) => {
       if (!work.reportId && !work.trackingCode) return true;
       const linkedReport = reports.find(
         (r) =>
@@ -353,7 +365,31 @@ export const OrganizationProjectsView: React.FC<OrganizationProjectsViewProps> =
       );
       return !linkedReport || linkedReport.status === 'resolved';
     });
+
+    // ترتيب الأعمال المنجزة من الأحدث إلى الأقدم
+    return [...filtered].sort((a, b) => {
+      const timeA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+      const timeB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+      if (timeB !== timeA && !Number.isNaN(timeA) && !Number.isNaN(timeB)) {
+        return timeB - timeA;
+      }
+      const idA = Number(a.id) || 0;
+      const idB = Number(b.id) || 0;
+      return idB - idA;
+    });
   }, [projects, reports]);
+
+  // للزائر والمواطن: آخر 10 أعمال منجزة فقط لا غيرها
+  // للأدمن والسوبر أدمن: كل الأعمال المنجزة مع تحميل 5 ثم 5 ثم 5 وهكذا
+  const displayedProjects = React.useMemo(() => {
+    if (canAccessAllProjects) {
+      return visibleProjects.slice(0, adminVisibleCount);
+    }
+    return visibleProjects.slice(0, 10);
+  }, [visibleProjects, canAccessAllProjects, adminVisibleCount]);
+
+  const hasMoreForAdmin =
+    canAccessAllProjects && visibleProjects.length > adminVisibleCount;
 
   return (
     <div
@@ -362,7 +398,7 @@ export const OrganizationProjectsView: React.FC<OrganizationProjectsViewProps> =
         isRTL ? 'text-right' : 'text-left'
       }`}
     >
-      {visibleProjects.length === 0 ? (
+      {displayedProjects.length === 0 ? (
         <div className="p-10 rounded-3xl bg-white shadow-none border-0 text-center space-y-3">
           <div className="w-14 h-14 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-7 h-7" />
@@ -376,26 +412,50 @@ export const OrganizationProjectsView: React.FC<OrganizationProjectsViewProps> =
           </h3>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visibleProjects.map((work) => {
-            const linkedReport = reports.find(
-              (r) =>
-                (work.reportId && String(r.id) === String(work.reportId)) ||
-                (work.trackingCode && r.trackingCode === work.trackingCode)
-            );
-            return (
-              <CompletedWorkCard
-                key={work.id}
-                work={work}
-                linkedReport={linkedReport}
-                language={language}
-                dir={dir}
-                isRTL={isRTL}
-                tr={tr}
-              />
-            );
-          })}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {displayedProjects.map((work) => {
+              const linkedReport = reports.find(
+                (r) =>
+                  (work.reportId && String(r.id) === String(work.reportId)) ||
+                  (work.trackingCode && r.trackingCode === work.trackingCode)
+              );
+              return (
+                <CompletedWorkCard
+                  key={work.id}
+                  work={work}
+                  linkedReport={linkedReport}
+                  language={language}
+                  dir={dir}
+                  isRTL={isRTL}
+                  tr={tr}
+                />
+              );
+            })}
+          </div>
+
+          {hasMoreForAdmin && (
+            <div className="flex justify-center pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setAdminVisibleCount((prev) => prev + 5);
+                }}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-tr from-[#33553C] via-[#46674D] to-[#5C8564] text-white font-black text-xs sm:text-sm inline-flex items-center gap-2 shadow-[0_8px_22px_rgba(70,103,77,0.25)] hover:brightness-105 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer border-0 outline-none"
+              >
+                <ChevronDown className="w-4.5 h-4.5 stroke-[2.5]" />
+                <span>
+                  {tr(
+                    `تحميل 5 أعمال أخرى (${displayedProjects.length} من ${visibleProjects.length})`,
+                    `بارکردنی 5 کاری دیکە (${displayedProjects.length} لە ${visibleProjects.length})`,
+                    `Load 5 More Works (${displayedProjects.length} of ${visibleProjects.length})`
+                  )}
+                </span>
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

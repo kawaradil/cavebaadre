@@ -133,3 +133,81 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// Background FCM Push & Notification Click Support for Admin & Super Admin Accounts
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload = {};
+  try {
+    payload = event.data.json();
+  } catch {
+    return;
+  }
+
+  const data = payload.data || payload || {};
+  const notification = payload.notification || {};
+  const reportId = String(data.reportId || '').trim();
+  const trackingCode = String(data.trackingCode || reportId || '').trim();
+  const sectorLabel = String(data.sectorLabelAr || data.sector || 'خدمات عامة').trim();
+  const reportTitle = String(data.title || notification.title || 'بلاغ ميداني جديد').trim();
+  const createdAt = String(data.createdAt || '').slice(0, 16).replace('T', ' ');
+  const clickUrl = data.clickUrl || (reportId ? `/?reportId=${encodeURIComponent(reportId)}` : '/');
+
+  const notifTitle =
+    notification.title ||
+    (trackingCode
+      ? `بلاغ جديد (${sectorLabel}) - #${trackingCode}`
+      : `بلاغ جديد (${sectorLabel})`);
+  const notifBody =
+    notification.body ||
+    (createdAt ? `${reportTitle} • التاريخ: ${createdAt}` : reportTitle);
+
+  event.waitUntil(
+    self.registration.showNotification(notifTitle, {
+      body: notifBody,
+      icon: '/assets/aistudio/file_0000000029c881f5afb4aa954e9b4fb8_c75b5b84.png',
+      badge: '/assets/aistudio/file_0000000029c881f5afb4aa954e9b4fb8_c75b5b84.png',
+      dir: 'rtl',
+      lang: 'ar',
+      tag: reportId ? `baadre-report-${reportId}` : 'baadre-admin-report',
+      data: {
+        reportId,
+        trackingCode,
+        clickUrl,
+        clickAction: 'OPEN_ADMIN_REPORT_DETAILS',
+      },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const notifData = event.notification.data || {};
+  const reportId = String(notifData.reportId || '').trim();
+  const trackingCode = String(notifData.trackingCode || '').trim();
+  const targetUrl =
+    notifData.clickUrl ||
+    (reportId ? `/?reportId=${encodeURIComponent(reportId)}` : '/');
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if ('focus' in client) {
+            client.postMessage({
+              type: 'OPEN_ADMIN_REPORT_DETAILS',
+              reportId,
+              trackingCode,
+            });
+            return client.focus();
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+        return null;
+      })
+  );
+});
+

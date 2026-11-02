@@ -33,6 +33,7 @@ import {
 } from '../types/baadre';
 import { useBaadre } from '../context/BaadreContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { playClickSound, playSuccessSound } from '../lib/sound';
 import {
   compressImageFile,
@@ -226,8 +227,9 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
   onClose,
   editingReport,
 }) => {
-  const { submitNewReport, updateCitizenReport } = useBaadre();
+  const { submitNewReport, updateCitizenReport, myReports, contactSettings } = useBaadre();
   const { language, dir, isRTL } = useLanguage();
+  const { currentUser, profile, isAdmin, isSuperAdmin } = useAuth();
 
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
@@ -316,20 +318,20 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       setCustomNeighborhood('');
       setStreet('');
       setLandmark('');
-      setCitizenName('');
-      setCitizenPhone('');
+      setCitizenName(profile?.fullName || currentUser?.displayName || '');
+      setCitizenPhone(profile?.phone || '');
       setCreatedReport(null);
       setIsSent(false);
       setValidationError(null);
     }
-  }, [isOpen, editingReport?.id]);
+  }, [isOpen, editingReport?.id, profile?.fullName, profile?.phone, currentUser?.displayName]);
 
   const finalNeighborhoodVal =
     isOtherNeighborhood && customNeighborhood.trim()
       ? customNeighborhood.trim()
       : neighborhood.trim();
 
-  if (!isOpen) return null;
+  if (!isOpen || !currentUser) return null;
 
   const handleRemoveImage = (indexToRemove: number) => {
     setPhotoItems((prev) => prev.filter((_, idx) => idx !== indexToRemove));
@@ -421,13 +423,18 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
     };
 
     if (!reportToDispatch) {
-      if (editingReport) {
-        reportToDispatch =
-          updateCitizenReport(editingReport.id, reportPayload) || editingReport;
-      } else {
-        reportToDispatch = submitNewReport(reportPayload);
+      try {
+        if (editingReport) {
+          reportToDispatch =
+            updateCitizenReport(editingReport.id, reportPayload) || editingReport;
+        } else {
+          reportToDispatch = submitNewReport(reportPayload);
+        }
+        setCreatedReport(reportToDispatch);
+      } catch (err: any) {
+        setValidationError(err?.message || tr('الحد الأقصى 5 بلاغات لكل مواطن.', 'زۆرترین سنوور ٥ سکاڵایە بۆ هەر هاووڵاتییەک.', 'Max 5 reports per citizen.'));
+        return;
       }
-      setCreatedReport(reportToDispatch);
     }
 
     if (reportToDispatch) {
@@ -435,8 +442,15 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       const url = `https://wa.me/${MUNICIPAL_WHATSAPP_NUMBER}?text=${encodeURIComponent(
         msg
       )}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       setIsSent(true);
+      handleResetAndClose();
     }
   };
 
@@ -515,6 +529,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       }
       playClickSound();
       setStep(4);
+      setIsFullScreenMapOpen(true);
     } else if (step === 4) {
       playClickSound();
       setStep(5);
@@ -578,6 +593,18 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
     }
   };
 
+  const handlePrevStep = () => {
+    setValidationError(null);
+    playClickSound();
+    if (step > 1) {
+      const prev = (step - 1) as WizardStep;
+      setStep(prev);
+      if (prev === 4) {
+        setIsFullScreenMapOpen(true);
+      }
+    }
+  };
+
   const handleResetAndClose = () => {
     setStep(1);
     setCreatedReport(null);
@@ -598,6 +625,61 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       : language === 'en'
       ? SECTOR_META[sector].en
       : SECTOR_META[sector].labelAr;
+
+  const isCitizenAtMaxLimit =
+    !editingReport && !createdReport && !isAdmin && !isSuperAdmin && myReports.length >= 5;
+
+  if (isCitizenAtMaxLimit) {
+    return (
+      <AnimatePresence>
+        <div
+          dir={dir}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto"
+        >
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleResetAndClose}
+            className="fixed inset-0 bg-[#1E3725]/40 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            className={`relative w-full max-w-md bg-white border border-[#BBDDC6] rounded-3xl shadow-2xl p-6 z-10 text-center space-y-4`}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center mx-auto">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base font-black text-[#1E3725]">
+                {tr(
+                  'تم الوصول للحد الأقصى للبلاغات',
+                  'گەیشتیتە زۆرترین سنووری سکاڵاکان',
+                  'Maximum Report Limit Reached'
+                )}
+              </h3>
+              <p className="text-xs font-bold text-[#46674D] leading-relaxed">
+                {tr(
+                  'يُسمح لكل مواطن مسجل بإضافة 5 بلاغات كحد أقصى.',
+                  'هەر هاووڵاتییەکی تۆمارکراو دەتوانێت تا ٥ سکاڵا زیاد بکات.',
+                  'Each registered citizen can submit up to 5 reports.'
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetAndClose}
+              className="w-full py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black transition-all cursor-pointer"
+            >
+              {tr('حسناً، إغلاق', 'باشە، داخستن', 'OK, Close')}
+            </button>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -1644,14 +1726,32 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
             )}
           </AnimatePresence>
 
-          {/* Wizard Footer Controls (تم حذف زر الخطوة السابقة بناءً على الطلب) */}
-          <div className="p-4 border-t border-[#E8F4EA] bg-[#F4F9F5] flex items-center justify-end">
+          {/* Wizard Footer Controls */}
+          <div className="p-4 border-t border-[#E8F4EA] bg-[#F4F9F5] flex items-center justify-between gap-3">
+            {step > 1 ? (
+              <button
+                type="button"
+                disabled={isProcessingImagesOnNext}
+                onClick={handlePrevStep}
+                className="px-5 py-2.5 rounded-xl bg-white hover:bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6] font-black text-xs flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 cursor-pointer"
+              >
+                {isRTL ? (
+                  <ArrowRight className="w-4 h-4 text-[#46674D]" />
+                ) : (
+                  <ArrowLeft className="w-4 h-4 text-[#46674D]" />
+                )}
+                <span>{tr('السابق', 'پێشوو', 'Previous')}</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
             {step < TOTAL_STEPS ? (
               <button
                 type="button"
                 disabled={isProcessingImagesOnNext}
                 onClick={handleNextStep}
-                className="px-6 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] disabled:opacity-60 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] disabled:opacity-60 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
               >
                 <span>{tr('التالي', 'دواتر', 'Next')}</span>
                 {isRTL ? (

@@ -174,9 +174,32 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
     mapInstanceRef.current = map;
     markerRef.current = marker;
 
-    // Ensure Leaflet recalculates container dimensions after modal animation
+    // Ensure Leaflet recalculates container dimensions after modal animation and auto-locate user
     const timer = setTimeout(() => {
       map.invalidateSize();
+      if ('geolocation' in navigator) {
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const newCoords = {
+              lat: Number(pos.coords.latitude.toFixed(5)),
+              lng: Number(pos.coords.longitude.toFixed(5)),
+            };
+            setSelectedCoords(newCoords);
+            setIsLocating(false);
+            onSelectLocation(newCoords.lat, newCoords.lng);
+            if (mapInstanceRef.current) {
+              mapInstanceRef.current.flyTo([newCoords.lat, newCoords.lng], 17, {
+                duration: 1.1,
+              });
+            }
+          },
+          () => {
+            setIsLocating(false);
+          },
+          { enableHighAccuracy: true, timeout: 6500 }
+        );
+      }
     }, 150);
 
     return () => {
@@ -328,20 +351,19 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
           {/* Leaflet Map Container */}
           <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-          {/* Top Floating Close Button */}
+          {/* Top Floating Close Button (Icon-Only without text) */}
           <div className="absolute top-3 sm:top-5 inset-x-3 sm:inset-x-6 z-30 flex items-center justify-end pointer-events-none">
-            {/* Harmonious Close Button (زر إغلاق) */}
             <button
               type="button"
               onClick={() => {
                 playClickSound();
                 onClose();
               }}
+              aria-label={tr('إغلاق الخريطة', 'داخستنی نەخشە', 'Close Map')}
               title={tr('إغلاق الخريطة', 'داخستنی نەخشە', 'Close Map')}
-              className="pointer-events-auto h-11 px-4 rounded-2xl bg-white/95 hover:bg-red-50 text-[#1E3725] hover:text-red-700 border border-[#BBDDC6] hover:border-red-200 shadow-[0_10px_30px_rgba(30,55,37,0.18)] flex items-center gap-2 font-black text-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              className="pointer-events-auto w-11 h-11 rounded-2xl bg-white/95 hover:bg-rose-50 text-[#1E3725] hover:text-rose-600 border border-[#BBDDC6] hover:border-rose-200 shadow-[0_10px_30px_rgba(30,55,37,0.2)] flex items-center justify-center transition-all active:scale-90 cursor-pointer shrink-0"
             >
-              <X className="w-4.5 h-4.5 stroke-[2.4]" />
-              <span>{tr('إغلاق', 'داخستن', 'Close')}</span>
+              <X className="w-5 h-5 stroke-[2.5]" />
             </button>
           </div>
 
@@ -354,7 +376,7 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
                 exit={{ opacity: 0, y: -12 }}
                 className="absolute top-20 inset-x-0 z-30 flex justify-center pointer-events-none px-4"
               >
-                <div className="px-4 py-2 rounded-2xl bg-[#1E3725]/90 backdrop-blur-md text-white text-xs font-bold shadow-xl border border-[#88B793]/50 flex items-center gap-2">
+                <div className="px-4 py-2 rounded-2xl bg-[#1E3725]/90 backdrop-blur-md text-white text-xs font-bold shadow-xl border border-[#88B793]/50 flex items-center gap-2 whitespace-nowrap">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
                   <span>{statusToast}</span>
                 </div>
@@ -362,81 +384,44 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
             )}
           </AnimatePresence>
 
-          {/* Side Harmonious Control Toolbar (أيقونة ستلايت + تحديد موقعي + رمز لتحديد مكان آخر على الخريطة) */}
+          {/* Side Harmonious Control Toolbar (Icon-only buttons without text) */}
           <div
             className={`absolute top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2.5 ${
               isRTL ? 'right-3 sm:right-5' : 'left-3 sm:left-5'
             }`}
           >
-            {/* 1. Satellite Toggle Button (أيقونة ستلايت) */}
+            {/* 1. Satellite Toggle Button (أيقونة ستلايت بدون نصوص) */}
             <button
               type="button"
               onClick={handleToggleSatellite}
-              title={tr(
-                'تبديل بين القمر الصناعي الهجين والخريطة العادية',
-                'گۆڕینی دۆخی مانگی دەستکرد (سەتەلایت)',
-                'Toggle Satellite / Street View'
-              )}
-              className={`group h-12 px-3.5 rounded-2xl backdrop-blur-md border shadow-[0_8px_24px_rgba(30,55,37,0.2)] flex items-center gap-2.5 transition-all active:scale-95 cursor-pointer ${
+              aria-label={tr('تبديل القمر الصناعي', 'گۆڕینی سەتەلایت', 'Toggle Satellite')}
+              title={tr('تبديل القمر الصناعي', 'گۆڕینی سەتەلایت', 'Toggle Satellite')}
+              className={`w-11 h-11 rounded-2xl backdrop-blur-md border shadow-[0_8px_24px_rgba(30,55,37,0.2)] flex items-center justify-center transition-all active:scale-90 cursor-pointer ${
                 isSatellite
                   ? 'bg-[#46674D] text-white border-white/60'
                   : 'bg-white/95 hover:bg-[#E8F4EA] text-[#1E3725] border-[#BBDDC6]'
               }`}
             >
-              <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
-                  isSatellite
-                    ? 'bg-white/20 text-white'
-                    : 'bg-[#E8F4EA] text-[#46674D] group-hover:bg-white'
-                }`}
-              >
-                {isSatellite ? (
-                  <Satellite className="w-4.5 h-4.5 stroke-[2.2]" />
-                ) : (
-                  <MapIcon className="w-4.5 h-4.5 stroke-[2.2]" />
-                )}
-              </div>
-              <div className={`flex flex-col ${isRTL ? 'text-right' : 'text-left'}`}>
-                <span className="text-xs font-black leading-tight">
-                  {tr('ستلايت', 'سەتەلایت', 'Satellite')}
-                </span>
-                <span
-                  className={`text-[9.5px] font-bold ${
-                    isSatellite ? 'text-emerald-100' : 'text-[#46674D]'
-                  }`}
-                >
-                  {isSatellite
-                    ? tr('قمر صناعي هجين', 'مانگی دەستکرد', 'Google Hybrid')
-                    : tr('خريطة الشوارع OSM', 'نەخشەی شەقام', 'OSM Streets')}
-                </span>
-              </div>
+              {isSatellite ? (
+                <Satellite className="w-5 h-5 stroke-[2.2]" />
+              ) : (
+                <MapIcon className="w-5 h-5 stroke-[2.2]" />
+              )}
             </button>
 
-            {/* 2. Locate Me Button (تحديد موقعي) */}
+            {/* 2. Locate Me Button (تحديد موقعي بدون نصوص) */}
             <button
               type="button"
               onClick={handleLocateMe}
               disabled={isLocating}
-              title={tr('تحديد موقعي الحالي عبر GPS', 'دیاریکردنی شوێنی ئێستام GPS', 'Locate Me via GPS')}
-              className="group h-12 px-3.5 rounded-2xl bg-white/95 hover:bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6] shadow-[0_8px_24px_rgba(30,55,37,0.2)] flex items-center gap-2.5 transition-all active:scale-95 cursor-pointer disabled:opacity-70"
+              aria-label={tr('تحديد موقعي', 'شوێنی من', 'Locate Me')}
+              title={tr('تحديد موقعي', 'شوێنی من', 'Locate Me')}
+              className="w-11 h-11 rounded-2xl bg-white/95 hover:bg-[#E8F4EA] text-[#46674D] border border-[#BBDDC6] shadow-[0_8px_24px_rgba(30,55,37,0.2)] flex items-center justify-center transition-all active:scale-90 cursor-pointer disabled:opacity-70"
             >
-              <div className="w-8 h-8 rounded-xl bg-[#E8F4EA] group-hover:bg-[#46674D] text-[#46674D] group-hover:text-white flex items-center justify-center transition-colors">
-                <LocateFixed
-                  className={`w-4.5 h-4.5 stroke-[2.2] ${isLocating ? 'animate-spin' : ''}`}
-                />
-              </div>
-              <div className={`flex flex-col ${isRTL ? 'text-right' : 'text-left'}`}>
-                <span className="text-xs font-black leading-tight">
-                  {isLocating
-                    ? tr('جاري التحديد...', 'دیاریکردن...', 'Locating...')
-                    : tr('تحديد موقعي', 'شوێنی من', 'Locate Me')}
-                </span>
-                <span className="text-[9.5px] font-bold text-[#46674D]">
-                  {tr('موقعي الحالي GPS', 'شوێنی ئێستام', 'Current GPS')}
-                </span>
-              </div>
+              <LocateFixed
+                className={`w-5 h-5 stroke-[2.2] ${isLocating ? 'animate-spin' : ''}`}
+              />
             </button>
-
           </div>
 
           {/* Opposite Side Harmonious Zoom Controls */}
@@ -679,7 +664,7 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
       <div className="relative h-48 rounded-2xl overflow-hidden border border-[#BBDDC6] shadow-inner bg-[#E8F4EA]">
         <div ref={previewContainerRef} className="w-full h-full cursor-pointer z-10" />
 
-        {/* Mini Floating Quick Controls on Preview */}
+        {/* Mini Floating Quick Controls on Preview (Icon-only without text) */}
         <div
           className={`absolute top-2.5 z-20 flex items-center gap-1.5 ${
             isRTL ? 'right-2.5' : 'left-2.5'
@@ -692,24 +677,26 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
               playClickSound();
               setIsSatellite((prev) => !prev);
             }}
-            className={`h-8 px-2.5 rounded-xl backdrop-blur-md border text-[11px] font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
+            aria-label={tr('ستلايت', 'سەتەلایت', 'Satellite')}
+            title={tr('ستلايت', 'سەتەلایت', 'Satellite')}
+            className={`w-9 h-9 rounded-xl backdrop-blur-md border flex items-center justify-center shadow-sm transition-all cursor-pointer ${
               isSatellite
                 ? 'bg-[#46674D] text-white border-white/50'
                 : 'bg-white/95 text-[#1E3725] border-[#BBDDC6]'
             }`}
           >
-            <Satellite className="w-3.5 h-3.5" />
-            <span>{tr('ستلايت', 'سەتەلایت', 'Satellite')}</span>
+            {isSatellite ? <Satellite className="w-4 h-4" /> : <MapIcon className="w-4 h-4" />}
           </button>
 
           <button
             type="button"
             onClick={handleQuickLocate}
             disabled={isLocating}
-            className="h-8 px-2.5 rounded-xl bg-white/95 hover:bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6] text-[11px] font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            aria-label={tr('موقعي', 'شوێنی من', 'Locate Me')}
+            title={tr('موقعي', 'شوێنی من', 'Locate Me')}
+            className="w-9 h-9 rounded-xl bg-white/95 hover:bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6] flex items-center justify-center shadow-sm transition-all cursor-pointer"
           >
-            <LocateFixed className={`w-3.5 h-3.5 text-[#46674D] ${isLocating ? 'animate-spin' : ''}`} />
-            <span>{tr('موقعي', 'شوێنی من', 'Locate Me')}</span>
+            <LocateFixed className={`w-4 h-4 text-[#46674D] ${isLocating ? 'animate-spin' : ''}`} />
           </button>
         </div>
 

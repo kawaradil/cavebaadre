@@ -10,11 +10,13 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBaadre } from '../context/BaadreContext';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { playClickSound, playSuccessSound } from '../lib/sound';
 
 export const CitizenSurveyPopupModal: React.FC = () => {
   const { language, dir, isRTL } = useLanguage();
+  const { isLoggedIn, currentUser } = useAuth();
   const {
     activeRole,
     isSurveysViewOpen,
@@ -29,11 +31,16 @@ export const CitizenSurveyPopupModal: React.FC = () => {
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
 
-  // All published surveys for citizens
-  const publishedSurveys = surveys.filter((s) => s.isPublishedToCitizens);
+  // فقط الاستبيانات المنشورة وغير المكتملة من قبل هذا المواطن (بالاعتماد على Firestore)
+  const uncompletedPublishedSurveys = surveys.filter(
+    (s) =>
+      s.isPublishedToCitizens &&
+      s.status !== 'closed' &&
+      !answeredSurveyIds.includes(s.id)
+  );
 
-  // Active survey to display in the popup (first published survey not dismissed)
-  const activePopupSurvey = publishedSurveys.find(
+  // الاستبيان الفعّال في النافذة المنبثقة (أول استبيان منشور غير مكتمل ولم يغلقه المواطن مؤقتاً في هذه الجلسة)
+  const activePopupSurvey = uncompletedPublishedSurveys.find(
     (s) => !dismissedSurveyIds.includes(s.id)
   );
 
@@ -55,17 +62,16 @@ export const CitizenSurveyPopupModal: React.FC = () => {
     setIsSubmittedSuccess(false);
   }, [activePopupSurvey?.id]);
 
-  // Only show on Citizen account when not in the admin/surveys management screen
-  if (activeRole !== 'citizen' || isSurveysViewOpen) {
+  // Only show to logged-in Citizen accounts (never show to unauthenticated visitors)
+  if (!isLoggedIn || !currentUser || activeRole !== 'citizen' || isSurveysViewOpen) {
     return null;
   }
 
-  // If there are published surveys, but the user dismissed the popup, show a small floating trigger pill so they can reopen it anytime
+  // إذا أكمل المواطن جميع الاستبيانات المنشورة، يختفي الاستبيان والزر العائم نهائياً من واجهة المواطن.
+  // أما إذا أغلق الاستبيان دون إرسال، فيبقى الزر العائم ظاهراً له ليتمكن من فتحه والمشاركة لاحقاً.
   if (!activePopupSurvey) {
-    if (publishedSurveys.length === 0) return null;
-    const unansweredCount = publishedSurveys.filter(
-      (s) => !answeredSurveyIds.includes(s.id)
-    ).length;
+    if (uncompletedPublishedSurveys.length === 0) return null;
+    const unansweredCount = uncompletedPublishedSurveys.length;
 
     return (
       <div
@@ -84,13 +90,11 @@ export const CitizenSurveyPopupModal: React.FC = () => {
         >
           <ClipboardList className="w-4 h-4" />
           <span>
-            {unansweredCount > 0
-              ? tr(
-                  `استبيان جديد للمواطنين (${unansweredCount})`,
-                  `ڕاپرسی نوێ بۆ هاووڵاتیان (${unansweredCount})`,
-                  `New Citizen Survey (${unansweredCount})`
-                )
-              : tr('فتح الاستبيان المجتمعي', 'کردنەوەی ڕاپرسی', 'Open Survey')}
+            {tr(
+              `استبيان جديد للمواطنين (${unansweredCount})`,
+              `ڕاپرسی نوێ بۆ هاووڵاتیان (${unansweredCount})`,
+              `New Citizen Survey (${unansweredCount})`
+            )}
           </span>
         </button>
       </div>

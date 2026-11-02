@@ -85,19 +85,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
             <div className="space-y-2">
               <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
-                {this.props.fallbackTitle || 'عذراً، حدث خطأ غير متوقع'}
+                {this.props.fallbackTitle || 'حدث خطأ مؤقت'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                {this.props.fallbackDescription ||
-                  'تم التقاط الخطأ وحماية التطبيق من الإغلاق. يمكنك تحديث الصفحة أو إعادة المحاولة لاستكمال التصفح بأمان.'}
+                {this.props.fallbackDescription || 'يرجى إعادة المحاولة.'}
               </p>
             </div>
-
-            {this.state.error && process.env.NODE_ENV !== 'production' && (
-              <div className="text-right p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-[11px] font-mono text-red-600 dark:text-red-400 overflow-x-auto max-h-32">
-                {this.state.error.toString()}
-              </div>
-            )}
 
             <div className="flex items-center justify-center gap-3 pt-2">
               <button

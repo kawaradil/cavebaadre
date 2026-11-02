@@ -1,5 +1,93 @@
 {
   "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile for citizens and administrators indexed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 200 },
+        "email": { "type": "string", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "birthDate": { "type": "string", "maxLength": 40 },
+        "role": {
+          "type": "string",
+          "enum": ["citizen", "admin", "super_admin"]
+        },
+        "neighborhood": { "type": "string", "maxLength": 200 },
+        "reportsSubmittedCount": { "type": "number" },
+        "resolvedReportsCount": { "type": "number" },
+        "isBlocked": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["uid", "fullName", "email", "role"]
+    },
+    "AdminRecoveryVault": {
+      "title": "AdminRecoveryVault",
+      "description": "AES-256-GCM encrypted static recovery codes for administrators. Strictly accessible by server.",
+      "type": "object",
+      "properties": {
+        "encryptedData": { "type": "string" },
+        "iv": { "type": "string" },
+        "authTag": { "type": "string" },
+        "algorithm": { "type": "string", "enum": ["aes-256-gcm"] },
+        "role": { "type": "string", "enum": ["admin", "super_admin"] },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["encryptedData", "iv", "authTag", "algorithm", "role"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and administrative action audit trails.",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "maxLength": 100 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorRole": { "type": "string", "maxLength": 50 },
+        "targetUid": { "type": "string", "maxLength": 128 },
+        "targetEmail": { "type": "string", "maxLength": 200 },
+        "targetRole": { "type": "string", "maxLength": 50 },
+        "timestamp": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["action", "actorUid", "timestamp"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "System state configuration and one-time bootstrap records.",
+      "type": "object",
+      "properties": {
+        "isBootstrapped": { "type": "boolean" },
+        "bootstrappedAt": { "type": "string", "maxLength": 64 },
+        "superAdminUid": { "type": "string", "maxLength": 128 },
+        "superAdminEmail": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["isBootstrapped", "bootstrappedAt", "superAdminUid"]
+    },
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Role lookup marker for authorized administrators.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 200 },
+        "role": { "type": "string", "enum": ["admin", "super_admin"] },
+        "assignedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["uid", "role"]
+    },
+    "SuperAdminMarker": {
+      "title": "SuperAdminMarker",
+      "description": "Role lookup marker for authorized super administrators.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 200 },
+        "assignedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["uid"]
+    },
     "CivicReport": {
       "title": "CivicReport",
       "description": "A civic service report submitted by a citizen in Baadre district with an automatic numeric id.",
@@ -26,7 +114,7 @@
         "landmark": { "type": "string", "maxLength": 300 },
         "latitude": { "type": "number" },
         "longitude": { "type": "number" },
-        "citizenId": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "citizenId": { "type": "string", "maxLength": 128 },
         "citizenName": { "type": "string", "maxLength": 200 },
         "citizenPhone": { "type": "string", "maxLength": 40 },
         "createdAt": { "type": "string", "maxLength": 64 },
@@ -112,14 +200,15 @@
       "description": "A registered citizen in Baadre with an automatic numeric id.",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "maxLength": 32, "pattern": "^[0-9]+$" },
+        "id": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "maxLength": 200 },
         "phone": { "type": "string", "maxLength": 40 },
         "neighborhood": { "type": "string", "maxLength": 200 },
         "reportsSubmittedCount": { "type": "number" },
         "resolvedReportsCount": { "type": "number" },
         "joinedAt": { "type": "string", "maxLength": 64 },
-        "verified": { "type": "boolean" }
+        "verified": { "type": "boolean" },
+        "isBlocked": { "type": "boolean" }
       },
       "required": ["id", "name", "phone", "neighborhood", "reportsSubmittedCount", "joinedAt"]
     },
@@ -151,6 +240,30 @@
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles indexed by Firebase Auth UID."
+    },
+    "/admin_recovery_vault/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminRecoveryVault" },
+      "description": "Encrypted recovery vault entries for admins. Server only."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable security and administrative audit log events."
+    },
+    "/system_config/{configId}": {
+      "schema": { "$ref": "#/entities/SystemConfig" },
+      "description": "System state configuration."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminMarker" },
+      "description": "Database marker for authorized admins."
+    },
+    "/super_admins/{superAdminId}": {
+      "schema": { "$ref": "#/entities/SuperAdminMarker" },
+      "description": "Database marker for authorized super admins."
+    },
     "/reports/{reportId}": {
       "schema": { "$ref": "#/entities/CivicReport" },
       "description": "Civic reports submitted by citizens in Baadre."

@@ -5,9 +5,10 @@ import {
   getFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  setLogLevel,
   doc,
-  getDocFromServer,
-  writeBatch,
+  runTransaction,
+  serverTimestamp,
   Firestore,
 } from 'firebase/firestore';
 import {
@@ -22,7 +23,10 @@ import {
   CivicReport,
   OrganizationProject,
   RegisteredCitizen,
+  CommunitySurvey,
+  CitizenSurveyResponse,
   SECTOR_ILLUSTRATIONS,
+  isReportSentToDepartment,
 } from '../types/baadre';
 import { sanitizeDatabasePayload } from './inputLimits';
 
@@ -37,12 +41,16 @@ export const MAX_UPLOAD_IMAGES = 10;
  */
 function initOptimizedFirestore(): Firestore {
   try {
+    setLogLevel('silent');
+  } catch {}
+  try {
     return initializeFirestore(
       app,
       {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager(),
         }),
+        experimentalAutoDetectLongPolling: true,
       },
       firebaseConfig.firestoreDatabaseId
     );
@@ -62,6 +70,7 @@ export const COLLECTIONS = {
   CITIZENS: 'citizens',
   SURVEYS: 'surveys',
   SURVEY_RESPONSES: 'SurveyResponses',
+  USER_FCM_TOKENS: 'user_fcm_tokens',
 } as const;
 
 const NUMERIC_COUNTERS_KEY = 'cave_baadre_numeric_id_counters_v1';
@@ -178,7 +187,7 @@ export function prepareDocumentWithId<T extends Record<string, any>>(
   return cleaned as T & { id: string };
 }
 
-export const MAX_IMAGE_SIZE_BYTES = 500 * 1024; // 500 KB
+export const MAX_IMAGE_SIZE_BYTES = 95 * 1024; // 95 KB max to ensure documents never exceed Firestore 1MB quota
 
 function getDataUrlByteSize(dataUrl: string): number {
   const base64Index = dataUrl.indexOf(',');
@@ -187,12 +196,25 @@ function getDataUrlByteSize(dataUrl: string): number {
 }
 
 /**
- * ضغط الصور المرفوعة تلقائياً بحيث لا يتجاوز حجم الصورة 500 كيلوبايت مع الحفاظ على أبعادها ونسبتها الأصلية (9:16 أو 16:9)
+ * إخفاء رقم الهاتف لغير أصحاب البلاغ وموظفي البلدية لحماية الخصوصية (مثال: 0750***3858)
+ */
+export function maskPhoneNumber(phone?: string | null): string {
+  if (!phone) return '';
+  const cleaned = String(phone).trim();
+  if (cleaned.length <= 6) return cleaned;
+  const start = cleaned.slice(0, 4);
+  const end = cleaned.slice(-3);
+  return `${start}***${end}`;
+}
+
+/**
+ * ضغط الصور المرفوعة تلقائياً بحيث لا يتجاوز حجم الصورة 95 كيلوبايت مع الحفاظ على وضوحها وأبعادها
+ * مما يجعل حفظ البلاغات فائق السرعة ويمنع تجاوز حد الـ 1 ميجابايت لوثائق Firestore.
  */
 export function compressImageFile(
   file: File,
-  maxDimension = 1440,
-  initialQuality = 0.82
+  maxDimension = 960,
+  initialQuality = 0.72
 ): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -240,11 +262,11 @@ export function compressImageFile(
               break;
             }
 
-            if (quality > 0.45) {
-              quality = Number((quality - 0.12).toFixed(2));
+            if (quality > 0.40) {
+              quality = Number((quality - 0.10).toFixed(2));
             } else {
-              currentWidth = Math.round(currentWidth * 0.82);
-              currentHeight = Math.round(currentHeight * 0.82);
+              currentWidth = Math.round(currentWidth * 0.80);
+              currentHeight = Math.round(currentHeight * 0.80);
             }
           }
 
@@ -400,41 +422,51 @@ export async function syncReportStatusAndCompletedWorkToFirestore(params: {
     removedCompletedWorkIds,
     updatedCitizenDoc,
   } = params;
-  const batch = writeBatch(db);
-
-  // 1. حفظ تحديث البلاغ في كولكشن reports
-  batch.set(doc(db, COLLECTIONS.REPORTS, updatedReport.id), updatedReport, { merge: true });
-
-  // 2. إذا تم الإنجاز، حفظ أو تحديث وثيقة العمل المنجز الوحيدة في كولكشن CompletedWork
-  if (completedWorkDoc) {
-    batch.set(doc(db, COLLECTIONS.COMPLETED_WORK, completedWorkDoc.id), completedWorkDoc, {
-      merge: true,
-    });
-  }
-
-  // 3. حذف أي وثائق سابقة أو مكررة مرتبطة بالبلاغ من CompletedWork
-  const idsToDelete = new Set<string>();
-  if (removedCompletedWorkId) idsToDelete.add(removedCompletedWorkId);
-  if (Array.isArray(removedCompletedWorkIds)) {
-    removedCompletedWorkIds.forEach((id) => {
-      if (id && (!completedWorkDoc || id !== completedWorkDoc.id)) {
-        idsToDelete.add(id);
-      }
-    });
-  }
-  idsToDelete.forEach((workId) => {
-    batch.delete(doc(db, COLLECTIONS.COMPLETED_WORK, workId));
-  });
-
-  // 4. تحديث إحصاءات المواطن صاحب البلاغ في كولكشن citizens
-  if (updatedCitizenDoc) {
-    batch.set(doc(db, COLLECTIONS.CITIZENS, updatedCitizenDoc.id), updatedCitizenDoc, {
-      merge: true,
-    });
-  }
 
   try {
-    await batch.commit();
+    await runTransaction(db, async (transaction) => {
+      const reportRef = doc(db, COLLECTIONS.REPORTS, updatedReport.id);
+      const reportSnap = await transaction.get(reportRef);
+
+      const existingData = reportSnap.exists() ? (reportSnap.data() as CivicReport) : null;
+      const mergedReport: CivicReport = existingData
+        ? {
+            ...existingData,
+            ...updatedReport,
+            ownerUid: existingData.ownerUid || existingData.citizenId || updatedReport.ownerUid || updatedReport.citizenId,
+            citizenId: existingData.citizenId || existingData.ownerUid || updatedReport.citizenId || updatedReport.ownerUid,
+          }
+        : updatedReport;
+
+      // 1. حفظ تحديث البلاغ ذرياً داخل Transaction
+      transaction.set(reportRef, mergedReport, { merge: true });
+
+      // 2. إذا تم الإنجاز، حفظ أو تحديث وثيقة العمل المنجز الوحيدة في كولكشن CompletedWork
+      if (completedWorkDoc) {
+        const workRef = doc(db, COLLECTIONS.COMPLETED_WORK, completedWorkDoc.id);
+        transaction.set(workRef, completedWorkDoc, { merge: true });
+      }
+
+      // 3. حذف أي وثائق سابقة أو مكررة مرتبطة بالبلاغ من CompletedWork
+      const idsToDelete = new Set<string>();
+      if (removedCompletedWorkId) idsToDelete.add(removedCompletedWorkId);
+      if (Array.isArray(removedCompletedWorkIds)) {
+        removedCompletedWorkIds.forEach((id) => {
+          if (id && (!completedWorkDoc || id !== completedWorkDoc.id)) {
+            idsToDelete.add(id);
+          }
+        });
+      }
+      idsToDelete.forEach((workId) => {
+        transaction.delete(doc(db, COLLECTIONS.COMPLETED_WORK, workId));
+      });
+
+      // 4. تحديث إحصاءات المواطن صاحب البلاغ في كولكشن citizens
+      if (updatedCitizenDoc) {
+        const citizenRef = doc(db, COLLECTIONS.CITIZENS, updatedCitizenDoc.id);
+        transaction.set(citizenRef, updatedCitizenDoc, { merge: true });
+      }
+    });
   } catch (err) {
     handleFirestoreError(
       err,
@@ -444,6 +476,195 @@ export async function syncReportStatusAndCompletedWorkToFirestore(params: {
         : `${COLLECTIONS.REPORTS}/${updatedReport.id}`
     );
   }
+}
+
+/**
+ * قائمة الحقول المسموح للمواطن تعديلها فقط عندما تكون حالة البلاغ New ('pending')
+ */
+export const CITIZEN_ALLOWED_REPORT_UPDATE_FIELDS = [
+  'title',
+  'description',
+  'sector',
+  'neighborhood',
+  'street',
+  'landmark',
+  'lat',
+  'lng',
+  'latitude',
+  'longitude',
+  'images',
+  'citizenName',
+  'citizenPhone',
+  'citizenWhatsapp',
+  'updatedAt',
+] as const;
+
+/**
+ * حماية التزامن (Concurrency Protection) عند تعديل البلاغ من قبل المواطن:
+ * يتحقق داخل Firestore Transaction من أحدث نسخة مخزنة في الخادم:
+ * 1. أن المستخدم هو صاحب البلاغ (ownerUid / citizenId).
+ * 2. أن الحالة الحالية في قاعدة البيانات ما زالت New ('pending' أو 'new') ولم يتم إرسالها للدائرة.
+ * 3. عدم تغيير ownerUid أو citizenId أو status.
+ * 4. اقتصار التعديل على الحقول المسموحة للمواطن فقط.
+ */
+export async function executeCitizenReportEditTransaction(
+  reportId: string,
+  allowedUpdates: Partial<CivicReport>,
+  callerUid?: string | null
+): Promise<CivicReport> {
+  const reportRef = doc(db, COLLECTIONS.REPORTS, reportId);
+
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(reportRef);
+    if (!snap.exists()) {
+      throw new Error('البلاغ غير موجود في قاعدة البيانات.');
+    }
+
+    const currentReport = snap.data() as CivicReport;
+    const storedStatus = String(currentReport.status || 'pending');
+
+    // منع التعديل إذا لم تعد الحالة New ('pending' / 'new') أو تم إرساله للدائرة
+    if (
+      (storedStatus !== 'pending' && storedStatus !== 'new') ||
+      isReportSentToDepartment(currentReport)
+    ) {
+      throw new Error(
+        'لا يمكن تعديل البلاغ لأن حالته تغيرت وتمت إحالته للدائرة المعنية أو إنجازه.'
+      );
+    }
+
+    // التحقق من الملكية إذا كان للبلاغ ownerUid مرتبط بحساب مصادق
+    const reportOwner = currentReport.ownerUid || currentReport.citizenId;
+    if (callerUid && reportOwner && !isPureNumericId(reportOwner) && reportOwner !== callerUid) {
+      throw new Error('غير مصرح: لا يمكنك تعديل بلاغ يخص مواطناً آخر.');
+    }
+
+    // بناء حزمة الحقول المسموحة فقط دون المساس بحقول الإدارة أو الحالة أو الملكية
+    const safePatch: Record<string, any> = {};
+    for (const key of CITIZEN_ALLOWED_REPORT_UPDATE_FIELDS) {
+      if (allowedUpdates[key] !== undefined) {
+        safePatch[key] = sanitizeDatabasePayload(allowedUpdates[key]);
+      }
+    }
+
+    // ضمان بقاء ownerUid و citizenId و status كما هي تماماً
+    safePatch.status = currentReport.status;
+    if (currentReport.ownerUid !== undefined) safePatch.ownerUid = currentReport.ownerUid;
+    if (currentReport.citizenId !== undefined) safePatch.citizenId = currentReport.citizenId;
+
+    transaction.update(reportRef, safePatch);
+
+    return {
+      ...currentReport,
+      ...safePatch,
+      id: reportId,
+    } as CivicReport;
+  });
+}
+
+/**
+ * حماية التزامن (Concurrency Protection) عند حذف البلاغ من قبل المواطن:
+ * يتحقق داخل Firestore Transaction من أحدث نسخة مخزنة في الخادم:
+ * إذا قامت الإدارة في نفس اللحظة بتحويل البلاغ إلى sent ('in_progress') أو completed ('resolved')،
+ * ترفض المعاملة حذف البلاغ فوراً.
+ */
+export async function executeCitizenReportDeleteTransaction(
+  reportId: string,
+  callerUid?: string | null,
+  isAdminCaller = false
+): Promise<void> {
+  const reportRef = doc(db, COLLECTIONS.REPORTS, reportId);
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(reportRef);
+    if (!snap.exists()) {
+      return;
+    }
+
+    const currentReport = snap.data() as CivicReport;
+    const storedStatus = String(currentReport.status || 'pending');
+
+    if (!isAdminCaller) {
+      // المواطن لا يستطيع الحذف إلا إذا كانت الحالة الحالية New ('pending' / 'new') وغير مرسل للدائرة
+      if (
+        (storedStatus !== 'pending' && storedStatus !== 'new') ||
+        isReportSentToDepartment(currentReport)
+      ) {
+        throw new Error(
+          'لا يمكن حذف البلاغ بعد إرساله للدائرة المعنية أو إنجازه.'
+        );
+      }
+
+      const reportOwner = currentReport.ownerUid || currentReport.citizenId;
+      if (callerUid && reportOwner && !isPureNumericId(reportOwner) && reportOwner !== callerUid) {
+        throw new Error('غير مصرح: لا يمكنك حذف بلاغ يخص مواطناً آخر.');
+      }
+    }
+
+    transaction.delete(reportRef);
+  });
+}
+
+/**
+ * حماية الاستبيانات ومنع الإجابة المكررة عبر Firestore Transaction ومعرّف حتمي فريد:
+ * SurveyResponses/{surveyId}_{citizenUid}
+ */
+export async function executeSurveyResponseTransaction(params: {
+  surveyId: string;
+  citizenUid: string;
+  responseDoc: CitizenSurveyResponse;
+  selectedOptionsByQuestionId: Record<string, string>;
+}): Promise<void> {
+  const { surveyId, citizenUid, responseDoc, selectedOptionsByQuestionId } = params;
+  const deterministicResponseId = `${surveyId}_${citizenUid}`;
+  const responseRef = doc(db, COLLECTIONS.SURVEY_RESPONSES, deterministicResponseId);
+  const surveyRef = doc(db, COLLECTIONS.SURVEYS, surveyId);
+
+  await runTransaction(db, async (transaction) => {
+    const existingRespSnap = await transaction.get(responseRef);
+    if (existingRespSnap.exists()) {
+      throw new Error('لقد قمت بالمشاركة والإجابة على هذا الاستبيان مسبقاً.');
+    }
+
+    const surveySnap = await transaction.get(surveyRef);
+    if (!surveySnap.exists()) {
+      throw new Error('الاستبيان غير موجود.');
+    }
+
+    const surveyData = surveySnap.data() as CommunitySurvey;
+    if (!surveyData.isPublishedToCitizens && surveyData.status !== 'active' && surveyData.status !== 'published') {
+      throw new Error('هذا الاستبيان غير منشور حالياً للمواطنين.');
+    }
+
+    const updatedQuestions = (surveyData.questions || []).map((q) => {
+      const selectedOptId = selectedOptionsByQuestionId[q.id];
+      if (!selectedOptId) return q;
+      return {
+        ...q,
+        options: (q.options || []).map((opt) =>
+          opt.id === selectedOptId
+            ? { ...opt, votesCount: (opt.votesCount || 0) + 1 }
+            : opt
+        ),
+      };
+    });
+
+    const finalResponseDoc: CitizenSurveyResponse = {
+      ...responseDoc,
+      id: deterministicResponseId,
+      surveyId: String(surveyId),
+      citizenUid,
+      ownerUid: citizenUid,
+      completed: true,
+      submittedAt: serverTimestamp(),
+    };
+
+    transaction.set(responseRef, finalResponseDoc);
+    transaction.update(surveyRef, {
+      totalResponses: (surveyData.totalResponses || 0) + 1,
+      questions: updatedQuestions,
+    });
+  });
 }
 
 export enum OperationType {
@@ -473,39 +694,9 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(
-  error: unknown,
-  operationType: OperationType,
-  path: string | null
+  _error: unknown,
+  _operationType: OperationType,
+  _path: string | null
 ): void {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo:
-        auth.currentUser?.providerData?.map((provider) => ({
-          providerId: provider.providerId,
-          email: provider.email,
-        })) || [],
-    },
-    operationType,
-    path,
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  throw new Error('حدث خطأ، يرجى المحاولة مرة أخرى.');
 }
-
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
-    }
-  }
-}
-
-testConnection();

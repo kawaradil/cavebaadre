@@ -1,9 +1,356 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // قواعد مؤقتة متاحة للجميع (للقراءة والكتابة) بناءً على طلب المستخدم
+
+    // =====================================================================
+    // 0. Global Safety Net: Deny by Default
+    // =====================================================================
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+
+    // =====================================================================
+    // 1. Role & Authentication Helper Functions
+    //    - Reads roles from Firebase Custom Claims (request.auth.token.role)
+    //      with verified server-controlled marker documents fallback.
+    //    - NEVER trusts any unverified role field sent by the client.
+    // =====================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        (request.auth.token != null && request.auth.token.role == 'super_admin') ||
+        (request.auth.token != null && request.auth.token.email in ['11kattak11@gmail.com', 'kawarbani@gmail.com']) ||
+        exists(/databases/$(database)/documents/super_admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
+      );
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (request.auth.token != null && request.auth.token.role == 'admin') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'])
+      );
+    }
+
+    // =====================================================================
+    // 2. Report Ownership & State Helpers
+    //    Logical States mapped to actual application states:
+    //    - 'new'       <-> 'pending' | 'new'
+    //    - 'sent'      <-> 'in_progress' | 'sent'
+    //    - 'completed' <-> 'resolved' | 'completed'
+    // =====================================================================
+    function isReportOwner(reportData) {
+      return isSignedIn() && (
+        ('ownerUid' in reportData && reportData.ownerUid == request.auth.uid) ||
+        ('citizenId' in reportData && reportData.citizenId == request.auth.uid)
+      );
+    }
+
+    function isNewStatus(statusVal) {
+      return statusVal == 'pending' || statusVal == 'new';
+    }
+
+    function isReportCurrentlyNew(reportData) {
+      return isNewStatus(reportData.status) &&
+        !('statusTimestamps' in reportData && 'in_progress' in reportData.statusTimestamps && reportData.statusTimestamps.in_progress != '') &&
+        !('statusTimestamps' in reportData && 'sent' in reportData.statusTimestamps && reportData.statusTimestamps.sent != '');
+    }
+
+    function isReportOwnershipUnchanged() {
+      let oldOwner = 'ownerUid' in resource.data ? resource.data.ownerUid : ('citizenId' in resource.data ? resource.data.citizenId : '');
+      let newOwner = 'ownerUid' in request.resource.data ? request.resource.data.ownerUid : ('citizenId' in request.resource.data ? request.resource.data.citizenId : '');
+      let oldCitizenId = 'citizenId' in resource.data ? resource.data.citizenId : oldOwner;
+      let newCitizenId = 'citizenId' in request.resource.data ? request.resource.data.citizenId : newOwner;
+      return newOwner == oldOwner && newCitizenId == oldCitizenId && newOwner == request.auth.uid;
+    }
+
+    function hasOnlyAllowedCitizenReportFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'id',
+        'status',
+        'ownerUid',
+        'citizenId',
+        'title',
+        'description',
+        'sector',
+        'neighborhood',
+        'street',
+        'landmark',
+        'lat',
+        'lng',
+        'latitude',
+        'longitude',
+        'images',
+        'citizenName',
+        'citizenPhone',
+        'citizenWhatsapp',
+        'updatedAt'
+      ]);
+    }
+
+    // =====================================================================
+    // 3. User Profiles (/users/{userId}): Strict RBAC & PII Protection
+    //    - Citizens can only read their own profile and update allowed personal fields.
+    //    - Citizens CANNOT read or list other citizens' profiles.
+    //    - Citizens CANNOT modify their role or block status.
+    //    - Admin & Super Admin can read citizen profiles.
+    //    - Role assignment Rules:
+    //      * Admin CANNOT assign Super Admin or change roles.
+    //      * Super Admin CAN assign Admin, but CANNOT modify another Super Admin's role.
+    // =====================================================================
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isOwner(userId)
+        && (
+          !('role' in request.resource.data) ||
+          request.resource.data.role == 'citizen' ||
+          isSuperAdmin()
+        )
+        && !('password' in request.resource.data)
+        && !('recoveryCode' in request.resource.data);
+
+      allow update: if (
+        isOwner(userId)
+        && !('password' in request.resource.data)
+        && !('recoveryCode' in request.resource.data)
+        && (
+          !('role' in request.resource.data) ||
+          request.resource.data.role == resource.data.role ||
+          (isSuperAdmin() && request.resource.data.role == 'super_admin')
+        )
+        && (
+          !('isBlocked' in request.resource.data) ||
+          !('isBlocked' in resource.data) ||
+          request.resource.data.isBlocked == resource.data.isBlocked
+        )
+      ) || (
+        isAdmin()
+        && resource.data.role == 'citizen'
+        && (!('role' in request.resource.data) || request.resource.data.role == 'citizen')
+      ) || (
+        isSuperAdmin()
+        // Super Admin CANNOT change another Super Admin's role
+        && !(resource.data.role == 'super_admin' && request.auth.uid != userId)
+      );
+
+      allow delete: if isOwner(userId) || (
+        isSuperAdmin()
+        && !(resource.data.role == 'super_admin' && request.auth.uid != userId)
+      );
+    }
+
+    // =====================================================================
+    // 4. Citizens Directory (/citizens/{citizenId}): Protected Citizen Data
+    //    - Prevents reading other citizens' data or listing all citizens by non-admins.
+    //    - Prevents role escalation.
+    // =====================================================================
+    match /citizens/{citizenId} {
+      allow get: if isAdmin() || isOwner(citizenId);
+      allow list: if isAdmin();
+
+      allow create: if isAdmin() || (
+        isSignedIn()
+        && (!('role' in request.resource.data) || request.resource.data.role == 'citizen' || isSuperAdmin())
+        && !('password' in request.resource.data)
+      );
+
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role || isSuperAdmin())
+        && (!('isBlocked' in request.resource.data) || !('isBlocked' in resource.data) || request.resource.data.isBlocked == resource.data.isBlocked)
+      );
+
+      allow delete: if isAdmin() || isOwner(citizenId);
+    }
+
+    // =====================================================================
+    // 5. Civic Reports (/reports/{reportId})
+    // =====================================================================
+    match /reports/{reportId} {
+      allow read: if true;
+
+      allow create: if isAdmin() || (
+        isSignedIn()
+        && isReportOwner(request.resource.data)
+        && isNewStatus(request.resource.data.status)
+        && ('createdAt' in request.resource.data)
+        && !('resolvedAt' in request.resource.data && request.resource.data.resolvedAt != '')
+        && !('resolvedImages' in request.resource.data && request.resource.data.resolvedImages.size() > 0)
+        && (
+          !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+          !('reportsSubmittedCount' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.reportsSubmittedCount < 5
+        )
+      );
+
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && isReportOwner(resource.data)
+        && isReportCurrentlyNew(resource.data)
+        && isNewStatus(request.resource.data.status)
+        && request.resource.data.status == resource.data.status
+        && isReportOwnershipUnchanged()
+        && hasOnlyAllowedCitizenReportFields()
+      ) || (
+        isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'id',
+          'upvotes',
+          'upvotesCount',
+          'updatedAt'
+        ])
+      );
+
+      allow delete: if isAdmin() || (
+        isSignedIn()
+        && isReportOwner(resource.data)
+        && isReportCurrentlyNew(resource.data)
+      );
+    }
+
+    // =====================================================================
+    // 6. Published Completed Works (/CompletedWork/{workId})
+    // =====================================================================
+    match /CompletedWork/{workId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // =====================================================================
+    // 7. Municipal Departments (/departments/{departmentId})
+    // =====================================================================
+    match /departments/{departmentId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // =====================================================================
+    // 8. Community Surveys (/surveys/{surveyId})
+    // =====================================================================
+    match /surveys/{surveyId} {
+      allow read: if isSignedIn();
+
+      allow create, delete: if isAdmin();
+
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && (resource.data.isPublishedToCitizens == true || ('status' in resource.data && resource.data.status in ['active', 'published']))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['id', 'totalResponses', 'questions'])
+        && request.resource.data.totalResponses == resource.data.totalResponses + 1
+      );
+    }
+
+    // =====================================================================
+    // 9. Survey Responses (/SurveyResponses/{responseId})
+    //    - Citizens can submit their answer ONCE per survey using deterministic ID:
+    //      responseId == surveyId + '_' + request.auth.uid
+    // =====================================================================
+    match /SurveyResponses/{responseId} {
+      allow get: if isAdmin() || (
+        isSignedIn() && (
+          resource == null ||
+          responseId == (resource.data.surveyId + '_' + request.auth.uid) ||
+          resource.data.citizenUid == request.auth.uid ||
+          resource.data.ownerUid == request.auth.uid
+        )
+      );
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn()
+        && ('surveyId' in request.resource.data)
+        && request.resource.data.citizenUid == request.auth.uid
+        && responseId == (request.resource.data.surveyId + '_' + request.auth.uid)
+        && !exists(/databases/$(database)/documents/SurveyResponses/$(responseId));
+
+      allow update, delete: if false;
+    }
+
+    // =====================================================================
+    // 10. Admin Recovery Vault (/admin_recovery_vault/{adminId})
+    //     - Completely isolated from client access.
+    // =====================================================================
+    match /admin_recovery_vault/{adminId} {
+      allow read, write: if false;
+    }
+
+    // =====================================================================
+    // 11. Role Marker Collections (/admins/{adminId}, /super_admins/{superAdminId})
+    // =====================================================================
+    match /admins/{adminId} {
+      allow get: if isOwner(adminId) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isSuperAdmin()
+        && !(exists(/databases/$(database)/documents/super_admins/$(adminId)) && request.auth.uid != adminId);
+      allow delete: if isSuperAdmin()
+        && !(exists(/databases/$(database)/documents/super_admins/$(adminId)) && request.auth.uid != adminId);
+    }
+
+    match /super_admins/{superAdminId} {
+      allow get: if isOwner(superAdminId) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isSuperAdmin()
+        && !(exists(/databases/$(database)/documents/super_admins/$(superAdminId)) && request.auth.uid != superAdminId);
+      allow delete: if false;
+    }
+
+    // =====================================================================
+    // 12. Admin FCM Device Tokens (/user_fcm_tokens/{tokenId})
+    // =====================================================================
+    match /user_fcm_tokens/{tokenId} {
+      allow get, list: if isAdmin();
+      allow create, update: if isAdmin()
+        && ('uid' in request.resource.data)
+        && request.resource.data.uid == request.auth.uid
+        && ('fcmToken' in request.resource.data)
+        && request.resource.data.fcmToken is string
+        && request.resource.data.fcmToken.size() > 10;
+      allow delete: if isSignedIn() && (
+        resource == null ||
+        resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // =====================================================================
+    // 13. Notification Dispatch Idempotency Locks (/notification_dispatch_locks/{reportId})
+    // =====================================================================
+    match /notification_dispatch_locks/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // =====================================================================
+    // 14. Audit Logs & System Config
+    // =====================================================================
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /system_config/{configId} {
+      allow read: if configId == 'contact_settings' || isAdmin();
+      allow write: if (configId == 'contact_settings' && isAdmin()) || isSuperAdmin();
+    }
+
+    // Connection health check probe
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write: if false;
     }
   }
 }

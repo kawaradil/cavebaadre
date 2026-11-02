@@ -1,0 +1,303 @@
+{
+  "users": {
+    "eZxwrjhgyjTzBGkla4CZBaz46qs2": {
+      "uid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "fullName": "كاوار عادل طاهر",
+      "email": "11kattak11@gmail.com",
+      "phone": "07504738358",
+      "birthDate": "1990-01-17",
+      "role": "super_admin",
+      "reportsSubmittedCount": 3,
+      "resolvedReportsCount": 0,
+      "isBlocked": false,
+      "createdAt": "2026-11-02T11:28:46.855Z",
+      "updatedAt": "2026-11-02T22:05:49.737Z"
+    },
+    "wYtoyLp9Hja14bnpeun4x0YAADv2": {
+      "phone": "07504738358",
+      "role": "citizen",
+      "email": "kanibarankani@gmail.com",
+      "isBlocked": false,
+      "updatedAt": "2026-11-02T21:43:25.539Z",
+      "uid": "wYtoyLp9Hja14bnpeun4x0YAADv2",
+      "fullName": "كارزان علي احمد",
+      "reportsSubmittedCount": 1,
+      "birthDate": "2026-11-02",
+      "neighborhood": "ناحية باعدرى",
+      "resolvedReportsCount": 0,
+      "createdAt": "2026-11-02T12:05:14.513Z"
+    },
+    "tO8y6upTqWSJ5dQVhXOJ6jBUklD3": {
+      "resolvedReportsCount": 0,
+      "email": "ddersm811@gmail.com",
+      "neighborhood": "ناحية باعدرى",
+      "reportsSubmittedCount": 1,
+      "phone": "07504738358",
+      "isBlocked": false,
+      "createdAt": "2026-11-02T17:31:59.605Z",
+      "updatedAt": "2026-11-02T22:05:28.787Z",
+      "fullName": "Dersm Dersm dersm",
+      "birthDate": "2026-11-02",
+      "role": "admin",
+      "uid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3"
+    }
+  },
+  "citizens": {
+    "eZxwrjhgyjTzBGkla4CZBaz46qs2": {
+      "id": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "name": "كاوار عادل طاهر",
+      "email": "11kattak11@gmail.com",
+      "phone": "07504738358",
+      "birthDate": "1990-01-17",
+      "neighborhood": "ناحية باعدرى",
+      "role": "super_admin",
+      "reportsSubmittedCount": 3,
+      "resolvedReportsCount": 0,
+      "joinedAt": "2026-11-02T11:28:46.855Z",
+      "verified": true,
+      "isBlocked": false
+    },
+    "wYtoyLp9Hja14bnpeun4x0YAADv2": {
+      "id": "wYtoyLp9Hja14bnpeun4x0YAADv2",
+      "verified": true,
+      "name": "كارزان علي احمد",
+      "neighborhood": "ناحية باعدرى",
+      "role": "citizen",
+      "resolvedReportsCount": 0,
+      "lastActiveAt": "2026-11-02T16:19:40.340Z",
+      "birthDate": "2026-11-02",
+      "joinedAt": "2026-11-02T12:05:14.513Z",
+      "reportsSubmittedCount": 1,
+      "updatedAt": "2026-11-02T21:43:25.539Z",
+      "isBlocked": false,
+      "phone": "07504738358",
+      "email": "kanibarankani@gmail.com"
+    },
+    "tO8y6upTqWSJ5dQVhXOJ6jBUklD3": {
+      "reportsSubmittedCount": 1,
+      "joinedAt": "2026-11-02T17:31:59.605Z",
+      "id": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "birthDate": "2026-11-02",
+      "updatedAt": "2026-11-02T22:05:28.737Z",
+      "phone": "07504738358",
+      "verified": true,
+      "resolvedReportsCount": 0,
+      "email": "ddersm811@gmail.com",
+      "role": "admin",
+      "neighborhood": "ناحية باعدرى",
+      "isBlocked": false,
+      "lastActiveAt": "2026-11-02T17:33:59.499Z",
+      "name": "Dersm Dersm dersm"
+    }
+  },
+  "admins": {
+    "eZxwrjhgyjTzBGkla4CZBaz46qs2": {
+      "uid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "email": "11kattak11@gmail.com",
+      "fullName": "كاوار عادل طاهر",
+      "role": "super_admin",
+      "assignedBy": "SYSTEM_DESIGNATED_SUPER_ADMIN",
+      "assignedAt": "2026-11-02T11:28:46.855Z"
+    },
+    "tO8y6upTqWSJ5dQVhXOJ6jBUklD3": {
+      "uid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "email": "ddersm811@gmail.com",
+      "fullName": "Dersm Dersm dersm",
+      "role": "admin",
+      "assignedBy": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "assignedAt": "2026-11-02T22:05:28.737Z"
+    }
+  },
+  "super_admins": {
+    "eZxwrjhgyjTzBGkla4CZBaz46qs2": {
+      "uid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "email": "11kattak11@gmail.com",
+      "fullName": "كاوار عادل طاهر",
+      "assignedBy": "SYSTEM_DESIGNATED_SUPER_ADMIN",
+      "assignedAt": "2026-11-02T11:28:46.855Z"
+    }
+  },
+  "admin_recovery_vault": {
+    "eZxwrjhgyjTzBGkla4CZBaz46qs2": {
+      "encryptedData": "mOHswzlsH040aBq0EiK86Y3uYBCBrQ==",
+      "iv": "744cvrBwT7BmJot9",
+      "authTag": "9AZVU/hEwuCnvkb6rDItAw==",
+      "algorithm": "aes-256-gcm",
+      "createdAt": "2026-11-02T17:49:26.914Z",
+      "role": "super_admin"
+    },
+    "tO8y6upTqWSJ5dQVhXOJ6jBUklD3": {
+      "encryptedData": "95RnnFRqKDfGV47y38F+nJGIpiMmWQ==",
+      "iv": "T/TTSDoDNMfMlIPA",
+      "authTag": "aRA8GMcKZSFlQnD4EdhgOw==",
+      "algorithm": "aes-256-gcm",
+      "createdAt": "2026-11-02T22:05:28.794Z",
+      "role": "admin"
+    }
+  },
+  "system_config": {
+    "contact_settings": {
+      "whatsappReportsNumber": "9647749019911",
+      "contactPhone": "9647749019911",
+      "contactEmail": "Hadiya.hussein.vfsf@gmail.com",
+      "updatedAt": "2026-11-02T14:33:28.545Z"
+    }
+  },
+  "audit_logs": [
+    {
+      "id": "log_1793658357720_7ytwfs",
+      "action": "PASSWORD_RESET_REQUESTED",
+      "actorUid": "ANONYMOUS",
+      "targetEmail": "test@example.com",
+      "timestamp": "2026-11-02T22:25:57.720Z"
+    },
+    {
+      "id": "log_1793658197852_yb1nrb",
+      "action": "PASSWORD_RESET_REQUESTED",
+      "actorUid": "ANONYMOUS",
+      "targetEmail": "test@example.com",
+      "timestamp": "2026-11-02T22:23:17.851Z"
+    },
+    {
+      "id": "log_1793657128794_at4pny",
+      "action": "ROLE_CHANGED",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "oldRole": "citizen",
+      "newRole": "admin",
+      "timestamp": "2026-11-02T22:05:28.737Z"
+    },
+    {
+      "id": "log_1793657120899_adkjx4",
+      "action": "USER_UNBLOCKED_IN_BACKEND",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "targetRole": "citizen",
+      "isBlocked": false,
+      "timestamp": "2026-11-02T22:05:20.879Z"
+    },
+    {
+      "id": "log_1793657119314_afa0zc",
+      "action": "ROLE_CHANGED",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "oldRole": "admin",
+      "newRole": "citizen",
+      "timestamp": "2026-11-02T22:05:19.258Z"
+    },
+    {
+      "id": "log_1793657109937_azjg5w",
+      "action": "USER_BLOCKED_IN_BACKEND",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "targetRole": "admin",
+      "isBlocked": true,
+      "timestamp": "2026-11-02T22:05:09.903Z"
+    },
+    {
+      "id": "log_1793657101408_5dea8k",
+      "action": "USER_BLOCKED_IN_BACKEND",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "targetRole": "admin",
+      "isBlocked": true,
+      "timestamp": "2026-11-02T22:05:01.369Z"
+    },
+    {
+      "id": "log_1793655805581_8ybw4n",
+      "action": "USER_UNBLOCKED_IN_BACKEND",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "wYtoyLp9Hja14bnpeun4x0YAADv2",
+      "targetEmail": "kanibarankani@gmail.com",
+      "targetRole": "citizen",
+      "isBlocked": false,
+      "timestamp": "2026-11-02T21:43:25.539Z"
+    },
+    {
+      "id": "log_1793655791551_m77hp0",
+      "action": "USER_UNBLOCKED_IN_BACKEND",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "targetRole": "admin",
+      "isBlocked": false,
+      "timestamp": "2026-11-02T21:43:11.517Z"
+    },
+    {
+      "id": "log_1793655787441_hffspi",
+      "action": "ROLE_CHANGED",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "oldRole": "citizen",
+      "newRole": "admin",
+      "timestamp": "2026-11-02T21:43:07.318Z"
+    },
+    {
+      "id": "log_1793655766317_qty71e",
+      "action": "USER_BLOCKED_IN_BACKEND",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "targetEmail": "ddersm811@gmail.com",
+      "targetRole": "citizen",
+      "isBlocked": true,
+      "timestamp": "2026-11-02T21:42:46.259Z"
+    },
+    {
+      "id": "log_1793655760276_2vvkil",
+      "action": "USER_BLOCKED_IN_BACKEND",
+      "actorUid": "eZxwrjhgyjTzBGkla4CZBaz46qs2",
+      "actorEmail": "11kattak11@gmail.com",
+      "actorRole": "super_admin",
+      "targetUid": "wYtoyLp9Hja14bnpeun4x0YAADv2",
+      "targetEmail": "kanibarankani@gmail.com",
+      "targetRole": "citizen",
+      "isBlocked": true,
+      "timestamp": "2026-11-02T21:42:40.220Z"
+    }
+  ],
+  "notification_dispatch_locks": {},
+  "user_fcm_tokens": {
+    "tO8y6upTqWSJ5dQVhXOJ6jBUklD3_dev_mvz3mfoh_u1l3m18i": {
+      "id": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3_dev_mvz3mfoh_u1l3m18i",
+      "uid": "tO8y6upTqWSJ5dQVhXOJ6jBUklD3",
+      "role": "admin",
+      "fcmToken": "fcm_web_tO8y6upTqW_dev_mvz3mfoh_u1l3m18i",
+      "deviceId": "dev_mvz3mfoh_u1l3m18i",
+      "platform": "web",
+      "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Mobile Safari/537.36",
+      "notificationsEnabled": true,
+      "updatedAt": "2026-11-02T22:22:13.965Z"
+    }
+  },
+  "password_reset_limits": {
+    "test@example.com": {
+      "count": 2,
+      "windowStartMs": 1793658197255,
+      "updatedAt": "2026-11-02T22:25:57.069Z"
+    }
+  }
+}
