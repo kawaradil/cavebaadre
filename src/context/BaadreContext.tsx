@@ -16,6 +16,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  where,
   orderBy,
   limit,
   writeBatch,
@@ -41,6 +42,8 @@ import { useAuth } from './AuthContext';
 import {
   triggerNewReportServerNotification,
   subscribeToForegroundReportNotifications,
+  showSystemNotificationViaSW,
+  requestMobileNotificationPermission,
 } from '../services/fcmService';
 import {
   CivicReport,
@@ -63,6 +66,15 @@ import {
 
 const STORAGE_MY_REPORT_IDS_KEY = 'cave_baadre_my_report_ids_v3';
 const STORAGE_ROLE_KEY = 'cave_baadre_active_role_v3';
+
+// مفاتيح التخزين الدائم لسرعة الفتح الفورية بدون إعادة تحميل البيانات في كل مرة
+const CACHE_KEY_REPORTS = 'cave_baadre_persisted_reports_v1';
+const CACHE_KEY_PROJECTS = 'cave_baadre_persisted_projects_v1';
+const CACHE_KEY_DEPTS = 'cave_baadre_persisted_depts_v1';
+const CACHE_KEY_SURVEYS = 'cave_baadre_persisted_surveys_v1';
+const CACHE_KEY_CITIZENS = 'cave_baadre_persisted_citizens_v1';
+const CACHE_KEY_CONTACT = 'cave_baadre_persisted_contact_v1';
+
 
 export interface CreateSurveyInput {
   title: string;
@@ -133,6 +145,8 @@ export interface BaadreContextType {
   setAdminTab: (tab: AdminSectionTab) => void;
   isSurveysViewOpen: boolean;
   setIsSurveysViewOpen: (open: boolean) => void;
+  isStartScreenActive: boolean;
+  dismissStartScreen: () => void;
 
   // Data
   reports: CivicReport[];
@@ -231,42 +245,76 @@ export interface BaadreContextType {
 const BaadreContext = createContext<BaadreContextType | undefined>(undefined);
 
 export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAdmin, isSuperAdmin, currentUser } = useAuth();
-  const canAccessAdmin = Boolean(currentUser && (isAdmin || isSuperAdmin));
+  const { isAdmin, isSuperAdmin, isCitizen, role, currentUser } = useAuth();
+  const canAccessAdmin = Boolean(
+    currentUser &&
+      !isCitizen &&
+      (isAdmin || isSuperAdmin) &&
+      (role === 'admin' || role === 'super_admin')
+  );
   const [activeRole, setActiveRoleState] = useState<'citizen' | 'admin'>('citizen');
 
   const [citizenTabState, setCitizenTabState] = useState<CitizenNavTab>('works');
   const [adminTabState, setAdminTabState] = useState<AdminSectionTab>('analytics');
   const [isSurveysViewOpenState, setIsSurveysViewOpenState] = useState<boolean>(false);
+  const [isStartScreenActive, setIsStartScreenActive] = useState<boolean>(true);
+
+  const dismissStartScreen = useCallback(() => {
+    setIsStartScreenActive(false);
+  }, []);
 
   const setIsSurveysViewOpen = useCallback(
     (open: boolean) => {
-      if (open && !canAccessAdmin) {
+      if (open) {
+        setIsStartScreenActive(false);
+      }
+      if (open && (!canAccessAdmin || activeRole !== 'admin')) {
         setIsSurveysViewOpenState(false);
         return;
       }
       setIsSurveysViewOpenState(open);
     },
-    [canAccessAdmin]
+    [canAccessAdmin, activeRole]
   );
 
-  const isSurveysViewOpen = canAccessAdmin ? isSurveysViewOpenState : false;
+  const isSurveysViewOpen =
+    canAccessAdmin && activeRole === 'admin' ? isSurveysViewOpenState : false;
 
   const setCitizenTab = useCallback((tab: CitizenNavTab) => {
+    setIsStartScreenActive(false);
     setCitizenTabState(tab);
     setIsSurveysViewOpenState(false);
   }, []);
 
-  const setAdminTab = useCallback((tab: AdminSectionTab) => {
-    setAdminTabState(tab);
-    setIsSurveysViewOpenState(false);
-  }, []);
+  const setAdminTab = useCallback(
+    (tab: AdminSectionTab) => {
+      setIsStartScreenActive(false);
+      if (!canAccessAdmin) {
+        setActiveRoleState('citizen');
+        setCitizenTabState('works');
+        setIsSurveysViewOpenState(false);
+        return;
+      }
+      setAdminTabState(tab);
+      setIsSurveysViewOpenState(false);
+    },
+    [canAccessAdmin]
+  );
 
   const citizenTab = citizenTabState;
-  const adminTab = adminTabState;
+  const adminTab = canAccessAdmin ? adminTabState : 'analytics';
 
-  // جميع البيانات تعتمد كلياً على قاعدة بيانات Firestore بدون أي Mock Data
-  const [reports, setReports] = useState<CivicReport[]>([]);
+  // جميع البيانات تعتمد كلياً على Firestore مع تخزين محلي دائم (Persistent Cache) للتحميل الفوري (0ms)
+  const [reports, setReports] = useState<CivicReport[]>(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY_REPORTS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [reportsLimitCount, setReportsLimitCount] = useState<number>(80);
   const [hasMoreReports, setHasMoreReports] = useState<boolean>(true);
 
@@ -274,14 +322,57 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setReportsLimitCount((prev) => prev + 40);
   }, []);
 
-  const [departments, setDepartments] = useState<MunicipalDepartment[]>([]);
-  const [citizens, setCitizens] = useState<RegisteredCitizen[]>([]);
-  const [projects, setProjects] = useState<OrganizationProject[]>([]);
-  const [surveys, setSurveys] = useState<CommunitySurvey[]>([]);
+  const [departments, setDepartments] = useState<MunicipalDepartment[]>(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY_DEPTS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [citizens, setCitizens] = useState<RegisteredCitizen[]>(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY_CITIZENS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [projects, setProjects] = useState<OrganizationProject[]>(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY_PROJECTS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [surveys, setSurveys] = useState<CommunitySurvey[]>(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY_SURVEYS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [surveyResponses, setSurveyResponses] = useState<CitizenSurveyResponse[]>([]);
-  const [contactSettings, setContactSettings] = useState<CloudContactSettings>(
-    DEFAULT_CLOUD_CONTACT_SETTINGS
-  );
+  const [contactSettings, setContactSettings] = useState<CloudContactSettings>(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY_CONTACT);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.contactEmail) return parsed;
+      }
+    } catch {}
+    return DEFAULT_CLOUD_CONTACT_SETTINGS;
+  });
 
   const [myReportIds, setMyReportIds] = useState<string[]>(() => {
     try {
@@ -306,12 +397,42 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [selectedReport, setSelectedReportState] = useState<CivicReport | null>(null);
 
+  const [newAdminReportAlert, setNewAdminReportAlert] = useState<CivicReport | null>(null);
+  const hasLoadedInitialReportsRef = useRef<boolean>(false);
+  const knownReportIdsRef = useRef<Set<string>>(new Set());
+  const dismissedNewReportIdsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const raw = localStorage.getItem('cave_baadre_opened_report_alerts_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return new Set<string>(parsed.map(String));
+        }
+      } catch {}
+      return new Set<string>();
+    })()
+  );
+
+  const persistDismissedAlertId = useCallback((reportId: string) => {
+    dismissedNewReportIdsRef.current.add(String(reportId));
+    try {
+      localStorage.setItem(
+        'cave_baadre_opened_report_alerts_v1',
+        JSON.stringify(Array.from(dismissedNewReportIdsRef.current).slice(-300))
+      );
+    } catch {}
+  }, []);
+
   const setSelectedReport = useCallback(
     (rep: CivicReport | null) => {
       if (!rep) {
         setSelectedReportState(null);
         return;
       }
+      // بمجرد فتح البلاغ لأول مرة يُغلق إشعار الجرس الذهبي ولا يظهر مرة أخرى لهذا البلاغ
+      persistDismissedAlertId(rep.id);
+      setNewAdminReportAlert((curr) => (curr && curr.id === rep.id ? null : curr));
+
       // فقط الإدارة المصادق عليها (Admin / Super Admin) تسجّل فتح البلاغ الإداري في Firestore
       if (!isReportOpened(rep) && (activeRole === 'admin' || isAdmin || isSuperAdmin)) {
         const now = new Date().toISOString();
@@ -323,7 +444,6 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
         setReports((prev) => prev.map((r) => (r.id === rep.id ? openedReport : r)));
         setSelectedReportState(openedReport);
-        setNewAdminReportAlert((curr) => (curr && curr.id === rep.id ? null : curr));
         if (auth.currentUser && (isAdmin || isSuperAdmin)) {
           setDoc(
             doc(db, COLLECTIONS.REPORTS, rep.id),
@@ -335,7 +455,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSelectedReportState(rep);
       }
     },
-    [activeRole, isAdmin, isSuperAdmin]
+    [activeRole, isAdmin, isSuperAdmin, persistDismissedAlertId]
   );
   const [editingCitizenReport, setEditingCitizenReport] = useState<CivicReport | null>(null);
   const [isAddReportOpen, setIsAddReportOpen] = useState(false);
@@ -350,19 +470,25 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     note?: string;
   } | null>(null);
 
-  const [newAdminReportAlert, setNewAdminReportAlert] = useState<CivicReport | null>(null);
-  const hasLoadedInitialReportsRef = useRef<boolean>(false);
-  const knownReportIdsRef = useRef<Set<string>>(new Set());
-  const dismissedNewReportIdsRef = useRef<Set<string>>(new Set());
-
   const dismissNewAdminReportAlert = useCallback(() => {
     setNewAdminReportAlert((curr) => {
       if (curr) {
-        dismissedNewReportIdsRef.current.add(curr.id);
+        persistDismissedAlertId(curr.id);
+        if (!isReportOpened(curr) && auth.currentUser && (isAdmin || isSuperAdmin)) {
+          const now = new Date().toISOString();
+          setReports((prev) =>
+            prev.map((r) => (r.id === curr.id ? { ...r, isOpened: true, openedAt: now } : r))
+          );
+          setDoc(
+            doc(db, COLLECTIONS.REPORTS, curr.id),
+            { id: curr.id, isOpened: true, openedAt: now },
+            { merge: true }
+          ).catch(() => {});
+        }
       }
       return null;
     });
-  }, []);
+  }, [isAdmin, isSuperAdmin, persistDismissedAlertId]);
 
   const clearStatusUpdateToast = useCallback(() => {
     setStatusUpdateToast(null);
@@ -419,12 +545,19 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       (snap) => {
         if (snap.exists()) {
           const d = snap.data() as Record<string, any>;
-          setContactSettings({
+          const updatedContact: CloudContactSettings = {
             whatsappReportsNumber: '9647749019911',
             contactPhone: '9647749019911',
             contactEmail:
               String(d.contactEmail || '').trim() ||
               DEFAULT_CLOUD_CONTACT_SETTINGS.contactEmail,
+          };
+          setContactSettings((prev) => {
+            if (prev.contactEmail === updatedContact.contactEmail) return prev;
+            try {
+              localStorage.setItem(CACHE_KEY_CONTACT, JSON.stringify(updatedContact));
+            } catch {}
+            return updatedContact;
           });
         }
       },
@@ -434,54 +567,60 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => unsubContact();
   }, []);
 
-  const updateContactSettings = useCallback(async (input: CloudContactSettings) => {
-    const fixedNumber = '9647749019911';
-    const cleanEmail = String(input.contactEmail || '').trim();
+  const updateContactSettings = useCallback(
+    async (input: CloudContactSettings) => {
+      if (!canAccessAdmin) {
+        throw new Error('غير مصرح: هذه الصلاحية مخصصة لإدارة المنظمة فقط.');
+      }
+      const fixedNumber = '9647749019911';
+      const cleanEmail = String(input.contactEmail || '').trim();
 
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      throw new Error('البريد الإلكتروني غير صالح.');
-    }
+      if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        throw new Error('البريد الإلكتروني غير صالح.');
+      }
 
-    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-    const res = await fetch('/api/settings/contact', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      const res = await fetch('/api/settings/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          whatsappReportsNumber: fixedNumber,
+          contactPhone: fixedNumber,
+          contactEmail: cleanEmail,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'فشل حفظ الإعدادات.');
+      }
+
+      const nextSettings: CloudContactSettings = {
         whatsappReportsNumber: fixedNumber,
         contactPhone: fixedNumber,
         contactEmail: cleanEmail,
-      }),
-    });
+      };
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error || 'فشل حفظ الإعدادات.');
-    }
+      setContactSettings(nextSettings);
 
-    const nextSettings: CloudContactSettings = {
-      whatsappReportsNumber: fixedNumber,
-      contactPhone: fixedNumber,
-      contactEmail: cleanEmail,
-    };
-
-    setContactSettings(nextSettings);
-
-    try {
-      await setDoc(
-        doc(db, 'system_config', 'contact_settings'),
-        {
-          id: 'contact_settings',
-          ...nextSettings,
-          updatedBy: auth.currentUser?.uid || 'admin',
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-    } catch {}
-  }, []);
+      try {
+        await setDoc(
+          doc(db, 'system_config', 'contact_settings'),
+          {
+            id: 'contact_settings',
+            ...nextSettings,
+            updatedBy: auth.currentUser?.uid || 'admin',
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch {}
+    },
+    [canAccessAdmin]
+  );
 
   /**
    * مزامنة مباشرة وفورية مع Firestore بدون أي بيانات وهمية (Mock Data)
@@ -531,27 +670,67 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!hasLoadedInitialReportsRef.current) {
           remoteReports.forEach((r) => knownReportIdsRef.current.add(r.id));
           hasLoadedInitialReportsRef.current = true;
+          // إذا كان هناك بلاغ جديد غير مفتوح مسبقاً عند فتح التطبيق يظهر جرس التنبيه حتى يُفتح لأول مرة
+          const latestUnopened = remoteReports.find(
+            (r) =>
+              !isReportOpened(r) &&
+              !isReportSentToDepartment(r) &&
+              r.status === 'pending' &&
+              !dismissedNewReportIdsRef.current.has(r.id)
+          );
+          if (latestUnopened) {
+            setNewAdminReportAlert(latestUnopened);
+          }
         } else {
           const newlyArrivedUnsent = remoteReports.find(
             (r) =>
               !knownReportIdsRef.current.has(r.id) &&
+              !isReportOpened(r) &&
               !isReportSentToDepartment(r) &&
               !dismissedNewReportIdsRef.current.has(r.id)
           );
           remoteReports.forEach((r) => knownReportIdsRef.current.add(r.id));
           if (newlyArrivedUnsent) {
             setNewAdminReportAlert(newlyArrivedUnsent);
+            if (hasFirestoreAdminAuth) {
+              showSystemNotificationViaSW(
+                `🔔 بلاغ جديد وارد (${newlyArrivedUnsent.trackingCode})`,
+                `${newlyArrivedUnsent.title} • ${newlyArrivedUnsent.neighborhood}`,
+                {
+                  reportId: newlyArrivedUnsent.id,
+                  trackingCode: newlyArrivedUnsent.trackingCode,
+                  url: `/?reportId=${encodeURIComponent(newlyArrivedUnsent.id)}`,
+                }
+              ).catch(() => {});
+            }
           }
         }
 
         setNewAdminReportAlert((curr) => {
           if (!curr) return null;
           const match = remoteReports.find((r) => r.id === curr.id);
-          if (!match || isReportSentToDepartment(match)) return null;
+          if (
+            !match ||
+            isReportOpened(match) ||
+            isReportSentToDepartment(match) ||
+            dismissedNewReportIdsRef.current.has(match.id)
+          ) {
+            return null;
+          }
           return match;
         });
 
         setReports(remoteReports);
+        try {
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(remoteReports.slice(0, 100)));
+        } catch {}
+
+        // تحديث البلاغ النشط فورياً إذا كان مفتوحاً في شاشة التفاصيل ليرى المستخدم التعديل وتغيير الحالة لحظياً
+        setSelectedReportState((curr) => {
+          if (!curr) return null;
+          const fresh = remoteReports.find((r) => r.id === curr.id);
+          return fresh ? fresh : curr;
+        });
       },
       () => {
         // Fallback if restricted by security rules for unauthenticated/citizen list
@@ -599,42 +778,63 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         syncNumericCounterWithItems(COLLECTIONS.COMPLETED_WORK, uniqueRemoteWorks);
         setProjects(uniqueRemoteWorks);
+        try {
+          localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(uniqueRemoteWorks.slice(0, 100)));
+        } catch {}
       },
       () => {}
     );
 
-    // 3. الاستبيانات المجتمعية (surveys) — للمسجلين فقط (لا تظهر للزائرين)
+    // 3. الاستبيانات المجتمعية (surveys) — للمسجلين فقط (المواطن يقرأ المنشور فقط، والأدمن يقرأ الكل)
     let unsubSurveys = () => {};
     if (currentUser?.uid) {
-      const surveysQuery = query(
-        collection(db, COLLECTIONS.SURVEYS),
-        orderBy('createdAt', 'desc'),
-        limit(50)
-      );
+      const surveysQuery = hasFirestoreAdminAuth
+        ? query(
+            collection(db, COLLECTIONS.SURVEYS),
+            orderBy('createdAt', 'desc'),
+            limit(50)
+          )
+        : query(
+            collection(db, COLLECTIONS.SURVEYS),
+            where('isPublishedToCitizens', '==', true),
+            limit(50)
+          );
       unsubSurveys = onSnapshot(
         surveysQuery,
         (snapshot) => {
           const numericDocs = snapshot.docs.filter((d) => isPureNumericId(d.id));
-          const remoteSurveys = numericDocs.map((d) => {
-            const data = d.data() as CommunitySurvey;
-            return { ...data, id: String(d.id) };
-          });
-          syncNumericCounterWithItems(COLLECTIONS.SURVEYS, remoteSurveys);
-          // للمواطنين المسجلين فقط يظهر الاستبيان إذا تم نشره للمواطنين
-          if (hasFirestoreAdminAuth) {
-            setSurveys(remoteSurveys);
-          } else {
-            setSurveys(
-              remoteSurveys.filter(
-                (s) => Boolean(s.isPublishedToCitizens && s.status !== 'closed')
-              )
+          const remoteSurveys = numericDocs
+            .map((d) => {
+              const data = d.data() as CommunitySurvey;
+              return { ...data, id: String(d.id) };
+            })
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
             );
-          }
+          syncNumericCounterWithItems(COLLECTIONS.SURVEYS, remoteSurveys);
+          // للمواطنين المسجلين فقط يظهر الاستبيان المنشور والنشط فقط
+          const targetSurveys = hasFirestoreAdminAuth
+            ? remoteSurveys
+            : remoteSurveys.filter(
+                (s) => Boolean(s.isPublishedToCitizens && s.status !== 'closed')
+              );
+          setSurveys(targetSurveys);
+          try {
+            if (hasFirestoreAdminAuth) {
+              localStorage.setItem(CACHE_KEY_SURVEYS, JSON.stringify(targetSurveys));
+            } else {
+              localStorage.removeItem(CACHE_KEY_SURVEYS);
+            }
+          } catch {}
         },
         () => {}
       );
     } else {
       setSurveys([]);
+      try {
+        localStorage.removeItem(CACHE_KEY_SURVEYS);
+      } catch {}
     }
 
     // 4. أقسام الإدارة فقط (departments, citizens + users, SurveyResponses)
@@ -655,6 +855,9 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           });
           syncNumericCounterWithItems(COLLECTIONS.DEPARTMENTS, remoteDepts);
           setDepartments(remoteDepts);
+          try {
+            localStorage.setItem(CACHE_KEY_DEPTS, JSON.stringify(remoteDepts));
+          } catch {}
         },
         () => {}
       );
@@ -728,6 +931,9 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           (a, b) => new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime()
         );
         setCitizens(list);
+        try {
+          localStorage.setItem(CACHE_KEY_CITIZENS, JSON.stringify(list.slice(0, 100)));
+        } catch {}
       };
 
       const citizensQuery = query(collection(db, COLLECTIONS.CITIZENS), limit(200));
@@ -797,6 +1003,16 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         },
         () => {}
       );
+    } else {
+      // حماية بيانات المواطنين والدوائر من حساب المواطن والزائرين
+      setDepartments([]);
+      setCitizens([]);
+      setSurveyResponses([]);
+      try {
+        localStorage.removeItem(CACHE_KEY_DEPTS);
+        localStorage.removeItem(CACHE_KEY_CITIZENS);
+        localStorage.removeItem('cave_baadre_persisted_registered_users_v1');
+      } catch {}
     }
 
     return () => {
@@ -950,6 +1166,15 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (match && !isReportSentToDepartment(match)) {
           setNewAdminReportAlert(match);
         }
+        showSystemNotificationViaSW(
+          `🔔 بلاغ جديد (${payload.trackingCode})`,
+          `${payload.title} • ${payload.sectorLabelAr}`,
+          {
+            reportId: payload.reportId,
+            trackingCode: payload.trackingCode,
+            url: payload.clickUrl,
+          }
+        ).catch(() => {});
       },
     });
 
@@ -957,6 +1182,22 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       unsubscribeFcm();
     };
   }, [isAdmin, isSuperAdmin, openReportDetailsForVerifiedAdmin, reports]);
+
+  // طلب صلاحية إشعارات الهاتف عند أول تفاعل للمستخدم داخل التطبيق المثبت (لأن متصفحات الموبايل تشترط نقرة مباشرة)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'default') return;
+
+    const handleFirstUserGesture = () => {
+      requestMobileNotificationPermission().catch(() => {});
+      window.removeEventListener('click', handleFirstUserGesture);
+    };
+
+    window.addEventListener('click', handleFirstUserGesture, { once: true });
+    return () => {
+      window.removeEventListener('click', handleFirstUserGesture);
+    };
+  }, []);
 
   const myReports = useMemo(() => {
     if (!currentUser) return [];
@@ -1000,6 +1241,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const setActiveRole = useCallback(
     (role: 'citizen' | 'admin') => {
+      setIsStartScreenActive(false);
       if (role === 'admin' && !canAccessAdmin) {
         setActiveRoleState('citizen');
         setCitizenTabState('works');
@@ -1022,6 +1264,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const toggleRole = useCallback(() => {
+    setIsStartScreenActive(false);
     if (!canAccessAdmin) {
       setActiveRoleState('citizen');
       setCitizenTabState('works');
@@ -1145,9 +1388,10 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const trackingCode = `BDR-2026-${randomNum}`;
       const now = new Date().toISOString();
+      const nonBase64Images = (input.images || []).filter((img) => !img.startsWith('data:'));
       const validImages =
-        input.images && input.images.length > 0
-          ? input.images.slice(0, 10)
+        nonBase64Images.length > 0
+          ? nonBase64Images.slice(0, 10)
           : [SECTOR_ILLUSTRATIONS[input.sector] || SECTOR_ILLUSTRATIONS.other];
       const latVal = input.latitude ?? input.lat ?? 36.7186;
       const lngVal = input.longitude ?? input.lng ?? 43.2614;
@@ -1263,10 +1507,11 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const now = new Date().toISOString();
+      const nonBase64Images = (input.images || []).filter((img) => !img.startsWith('data:'));
       const validImages =
-        input.images && input.images.length > 0
-          ? input.images.slice(0, 10)
-          : targetReport.images;
+        nonBase64Images.length > 0
+          ? nonBase64Images.slice(0, 10)
+          : targetReport.images.filter((img) => !img.startsWith('data:'));
       const latVal = input.latitude ?? input.lat ?? targetReport.latitude;
       const lngVal = input.longitude ?? input.lng ?? targetReport.longitude;
 
@@ -1301,8 +1546,14 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         targetReport.id
       );
 
-      setReports((prev) => prev.map((r) => (r.id === reportId ? updatedReport : r)));
-      setSelectedReportState((curr) => (curr && curr.id === reportId ? updatedReport : curr));
+      setReports((prev) => {
+        const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
+        try {
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
+        } catch {}
+        return next;
+      });
+      setSelectedReportState(updatedReport);
       setNewAdminReportAlert((curr) => (curr && curr.id === reportId ? updatedReport : curr));
 
       // تنفيذ التعديل داخل Firestore Transaction لضمان عدم حدوث Race Condition مع إرسال الإدارة
@@ -1434,14 +1685,15 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           : targetReport.assignedTeam ||
             SECTOR_DEFAULT_DEPARTMENT[targetReport.sector] ||
             'مديرية بلدية باعدرى';
+      const cleanResolved = (resolvedImages || []).filter((img) => !img.startsWith('data:'));
       const finalResolvedImgs =
-        resolvedImages !== undefined && resolvedImages.length > 0
-          ? resolvedImages
+        cleanResolved.length > 0
+          ? cleanResolved
           : targetReport.resolvedImages && targetReport.resolvedImages.length > 0
-          ? targetReport.resolvedImages
+          ? targetReport.resolvedImages.filter((img) => !img.startsWith('data:'))
           : status === 'resolved'
           ? targetReport.images && targetReport.images.length > 0
-            ? [targetReport.images[0]]
+            ? targetReport.images.filter((img) => !img.startsWith('data:')).slice(0, 1)
             : [SECTOR_ILLUSTRATIONS[targetReport.sector] || SECTOR_ILLUSTRATIONS.other]
           : targetReport.resolvedImages;
 
@@ -1491,10 +1743,17 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
 
       // 1. تحديث البلاغات في الواجهة
-      setReports((prev) => prev.map((r) => (r.id === reportId ? updatedReport : r)));
+      // 1. تحديث البلاغات في الواجهة فورياً وحفظ الكاش
+      setReports((prev) => {
+        const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
+        try {
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
+        } catch {}
+        return next;
+      });
 
-      // 2. تحديث البلاغ المحدد في نافذة التفاصيل
-      setSelectedReportState((curr) => (curr && curr.id === reportId ? updatedReport : curr));
+      // 2. تحديث البلاغ المحدد في نافذة التفاصيل فورياً
+      setSelectedReportState(updatedReport);
 
       // إذا تم إرسال البلاغ أو معالجته، نخفيه فوراً من تنبيه البلاغ الجديد
       if (isReportSentToDepartment(updatedReport)) {
@@ -1537,7 +1796,11 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               (!p.reportId || String(p.reportId) !== String(updatedReport.id)) &&
               (!p.trackingCode || p.trackingCode !== updatedReport.trackingCode)
           );
-          return [completedWorkDoc!, ...withoutCurrentReport];
+          const next = [completedWorkDoc!, ...withoutCurrentReport];
+          try {
+            localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(next.slice(0, 100)));
+          } catch {}
+          return next;
         });
       } else {
         // إذا تغيرت الحالة إلى حالة أخرى غير تم الإنجاز، يتم إزالة سجل العمل المنجز المرتبط بهذا البلاغ
@@ -1550,14 +1813,18 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         if (removedCompletedWorkIds.length > 0) {
-          setProjects((prevProjs) =>
-            prevProjs.filter(
+          setProjects((prevProjs) => {
+            const next = prevProjs.filter(
               (p) =>
                 !removedCompletedWorkIds.includes(p.id) &&
                 (!p.reportId || String(p.reportId) !== String(targetReport.id)) &&
                 (!p.trackingCode || p.trackingCode !== targetReport.trackingCode)
-            )
-          );
+            );
+            try {
+              localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(next.slice(0, 100)));
+            } catch {}
+            return next;
+          });
         }
       }
 
@@ -1660,18 +1927,28 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         targetReport.id
       );
 
-      setReports((prev) => prev.map((r) => (r.id === reportId ? updatedReport : r)));
-      setSelectedReportState((curr) => (curr && curr.id === reportId ? updatedReport : curr));
+      setReports((prev) => {
+        const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
+        try {
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
+        } catch {}
+        return next;
+      });
+      setSelectedReportState(updatedReport);
 
       if (removedCompletedWorkIds.length > 0) {
-        setProjects((prevProjs) =>
-          prevProjs.filter(
+        setProjects((prevProjs) => {
+          const next = prevProjs.filter(
             (p) =>
               !removedCompletedWorkIds.includes(p.id) &&
               (!p.reportId || String(p.reportId) !== String(targetReport.id)) &&
               (!p.trackingCode || p.trackingCode !== targetReport.trackingCode)
-          )
-        );
+          );
+          try {
+            localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(next.slice(0, 100)));
+          } catch {}
+          return next;
+        });
       }
 
       syncReportStatusAndCompletedWorkToFirestore({
@@ -1706,8 +1983,14 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         targetReport.id
       );
 
-      setReports((prev) => prev.map((r) => (r.id === reportId ? updatedReport : r)));
-      setSelectedReportState((curr) => (curr && curr.id === reportId ? updatedReport : curr));
+      setReports((prev) => {
+        const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
+        try {
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
+        } catch {}
+        return next;
+      });
+      setSelectedReportState(updatedReport);
 
       setDoc(doc(db, COLLECTIONS.REPORTS, updatedReport.id), updatedReport, { merge: true }).catch(
         (err) => {
@@ -1744,13 +2027,25 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           (targetReport?.completedWorkId && String(p.id) === String(targetReport.completedWorkId)) ||
           (targetReport?.trackingCode && p.trackingCode === targetReport.trackingCode)
       );
-      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      setReports((prev) => {
+        const next = prev.filter((r) => r.id !== reportId);
+        try {
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
+        } catch {}
+        return next;
+      });
       setMyReportIds((prev) => prev.filter((id) => id !== reportId));
       setSelectedReportState((curr) => (curr?.id === reportId ? null : curr));
       setNewAdminReportAlert((curr) => (curr?.id === reportId ? null : curr));
       if (linkedWorks.length > 0 && hasAdminPrivileges) {
         const linkedIds = new Set(linkedWorks.map((w) => w.id));
-        setProjects((prev) => prev.filter((p) => !linkedIds.has(p.id)));
+        setProjects((prev) => {
+          const next = prev.filter((p) => !linkedIds.has(p.id));
+          try {
+            localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(next.slice(0, 100)));
+          } catch {}
+          return next;
+        });
       }
 
       // تنفيذ الحذف عبر Firestore Transaction لضمان عدم حدوث تعارض (Concurrency) إذا أرسلت الإدارة البلاغ في نفس اللحظة
@@ -1818,6 +2113,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addDepartment = useCallback(
     (dept: Omit<MunicipalDepartment, 'id'>) => {
+      if (!canAccessAdmin) return;
       const numericId = generateAutoNumericId(COLLECTIONS.DEPARTMENTS, departments);
       const newDept = prepareDocumentWithId<MunicipalDepartment>(
         COLLECTIONS.DEPARTMENTS,
@@ -1827,7 +2123,13 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         },
         numericId
       );
-      setDepartments((prev) => [newDept, ...prev]);
+      setDepartments((prev) => {
+        const next = [newDept, ...prev];
+        try {
+          localStorage.setItem(CACHE_KEY_DEPTS, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       setDoc(doc(db, COLLECTIONS.DEPARTMENTS, newDept.id), newDept).catch((err) => {
         try {
           handleFirestoreError(
@@ -1838,68 +2140,83 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } catch {}
       });
     },
-    [departments]
+    [departments, canAccessAdmin]
   );
 
-  const deleteDepartment = useCallback((deptId: string) => {
-    setDepartments((prev) => prev.filter((d) => d.id !== deptId));
-    deleteDoc(doc(db, COLLECTIONS.DEPARTMENTS, deptId)).catch((err) => {
-      try {
-        handleFirestoreError(err, OperationType.DELETE, `${COLLECTIONS.DEPARTMENTS}/${deptId}`);
-      } catch {}
-    });
-  }, []);
+  const deleteDepartment = useCallback(
+    (deptId: string) => {
+      if (!canAccessAdmin) return;
+      setDepartments((prev) => {
+        const next = prev.filter((d) => d.id !== deptId);
+        try {
+          localStorage.setItem(CACHE_KEY_DEPTS, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      deleteDoc(doc(db, COLLECTIONS.DEPARTMENTS, deptId)).catch((err) => {
+        try {
+          handleFirestoreError(err, OperationType.DELETE, `${COLLECTIONS.DEPARTMENTS}/${deptId}`);
+        } catch {}
+      });
+    },
+    [canAccessAdmin]
+  );
 
-  const toggleBlockCitizen = useCallback((citizenId: string) => {
-    let targetNextBlocked: boolean | undefined;
-    setCitizens((prev) =>
-      prev.map((c) => {
-        if (c.id !== citizenId) return c;
-        if (c.role === 'super_admin') return c;
-        const nextBlocked = !c.isBlocked;
-        targetNextBlocked = nextBlocked;
-        return { ...c, id: c.id, isBlocked: nextBlocked };
-      })
-    );
+  const toggleBlockCitizen = useCallback(
+    (citizenId: string) => {
+      if (!canAccessAdmin) return;
+      let targetNextBlocked: boolean | undefined;
+      setCitizens((prev) =>
+        prev.map((c) => {
+          if (c.id !== citizenId) return c;
+          if (c.role === 'super_admin') return c;
+          const nextBlocked = !c.isBlocked;
+          targetNextBlocked = nextBlocked;
+          return { ...c, id: c.id, isBlocked: nextBlocked };
+        })
+      );
 
-    if (targetNextBlocked === undefined) return;
-    const finalBlocked = targetNextBlocked;
+      if (targetNextBlocked === undefined) return;
+      const finalBlocked = targetNextBlocked;
 
-    (async () => {
-      try {
-        const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-        const res = await fetch('/api/admin/toggle-block', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ targetUid: citizenId, isBlocked: finalBlocked }),
-        });
-        if (!res.ok) {
-          // Revert optimistic state if backend rejected
-          setCitizens((prev) =>
-            prev.map((c) => (c.id === citizenId ? { ...c, isBlocked: !finalBlocked } : c))
-          );
-          return;
-        }
-      } catch {}
+      (async () => {
+        try {
+          const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+          const res = await fetch('/api/admin/toggle-block', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ targetUid: citizenId, isBlocked: finalBlocked }),
+          });
+          if (!res.ok) {
+            // Revert optimistic state if backend rejected
+            setCitizens((prev) =>
+              prev.map((c) => (c.id === citizenId ? { ...c, isBlocked: !finalBlocked } : c))
+            );
+            return;
+          }
+        } catch {}
 
-      setDoc(
-        doc(db, COLLECTIONS.CITIZENS, citizenId),
-        { id: citizenId, isBlocked: finalBlocked },
-        { merge: true }
-      ).catch(() => {});
-      setDoc(
-        doc(db, 'users', citizenId),
-        { isBlocked: finalBlocked, updatedAt: new Date().toISOString() },
-        { merge: true }
-      ).catch(() => {});
-    })();
-  }, []);
+        setDoc(
+          doc(db, COLLECTIONS.CITIZENS, citizenId),
+          { id: citizenId, isBlocked: finalBlocked },
+          { merge: true }
+        ).catch(() => {});
+        setDoc(
+          doc(db, 'users', citizenId),
+          { isBlocked: finalBlocked, updatedAt: new Date().toISOString() },
+          { merge: true }
+        ).catch(() => {});
+      })();
+    },
+    [canAccessAdmin]
+  );
 
   const addProject = useCallback(
     (proj: Omit<OrganizationProject, 'id'>) => {
+      if (!canAccessAdmin) return;
       const numericId = generateAutoNumericId(COLLECTIONS.COMPLETED_WORK, projects);
       const newProj = prepareDocumentWithId<OrganizationProject>(
         COLLECTIONS.COMPLETED_WORK,
@@ -1920,11 +2237,12 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } catch {}
       });
     },
-    [projects]
+    [projects, canAccessAdmin]
   );
 
   const updateDepartmentAvailability = useCallback(
     (deptId: string, availability: 'available' | 'on_mission' | 'standby') => {
+      if (!canAccessAdmin) return;
       setDepartments((prev) =>
         prev.map((d) => {
           if (d.id !== deptId) return d;
@@ -1946,7 +2264,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       );
     },
-    []
+    [canAccessAdmin]
   );
 
   const createSurvey = useCallback(
@@ -1978,6 +2296,9 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         },
         numericId
       );
+      if (!canAccessAdmin) {
+        return newSurvey;
+      }
       setSurveys((prev) => [newSurvey, ...prev]);
       setDoc(doc(db, COLLECTIONS.SURVEYS, newSurvey.id), newSurvey).catch((err) => {
         try {
@@ -1986,60 +2307,65 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       return newSurvey;
     },
-    [surveys]
+    [surveys, canAccessAdmin]
   );
 
-  const updateSurvey = useCallback((surveyId: string, input: CreateSurveyInput) => {
-    setSurveys((prev) =>
-      prev.map((s) => {
-        if (s.id !== surveyId) return s;
-        const updated = prepareDocumentWithId<CommunitySurvey>(
-          COLLECTIONS.SURVEYS,
-          {
-            ...s,
-            id: s.id,
-            title: input.title.trim().slice(0, 300),
-            description: input.description.trim().slice(0, 2000),
-            questions: input.questions.map((q, qIdx) => {
-              const existingQ = s.questions[qIdx];
-              return {
-                id: existingQ && isPureNumericId(existingQ.id) ? existingQ.id : String(qIdx + 1),
-                questionText: q.questionText.trim(),
-                options: q.options
-                  .map((o) => o.trim())
-                  .filter(Boolean)
-                  .map((optText, oIdx) => {
-                    const existingOpt = existingQ?.options[oIdx];
-                    return {
-                      id:
-                        existingOpt && isPureNumericId(existingOpt.id)
-                          ? existingOpt.id
-                          : String(oIdx + 1),
-                      text: optText,
-                      votesCount: existingOpt ? existingOpt.votesCount : 0,
-                    };
-                  }),
-              };
-            }),
-          },
-          s.id
-        );
-        setDoc(doc(db, COLLECTIONS.SURVEYS, updated.id), updated, { merge: true }).catch((err) => {
-          try {
-            handleFirestoreError(
-              err,
-              OperationType.UPDATE,
-              `${COLLECTIONS.SURVEYS}/${updated.id}`
-            );
-          } catch {}
-        });
-        return updated;
-      })
-    );
-  }, []);
+  const updateSurvey = useCallback(
+    (surveyId: string, input: CreateSurveyInput) => {
+      if (!canAccessAdmin) return;
+      setSurveys((prev) =>
+        prev.map((s) => {
+          if (s.id !== surveyId) return s;
+          const updated = prepareDocumentWithId<CommunitySurvey>(
+            COLLECTIONS.SURVEYS,
+            {
+              ...s,
+              id: s.id,
+              title: input.title.trim().slice(0, 300),
+              description: input.description.trim().slice(0, 2000),
+              questions: input.questions.map((q, qIdx) => {
+                const existingQ = s.questions[qIdx];
+                return {
+                  id: existingQ && isPureNumericId(existingQ.id) ? existingQ.id : String(qIdx + 1),
+                  questionText: q.questionText.trim(),
+                  options: q.options
+                    .map((o) => o.trim())
+                    .filter(Boolean)
+                    .map((optText, oIdx) => {
+                      const existingOpt = existingQ?.options[oIdx];
+                      return {
+                        id:
+                          existingOpt && isPureNumericId(existingOpt.id)
+                            ? existingOpt.id
+                            : String(oIdx + 1),
+                        text: optText,
+                        votesCount: existingOpt ? existingOpt.votesCount : 0,
+                      };
+                    }),
+                };
+              }),
+            },
+            s.id
+          );
+          setDoc(doc(db, COLLECTIONS.SURVEYS, updated.id), updated, { merge: true }).catch((err) => {
+            try {
+              handleFirestoreError(
+                err,
+                OperationType.UPDATE,
+                `${COLLECTIONS.SURVEYS}/${updated.id}`
+              );
+            } catch {}
+          });
+          return updated;
+        })
+      );
+    },
+    [canAccessAdmin]
+  );
 
   const togglePublishSurveyToCitizens = useCallback(
     (surveyId: string, forceState?: boolean) => {
+      if (!canAccessAdmin) return;
       setSurveys((prev) =>
         prev.map((s) => {
           if (s.id !== surveyId) return s;
@@ -2068,17 +2394,27 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       );
     },
-    []
+    [canAccessAdmin]
   );
 
-  const deleteSurvey = useCallback((surveyId: string) => {
-    setSurveys((prev) => prev.filter((s) => s.id !== surveyId));
-    deleteDoc(doc(db, COLLECTIONS.SURVEYS, surveyId)).catch((err) => {
-      try {
-        handleFirestoreError(err, OperationType.DELETE, `${COLLECTIONS.SURVEYS}/${surveyId}`);
-      } catch {}
-    });
-  }, []);
+  const deleteSurvey = useCallback(
+    (surveyId: string) => {
+      if (!canAccessAdmin) return;
+      setSurveys((prev) => {
+        const next = prev.filter((s) => s.id !== surveyId);
+        try {
+          localStorage.setItem(CACHE_KEY_SURVEYS, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      deleteDoc(doc(db, COLLECTIONS.SURVEYS, surveyId)).catch((err) => {
+        try {
+          handleFirestoreError(err, OperationType.DELETE, `${COLLECTIONS.SURVEYS}/${surveyId}`);
+        } catch {}
+      });
+    },
+    [canAccessAdmin]
+  );
 
   /**
    * إرسال إجابة المواطن على الاستبيان مرة واحدة فقط لكل استبيان:
@@ -2223,17 +2559,21 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setAdminTab,
       isSurveysViewOpen,
       setIsSurveysViewOpen,
+      isStartScreenActive,
+      dismissStartScreen,
       reports,
       myReports,
       myReportIds,
       reportsLimitCount,
       loadMoreReports,
       hasMoreReports,
-      departments,
-      citizens,
+      departments: canAccessAdmin ? departments : [],
+      citizens: canAccessAdmin ? citizens : [],
       projects,
-      surveys,
-      surveyResponses,
+      surveys: canAccessAdmin
+        ? surveys
+        : surveys.filter((s) => Boolean(s.isPublishedToCitizens && s.status !== 'closed')),
+      surveyResponses: canAccessAdmin ? surveyResponses : [],
       answeredSurveyIds,
       dismissedSurveyIds,
       metrics,
@@ -2293,6 +2633,9 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       adminTab,
       setAdminTab,
       isSurveysViewOpen,
+      setIsSurveysViewOpen,
+      isStartScreenActive,
+      dismissStartScreen,
       reports,
       myReports,
       myReportIds,

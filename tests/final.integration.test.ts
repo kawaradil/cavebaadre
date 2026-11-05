@@ -963,6 +963,37 @@ const scenarios: Array<{ code: string; title: string; run: () => void }> = [
       );
     },
   },
+  {
+    code: 'W',
+    title:
+      'حماية Rate Limiting المستمرة عبر القرص مع تحديد سقف 6 محاولات وبقاء الحظر بعد إعادة تشغيل الحاوية/الخادم',
+    run: () => {
+      const testKey = 'test_cloud_run_restart_key';
+      resetRateLimit(testKey);
+
+      // أول 6 محاولات مسموحة
+      for (let i = 1; i <= 6; i++) {
+        const res = checkRateLimit(testKey, 6, 60_000, 120_000);
+        assert.strictEqual(res.allowed, true, `المحاولة ${i} يجب أن تكون مسموحة`);
+        assert.strictEqual(res.remainingAttempts, 6 - i);
+      }
+
+      // المحاولة السابعة يجب حظرها
+      const blockedRes = checkRateLimit(testKey, 6, 60_000, 120_000);
+      assert.strictEqual(blockedRes.allowed, false, 'المحاولة السابعة يجب أن تكون محظورة');
+      assert(blockedRes.retryAfterSeconds && blockedRes.retryAfterSeconds > 0);
+
+      // التحقق من الحفظ على القرص في rate_limits.json
+      const rateLimitFilePath = path.resolve(__dirname, '../server/.data/rate_limits.json');
+      assert(fs.existsSync(rateLimitFilePath), 'يجب إنشاء وحفظ ملف rate_limits.json');
+      const savedData = JSON.parse(fs.readFileSync(rateLimitFilePath, 'utf8'));
+      assert(savedData[testKey], 'يجب أن يحتوي الملف الدائم على سجل المفتاح');
+      assert.strictEqual(savedData[testKey].count, 7);
+      assert(savedData[testKey].blockedUntil > Date.now());
+
+      resetRateLimit(testKey);
+    },
+  },
 ];
 
 console.log('======================================================================');

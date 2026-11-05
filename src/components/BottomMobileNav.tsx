@@ -30,6 +30,7 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
     adminTab,
     setAdminTab,
     setIsSurveysViewOpen,
+    isStartScreenActive,
   } = useBaadre();
 
   const canAccessAdmin = Boolean(currentUser && (isAdmin || isSuperAdmin));
@@ -46,14 +47,23 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
     else if (onOpenAddProperty) onOpenAddProperty();
   };
 
-  // Dynamic text size classes when language is Kurdish
-  const navTextClass = language === 'ku' ? 'text-[8.5px] font-bold tracking-tight' : 'text-[10px] font-black';
-  const adminNavTextClass = language === 'ku' ? 'text-[7.5px] leading-tight font-bold tracking-tighter' : 'text-[10px] font-black';
+  // Unified text styling across Kurdish, Arabic, and English to ensure identical bar dimensions and proportions
+  const navTextClass = 'text-[10px] font-black leading-tight text-center truncate max-w-full px-0.5 mt-0.5';
+  const adminNavTextClass = 'text-[10px] font-black leading-tight text-center truncate max-w-full px-0.5 mt-0.5';
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 pointer-events-none">
-      {/* الشريط السفلي أبيض شفاف (Transparent White) بدون إطارات وبحواف ناعمة */}
-      <div className={`mx-auto bg-white/70 backdrop-blur-xl border-0 rounded-3xl shadow-[0_8px_30px_rgba(30,55,37,0.10)] px-3 py-1.5 flex items-center ${activeRole === 'citizen' || !canAccessAdmin ? 'max-w-sm justify-around' : 'max-w-md justify-around'} pointer-events-auto relative`}>
+      {/* الشريط السفلي مطابق للشريط العلوي بتدرج شفاف وإضاءة ناعمة */}
+      <div className="mx-auto bg-gradient-to-r from-[#467586]/55 via-[#58899A]/35 to-[#6C9DAE]/55 backdrop-blur-md border border-white/50 rounded-3xl shadow-[0_8px_28px_rgba(30,142,147,0.16)] px-3 py-1.5 flex items-center max-w-sm justify-around pointer-events-auto relative overflow-hidden">
+        {/* Subtle luminous center glow matching NavbarHeader */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.15) 52%, transparent 82%)',
+          }}
+        />
+
         {activeRole === 'citizen' || !canAccessAdmin ? (
           <>
             {/* 1. Completed Works (الأعمال المنجزة) */}
@@ -63,26 +73,26 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
                 setIsSurveysViewOpen(false);
                 setCitizenTab('works');
               }}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer ${
-                citizenTab === 'works' || citizenTab === 'projects'
-                  ? 'bg-[#E8F4EA] text-[#1E3725] font-black'
-                  : 'text-[#46674D] hover:bg-white/60'
+              className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer ${
+                !isStartScreenActive && (citizenTab === 'works' || citizenTab === 'projects')
+                  ? 'bg-white/85 text-[#0E3544] font-black shadow-2xs'
+                  : 'text-[#0E3544] hover:bg-white/55'
               }`}
             >
               <Briefcase
                 className={`w-5 h-5 ${
-                  citizenTab === 'works' || citizenTab === 'projects'
-                    ? 'stroke-[2.5] text-[#46674D]'
-                    : 'stroke-[1.8]'
+                  !isStartScreenActive && (citizenTab === 'works' || citizenTab === 'projects')
+                    ? 'stroke-[2.5] text-[#0E3544]'
+                    : 'stroke-[2] text-[#0E3544]'
                 }`}
               />
-              <span className={`${navTextClass} mt-0.5 text-center`}>
+              <span className={navTextClass}>
                 {tr('الأعمال المنجزة', 'کارە تەواوکراوەکان', 'Completed')}
               </span>
             </button>
 
-            {/* 2. Center Add Report Button (يظهر للجميع، وعند نقره من قبل زائر يفتح شاشة تسجيل الدخول) */}
-            <div className="px-2">
+            {/* 2. Center Add Report Button */}
+            <div className="relative z-10 px-2">
               <button
                 onClick={() => {
                   playClickSound();
@@ -90,64 +100,60 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
                 }}
                 aria-label={tr('إضافة بلاغ جديد', 'زیادکردنی سکاڵا', 'Add New Report')}
                 title={tr('إضافة بلاغ جديد', 'زیادکردنی سکاڵا', 'Add New Report')}
-                className="w-11 h-11 rounded-2xl bg-[#E8F4EA] hover:bg-[#D8EDDC] active:scale-95 text-[#2D4833] flex items-center justify-center shadow-xs transition-all cursor-pointer border-0 outline-none group"
+                className="w-11 h-11 rounded-2xl bg-gradient-to-r from-[#467586] to-[#58899A] hover:from-[#3B6878] hover:to-[#467586] active:scale-95 text-white flex items-center justify-center shadow-[0_4px_14px_rgba(30,142,147,0.28)] transition-all cursor-pointer border border-white/40 outline-none group"
               >
-                <Plus className="w-6.5 h-6.5 stroke-[3] text-[#2D4833] transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" />
+                <Plus className="w-6 h-6 stroke-[3] text-white transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" />
               </button>
             </div>
 
-            {/* 3. Track My Reports (تتبع بلاغاتي - يظهر للمواطن والزائر) */}
+            {/* 3. Track My Reports (تتبع بلاغاتي) */}
             <button
               onClick={() => {
                 playClickSound();
                 setIsSurveysViewOpen(false);
                 setCitizenTab('track');
               }}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer ${
-                citizenTab === 'track' || citizenTab === 'home'
-                  ? 'bg-[#E8F4EA] text-[#1E3725] font-black'
-                  : 'text-[#46674D] hover:bg-white/60'
+              className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer ${
+                !isStartScreenActive && (citizenTab === 'track' || citizenTab === 'home')
+                  ? 'bg-white/85 text-[#0E3544] font-black shadow-2xs'
+                  : 'text-[#0E3544] hover:bg-white/55'
               }`}
             >
               <QrCode
                 className={`w-5 h-5 ${
-                  citizenTab === 'track' || citizenTab === 'home'
-                    ? 'stroke-[2.5] text-[#46674D]'
-                    : 'stroke-[1.8]'
+                  !isStartScreenActive && (citizenTab === 'track' || citizenTab === 'home')
+                    ? 'stroke-[2.5] text-[#0E3544]'
+                    : 'stroke-[2] text-[#0E3544]'
                 }`}
               />
-              <span className={`${navTextClass} mt-0.5 text-center`}>
+              <span className={navTextClass}>
                 {tr('تتبع بلاغاتي', 'سکاڵاکانم', 'My Reports')}
               </span>
             </button>
           </>
         ) : (
           <>
-            {/* Admin Bottom Nav Order:
-               1. الإحصاءات (Analytics)
-               2. البلاغات (Active Reports)
-               3. الأعمال المنجزة (Projects)
-               4. الدوائر والمواطنين (Directory)
-            */}
-            {/* Admin Bottom Nav Tabs - مطابقة تماماً لتصميم حساب المواطن بألوان خفيفة وحواف ناعمة */}
+            {/* Admin Bottom Nav: 1. الإحصاءات, 2. البلاغات, 3. الأعمال المنجزة */}
             <button
               onClick={() => {
                 playClickSound();
                 setIsSurveysViewOpen(false);
                 setAdminTab('analytics');
               }}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer ${
-                adminTab === 'analytics'
-                  ? 'bg-[#E8F4EA] text-[#1E3725] font-black'
-                  : 'text-[#46674D] hover:bg-white/60'
+              className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+                !isStartScreenActive && adminTab === 'analytics'
+                  ? 'bg-white/85 text-[#0E3544] font-black shadow-2xs'
+                  : 'text-[#0E3544] hover:bg-white/55'
               }`}
             >
               <BarChart3
-                className={`w-4.5 h-4.5 ${
-                  adminTab === 'analytics' ? 'stroke-[2.5] text-[#46674D]' : 'stroke-[1.8]'
+                className={`w-5 h-5 ${
+                  !isStartScreenActive && adminTab === 'analytics'
+                    ? 'stroke-[2.5] text-[#0E3544]'
+                    : 'stroke-[2] text-[#0E3544]'
                 }`}
               />
-              <span className={`${adminNavTextClass} mt-0.5 text-center truncate max-w-full px-0.5`}>
+              <span className={adminNavTextClass}>
                 {tr('الإحصاءات', 'ئامارەکان', 'Analytics')}
               </span>
             </button>
@@ -158,18 +164,20 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
                 setIsSurveysViewOpen(false);
                 setAdminTab('active_reports');
               }}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer ${
-                adminTab === 'active_reports'
-                  ? 'bg-[#E8F4EA] text-[#1E3725] font-black'
-                  : 'text-[#46674D] hover:bg-white/60'
+              className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+                !isStartScreenActive && adminTab === 'active_reports'
+                  ? 'bg-white/85 text-[#0E3544] font-black shadow-2xs'
+                  : 'text-[#0E3544] hover:bg-white/55'
               }`}
             >
               <ClipboardList
-                className={`w-4.5 h-4.5 ${
-                  adminTab === 'active_reports' ? 'stroke-[2.5] text-[#46674D]' : 'stroke-[1.8]'
+                className={`w-5 h-5 ${
+                  !isStartScreenActive && adminTab === 'active_reports'
+                    ? 'stroke-[2.5] text-[#0E3544]'
+                    : 'stroke-[2] text-[#0E3544]'
                 }`}
               />
-              <span className={`${adminNavTextClass} mt-0.5 text-center truncate max-w-full px-0.5`}>
+              <span className={adminNavTextClass}>
                 {tr('البلاغات', 'سکاڵاکان', 'Reports')}
               </span>
             </button>
@@ -180,43 +188,21 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
                 setIsSurveysViewOpen(false);
                 setAdminTab('projects');
               }}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer ${
-                adminTab === 'projects'
-                  ? 'bg-[#E8F4EA] text-[#1E3725] font-black'
-                  : 'text-[#46674D] hover:bg-white/60'
+              className={`relative z-10 flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+                !isStartScreenActive && adminTab === 'projects'
+                  ? 'bg-white/85 text-[#0E3544] font-black shadow-2xs'
+                  : 'text-[#0E3544] hover:bg-white/55'
               }`}
             >
               <Briefcase
-                className={`w-4.5 h-4.5 ${
-                  adminTab === 'projects' ? 'stroke-[2.5] text-[#46674D]' : 'stroke-[1.8]'
+                className={`w-5 h-5 ${
+                  !isStartScreenActive && adminTab === 'projects'
+                    ? 'stroke-[2.5] text-[#0E3544]'
+                    : 'stroke-[2] text-[#0E3544]'
                 }`}
               />
-              <span className={`${adminNavTextClass} mt-0.5 text-center truncate max-w-full px-0.5`}>
+              <span className={adminNavTextClass}>
                 {tr('الأعمال المنجزة', 'کارە تەواوکراوەکان', 'Completed')}
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                playClickSound();
-                setIsSurveysViewOpen(false);
-                setAdminTab('directory');
-              }}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer ${
-                adminTab === 'directory' || adminTab === 'departments_directory'
-                  ? 'bg-[#E8F4EA] text-[#1E3725] font-black'
-                  : 'text-[#46674D] hover:bg-white/60'
-              }`}
-            >
-              <Users
-                className={`w-4.5 h-4.5 ${
-                  adminTab === 'directory' || adminTab === 'departments_directory'
-                    ? 'stroke-[2.5] text-[#46674D]'
-                    : 'stroke-[1.8]'
-                }`}
-              />
-              <span className={`${adminNavTextClass} mt-0.5 text-center truncate max-w-full px-0.5`}>
-                {tr('الدوائر والمواطنين', 'فەرمانگە و هاووڵاتیان', 'Directory')}
               </span>
             </button>
           </>

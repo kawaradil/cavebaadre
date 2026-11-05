@@ -1,26 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Mail,
   Lock,
   User as UserIcon,
   Phone,
-  Calendar,
   KeyRound,
-  ShieldAlert,
-  ShieldCheck,
   Check,
   ArrowRight,
-  Info,
   AlertCircle,
   Eye,
   EyeOff,
-  Sparkles,
+  MessageCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { auth } from '../lib/firebase';
-import { authService } from '../services/authService';
+import { useBaadre } from '../context/BaadreContext';
+import { MUNICIPAL_WHATSAPP_NUMBER } from '../types/baadre';
+import {
+  authService,
+  getPasswordResetLockoutStatus,
+  WrongEmailLockStatus,
+} from '../services/authService';
 import { playClickSound, playSuccessSound } from '../lib/sound';
 
 export const AuthModal: React.FC = () => {
@@ -33,7 +35,8 @@ export const AuthModal: React.FC = () => {
     register,
     isLoading,
   } = useAuth();
-  const { language, dir, isRTL } = useLanguage();
+  const { language, dir } = useLanguage();
+  const { contactSettings } = useBaadre();
 
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
@@ -43,7 +46,6 @@ export const AuthModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [birthDate, setBirthDate] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [requiresSecretCode, setRequiresSecretCode] = useState(false);
   const [resetLinkSent, setResetLinkSent] = useState(false);
@@ -52,11 +54,63 @@ export const AuthModal: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [lockoutState, setLockoutState] = useState<WrongEmailLockStatus>(() =>
+    getPasswordResetLockoutStatus()
+  );
+
+  useEffect(() => {
+    if (!isAuthModalOpen) return;
+    setLockoutState(getPasswordResetLockoutStatus());
+    const interval = setInterval(() => {
+      setLockoutState(getPasswordResetLockoutStatus());
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [isAuthModalOpen, authModalMode]);
 
   if (!isAuthModalOpen) return null;
 
-  const toShortError = (err: any, fallbackAr: string, fallbackKu: string, fallbackEn: string): string => {
+  const adminWhatsappRaw = (
+    contactSettings?.whatsappReportsNumber ||
+    contactSettings?.contactPhone ||
+    MUNICIPAL_WHATSAPP_NUMBER
+  ).replace(/\D/g, '');
+  const adminWhatsappIntl = adminWhatsappRaw.startsWith('0')
+    ? `964${adminWhatsappRaw.slice(1)}`
+    : adminWhatsappRaw;
+
+  const toShortError = (
+    err: any,
+    fallbackAr: string,
+    fallbackKu: string,
+    fallbackEn: string
+  ): string => {
     const raw = String(err?.code || err?.message || '').toLowerCase();
+    if (
+      raw.includes('email-already-in-use') ||
+      raw.includes('مسجل مسبقاً') ||
+      raw.includes('ببريد موجود')
+    ) {
+      return tr(
+        'لا نقبل إنشاء حساب ببريد إلكتروني موجود مسبقاً.',
+        'دروستکردنی هەژمار بە ئیمەیڵی پێشتر تۆمارکراو قبوڵ ناکرێت.',
+        'Creating an account with an existing email is not allowed.'
+      );
+    }
+    if (err?.lockedForOneHour || raw.includes('إيقاف المحاولات لمدة ساعة')) {
+      return tr(
+        'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم منع المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.',
+        '٣ جار ئیمەیڵی هەڵە نووسرا. هەوڵەکان بۆ ماوەی کاتژمێرێک ڕاگیران، تکایە پەیوەندی بە کارگێڕییەوە بکە.',
+        'Wrong email entered 3 times. Further attempts are blocked for 1 hour, please contact administration.'
+      );
+    }
+    if (err?.wrongEmailAttempt || raw.includes('غير مسجل أو غير صحيح')) {
+      const attemptNum = err?.wrongEmailAttempt || 1;
+      return tr(
+        `البريد الإلكتروني غير صحيح أو غير مسجل. (المحاولة ${attemptNum} من 3)`,
+        `ئیمەیڵەکە نادروستە یان تۆمارنەکراوە. (هەوڵی ${attemptNum} لە ٣)`,
+        `Invalid or unregistered email. (Attempt ${attemptNum} of 3)`
+      );
+    }
     if (
       raw.includes('invalid-credential') ||
       raw.includes('wrong-password') ||
@@ -65,9 +119,6 @@ export const AuthModal: React.FC = () => {
     ) {
       return tr('بيانات الدخول غير صحيحة.', 'زانیاری چوونەژوورەوە هەڵەیە.', 'Invalid credentials.');
     }
-    if (raw.includes('email-already-in-use')) {
-      return tr('البريد مسجل مسبقاً.', 'ئیمەیڵەکە پێشتر تۆمارکراوە.', 'Email already registered.');
-    }
     if (raw.includes('weak-password')) {
       return tr('كلمة المرور ضعيفة.', 'وشەی تێپەڕ لاوازە.', 'Weak password.');
     }
@@ -75,7 +126,11 @@ export const AuthModal: React.FC = () => {
       return tr('البريد غير صالح.', 'ئیمەیڵ نادروستە.', 'Invalid email.');
     }
     if (raw.includes('too-many-requests') || raw.includes('3 مرات')) {
-      return tr('تجاوزت الحد المسموح (3 مرات بالساعة).', 'سنووری ڕێگەپێدراوت تێپەڕاند (٣ جار لە کاتژمێرێکدا).', 'Rate limit exceeded (3 per hour).');
+      return tr(
+        'تجاوزت الحد المسموح (3 مرات بالساعة).',
+        'سنووری ڕێگەپێدراوت تێپەڕاند (٣ جار لە کاتژمێرێکدا).',
+        'Rate limit exceeded (3 per hour).'
+      );
     }
     if (raw.includes('network')) {
       return tr('خطأ في الاتصال.', 'هەڵەی پەیوەندی.', 'Connection error.');
@@ -103,7 +158,7 @@ export const AuthModal: React.FC = () => {
       return tr(fallbackAr, fallbackKu, fallbackEn);
     }
     const cleanMsg = String(err?.message || '').trim();
-    if (cleanMsg && cleanMsg.length <= 55 && !cleanMsg.includes('<') && !cleanMsg.includes('JSON')) {
+    if (cleanMsg && cleanMsg.length <= 75 && !cleanMsg.includes('<') && !cleanMsg.includes('JSON')) {
       return cleanMsg;
     }
     return tr(fallbackAr, fallbackKu, fallbackEn);
@@ -114,7 +169,6 @@ export const AuthModal: React.FC = () => {
     setPassword('');
     setFullName('');
     setPhone('');
-    setBirthDate('');
     setRecoveryCode('');
     setRequiresSecretCode(false);
     setFormError(null);
@@ -144,7 +198,12 @@ export const AuthModal: React.FC = () => {
       resetForm(true);
     } catch (err: any) {
       setFormError(
-        toShortError(err, 'بيانات الدخول غير صحيحة.', 'چوونەژوورەوە سەرکەوتوو نەبوو.', 'Invalid credentials.')
+        toShortError(
+          err,
+          'بيانات الدخول غير صحيحة.',
+          'چوونەژوورەوە سەرکەوتوو نەبوو.',
+          'Invalid credentials.'
+        )
       );
     } finally {
       setSubmitting(false);
@@ -163,13 +222,17 @@ export const AuthModal: React.FC = () => {
         email,
         password,
         phone,
-        birthDate,
       });
       playSuccessSound();
       resetForm(true);
     } catch (err: any) {
       setFormError(
-        toShortError(err, 'تعذر إنشاء الحساب.', 'دروستکردنی هەژمار سەرکەوتوو نەبوو.', 'Registration failed.')
+        toShortError(
+          err,
+          'تعذر إنشاء الحساب.',
+          'دروستکردنی هەژمار سەرکەوتوو نەبوو.',
+          'Registration failed.'
+        )
       );
     } finally {
       setSubmitting(false);
@@ -180,11 +243,26 @@ export const AuthModal: React.FC = () => {
     e.preventDefault();
     setFormError(null);
     setFormSuccess(null);
+
+    const currentLock = getPasswordResetLockoutStatus();
+    if (currentLock.isLocked) {
+      setLockoutState(currentLock);
+      setFormError(
+        tr(
+          'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم منع المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.',
+          '٣ جار ئیمەیڵی هەڵە نووسرا. هەوڵەکان بۆ ماوەی کاتژمێرێک ڕاگیران، تکایە پەیوەندی بە کارگێڕییەوە بکە.',
+          'Wrong email entered 3 times. Further attempts are blocked for 1 hour, please contact administration.'
+        )
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       if (!requiresSecretCode) {
         const res = await authService.requestCitizenPasswordReset(email);
+        setLockoutState(getPasswordResetLockoutStatus());
 
         if (res.requiresSuperAdminSecret || res.requiresAdminRecoveryCode) {
           setRequiresSecretCode(true);
@@ -232,6 +310,8 @@ export const AuthModal: React.FC = () => {
         );
       }
     } catch (err: any) {
+      const updatedLock = getPasswordResetLockoutStatus();
+      setLockoutState(updatedLock);
       setFormError(
         toShortError(err, 'تعذر إرسال الرابط.', 'ناردنی بەستەر سەرکەوتوو نەبوو.', 'Request failed.')
       );
@@ -331,6 +411,7 @@ export const AuthModal: React.FC = () => {
                 setAuthModalMode('recovery');
                 setRequiresSecretCode(false);
                 setFormError(null);
+                setLockoutState(getPasswordResetLockoutStatus());
               }}
               className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 authModalMode === 'recovery'
@@ -392,6 +473,7 @@ export const AuthModal: React.FC = () => {
                       setRequiresSecretCode(false);
                       setFormError(null);
                       setFormSuccess(null);
+                      setLockoutState(getPasswordResetLockoutStatus());
                       setAuthModalMode('recovery');
                     }}
                     className="text-[11px] font-bold text-[#46674D] hover:underline cursor-pointer"
@@ -436,7 +518,7 @@ export const AuthModal: React.FC = () => {
             </form>
           )}
 
-          {/* 2. REGISTRATION FORM (CITIZEN) */}
+          {/* 2. REGISTRATION FORM (CITIZEN - بدون حقل تاريخ الميلاد) */}
           {authModalMode === 'register' && (
             <form onSubmit={handleRegisterSubmit} className="space-y-3">
               {/* Full Name */}
@@ -450,7 +532,11 @@ export const AuthModal: React.FC = () => {
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder={tr('مثال: أحمد محمد علي', 'نموونە: ئەحمەد محەمەد عەلی', 'e.g. John David Smith')}
+                    placeholder={tr(
+                      'مثال: أحمد محمد علي',
+                      'نموونە: ئەحمەد محەمەد عەلی',
+                      'e.g. John David Smith'
+                    )}
                     className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:outline-none transition-colors pr-9"
                   />
                   <UserIcon className="w-4 h-4 text-[#46674D] absolute right-3 top-3 pointer-events-none" />
@@ -479,7 +565,12 @@ export const AuthModal: React.FC = () => {
               {/* Password */}
               <div>
                 <label className="block text-[11px] font-bold text-[#46674D] mb-1">
-                  {tr('كلمة المرور (6 خانات على الأقل)', 'وشەی تێپەڕ (لانیکەم ٦ پیت)', 'Password (min 6 chars)')} *
+                  {tr(
+                    'كلمة المرور (6 خانات على الأقل)',
+                    'وشەی تێپەڕ (لانیکەم ٦ پیت)',
+                    'Password (min 6 chars)'
+                  )}{' '}
+                  *
                 </label>
                 <div className="relative">
                   <input
@@ -521,24 +612,6 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Date of Birth */}
-              <div>
-                <label className="block text-[11px] font-bold text-[#46674D] mb-1">
-                  {tr('تاريخ الميلاد', 'بەرواری لەدایکبوون', 'Date of Birth')} *
-                </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    required
-                    dir="ltr"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:outline-none transition-colors pr-9"
-                  />
-                  <Calendar className="w-4 h-4 text-[#46674D] absolute right-3 top-3 pointer-events-none" />
-                </div>
-              </div>
-
               <button
                 type="submit"
                 disabled={submitting || isLoading}
@@ -549,83 +622,142 @@ export const AuthModal: React.FC = () => {
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    <span>{tr('إنشاء الحساب والمتابعة', 'تۆمارکردن و بەردەوامبوون', 'Create Citizen Account')}</span>
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          {/* 3. UNIFIED PASSWORD RECOVERY (SINGLE PLACE FOR ALL ACCOUNTS WITHOUT EXPLANATIONS) */}
-          {authModalMode === 'recovery' && !resetLinkSent && (
-            <form onSubmit={handleRecoverySubmit} className="space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-bold text-[#46674D] mb-1">
-                  {tr('البريد الإلكتروني', 'ئیمەیڵ', 'Email Address')} *
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    required
-                    dir="ltr"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (requiresSecretCode) {
-                        setRequiresSecretCode(false);
-                        setRecoveryCode('');
-                        setFormError(null);
-                      }
-                    }}
-                    placeholder="name@example.com"
-                    className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-medium text-[#1E3725] focus:outline-none transition-colors pr-9 text-left"
-                  />
-                  <Mail className="w-4 h-4 text-[#46674D] absolute right-3 top-3 pointer-events-none" />
-                </div>
-              </div>
-
-              {requiresSecretCode && (
-                <div>
-                  <label className="block text-[11px] font-bold text-[#46674D] mb-1">
-                    {tr('الرمز السري', 'کۆدی نهێنی', 'Secret Code')} *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      required
-                      dir="ltr"
-                      value={recoveryCode}
-                      onChange={(e) => setRecoveryCode(e.target.value)}
-                      placeholder="RC-XXXX-XXXX-XXXX-XXXX"
-                      className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-mono font-black text-[#1E3725] focus:outline-none transition-colors pr-9 text-left tracking-wider"
-                    />
-                    <KeyRound className="w-4 h-4 text-[#46674D] absolute right-3 top-3 pointer-events-none" />
-                  </div>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-3 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
-              >
-                {submitting ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <ArrowRight className="w-4 h-4" />
                     <span>
-                      {requiresSecretCode
-                        ? tr('تأكيد الرمز وإرسال الرابط', 'پشتڕاستکردنەوەی کۆد و ناردنی بەستەر', 'Verify Code & Send Link')
-                        : tr('إرسال رابط إعادة التعيين', 'ناردنی بەستەری نوێکردنەوە', 'Send Reset Link')}
+                      {tr(
+                        'إنشاء الحساب والمتابعة',
+                        'تۆمارکردن و بەردەوامبوون',
+                        'Create Citizen Account'
+                      )}
                     </span>
                   </>
                 )}
               </button>
             </form>
           )}
+
+          {/* 3. UNIFIED PASSWORD RECOVERY */}
+          {authModalMode === 'recovery' && !resetLinkSent && (
+            <>
+              {lockoutState.isLocked ? (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-3 text-center">
+                  <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-2xs">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-black text-rose-800">
+                      {tr(
+                        'تم إيقاف المحاولات لمدة ساعة',
+                        'هەوڵەکان بۆ ماوەی کاتژمێرێک ڕاگیران',
+                        'Attempts Blocked for 1 Hour'
+                      )}
+                    </p>
+                    <p className="text-[11px] font-bold text-rose-700 leading-relaxed">
+                      {tr(
+                        `لقد أدخلت بريداً إلكترونياً خاطئاً 3 مرات متتالية. تم منع محاولات أخرى لمدة ساعة (${lockoutState.remainingMinutes} دقيقة متبقية). يرجى الاتصال بالإدارة للمساعدة.`,
+                        `٣ جار لەسەریەک ئیمەیڵی هەڵەت نووسیوە. هەوڵەکانی تر بۆ ماوەی کاتژمێرێک ڕاگیران (${lockoutState.remainingMinutes} خولەک ماوە). تکایە پەیوەندی بە کارگێڕییەوە بکە.`,
+                        `You entered an incorrect email 3 times. Further attempts are blocked for 1 hour (${lockoutState.remainingMinutes} min remaining). Please contact administration.`
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="pt-1 flex flex-col sm:flex-row items-center justify-center gap-2">
+                    <a
+                      href={`https://wa.me/${adminWhatsappIntl}?text=${encodeURIComponent(
+                        tr(
+                          'مرحباً إدارة منظومة باعدرى، أحتاج مساعدة في استرداد حسابي بعد توقف المحاولات.',
+                          'سڵاو کارگێڕی سیستەمی باعەدرێ، پێویستم بە هاوکارییە بۆ گەڕاندنەوەی هەژمارەکەم.',
+                          'Hello Baadre Platform Administration, I need help recovering my account.'
+                        )
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#1E75BB] hover:bg-[#14558A] text-white text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                    >
+                      <MessageCircle className="w-4 h-4 shrink-0" />
+                      <span>{tr('الاتصال بالإدارة', 'پەیوەندی بە کارگێڕی', 'Contact Administration')}</span>
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleRecoverySubmit} className="space-y-3.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#46674D] mb-1">
+                      {tr('البريد الإلكتروني', 'ئیمەیڵ', 'Email Address')} *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        required
+                        dir="ltr"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (requiresSecretCode) {
+                            setRequiresSecretCode(false);
+                            setRecoveryCode('');
+                            setFormError(null);
+                          }
+                        }}
+                        placeholder="name@example.com"
+                        className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-medium text-[#1E3725] focus:outline-none transition-colors pr-9 text-left"
+                      />
+                      <Mail className="w-4 h-4 text-[#46674D] absolute right-3 top-3 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {requiresSecretCode && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#46674D] mb-1">
+                        {tr('الرمز السري', 'کۆدی نهێنی', 'Secret Code')} *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          dir="ltr"
+                          value={recoveryCode}
+                          onChange={(e) => setRecoveryCode(e.target.value)}
+                          placeholder="RC-XXXX-XXXX-XXXX-XXXX"
+                          className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-mono font-black text-[#1E3725] focus:outline-none transition-colors pr-9 text-left tracking-wider"
+                        />
+                        <KeyRound className="w-4 h-4 text-[#46674D] absolute right-3 top-3 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full py-3 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <ArrowRight className="w-4 h-4" />
+                        <span>
+                          {requiresSecretCode
+                            ? tr(
+                                'تأكيد الرمز وإرسال الرابط',
+                                'پشتڕاستکردنەوەی کۆد و ناردنی بەستەر',
+                                'Verify Code & Send Link'
+                              )
+                            : tr(
+                                'إرسال رابط إعادة التعيين',
+                                'ناردنی بەستەری نوێکردنەوە',
+                                'Send Reset Link'
+                              )}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 };
+

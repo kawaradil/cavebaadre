@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <title>ÇAVÊ BAADRÊ | عين باعذرة | Baadre Eye - منظمة Raba</title>
     <meta name="description" content="تطبيق ÇAVÊ BAADRÊ (عين باعذرة - Baadre Eye) التابع لمنظمة Raba لإدارة ومتابعة البلاغات والخدمات في ناحية باعذرة" />
     <meta property="og:title" content="ÇAVÊ BAADRÊ | عين باعذرة | Baadre Eye - منظمة Raba" />
@@ -26,53 +28,52 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Montserrat:wght@600;700;800&family=Noto+Kufi+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   </head>
-  <body class="bg-white text-slate-900 antialiased selection:bg-amber-400 selection:text-slate-950">
-    <!-- Persistent Firebase Phone Auth reCAPTCHA Container (Never unmounted by React) -->
-    <div id="recaptcha-container"></div>
+  <body class="bg-[#F2F8FA] text-[#1B3A46] antialiased selection:bg-[#467586] selection:text-white">
     <div id="root">
-      <div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#DDF2FF;overflow:hidden;">
+      <div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#EFFAFA;overflow:hidden;">
         <img
           src="/assets/aistudio/file_00000000a96882108a7b95ddc566c771_eb4ccf09.png"
           alt=""
-          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:bottom;transform:scale(1.09);transform-origin:bottom;"
+          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:bottom;transform:scale(1.09);transform-origin:bottom;filter:hue-rotate(-18deg) saturate(0.84) brightness(1.02) contrast(0.97);"
         />
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,#1E8E93 0%,#2BB3B6 50%,#247CB4 100%);mix-blend-mode:color;opacity:0.45;"></div>
         <div style="position:relative;z-index:10;display:flex;flex-direction:column;align-items:center;margin-top:-80px;">
           <img
             src="/assets/aistudio/cave_baadre_logo.png"
             alt="ÇAVÊ BAADRÊ"
-            style="width:176px;height:auto;object-fit:contain;filter:drop-shadow(0 14px 28px rgba(4,72,156,0.22));"
+            style="width:176px;height:auto;object-fit:contain;filter:hue-rotate(-18deg) saturate(1.12) brightness(0.97) drop-shadow(0 14px 28px rgba(30,142,147,0.24));"
           />
         </div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- PWA Service Worker Registration (Web only, bypass for Capacitor native iOS) -->
+    <!-- Capture PWA beforeinstallprompt early & Register Service Worker for Direct Native Install -->
     <script>
-      const isCapacitor = window.location.protocol === 'capacitor:' || 
-                          window.location.protocol === 'ionic:' || 
-                          window.location.protocol === 'file:' ||
-                          Boolean(window.Capacitor);
-      if (!isCapacitor && 'serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
-        const isDev = window.location.hostname.includes('ais-dev') || 
-                      window.location.hostname.includes('localhost') || 
-                      window.location.hostname === '127.0.0.1';
-        if (isDev) {
-          navigator.serviceWorker.getRegistrations().then(regs => {
-            for (const r of regs) r.unregister();
-          }).catch(() => {});
-          if ('caches' in window) {
-            caches.keys().then(names => {
-              for (const n of names) caches.delete(n);
-            }).catch(() => {});
-          }
-        } else {
-          window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-              .then(reg => console.log('AQQAR Service Worker registered successfully:', reg.scope))
-              .catch(err => console.log('AQQAR Service Worker registration failed:', err));
-          });
-        }
+      window.__deferredPwaPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__deferredPwaPrompt = e;
+        window.dispatchEvent(new Event('pwa-prompt-ready'));
+      });
+
+      const isCapacitor =
+        window.location.protocol === 'capacitor:' ||
+        window.location.protocol === 'ionic:' ||
+        window.location.protocol === 'file:' ||
+        Boolean(window.Capacitor);
+
+      if (
+        !isCapacitor &&
+        'serviceWorker' in navigator &&
+        (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+      ) {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then(function (reg) {
+            reg.update().catch(function () {});
+          })
+          .catch(function () {});
       }
     </script>
   </body>

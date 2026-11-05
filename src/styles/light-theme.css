@@ -1,6 +1,6 @@
 /**
  * RABA Theme Design Tokens
- * نظام متغيرات السمة اللونية المستوحاة من شعار منظمة رابه (RABA Blue & Turquoise)
+ * نظام متغيرات السمة اللونية المستوحاة من شعار منظمة رابه المرفق (تركوازي الرمز #2BB3B6 وأزرق الإطار #247CB4)
  */
 
 :root,
@@ -10,43 +10,43 @@ html[data-theme="light"] {
   /* الخلفيات والأسطح (Backgrounds & Surfaces) */
   --bg-main: #FFFFFF;
   --bg-surface: #FFFFFF;
-  --bg-surface-hover: #F2FAFC;
+  --bg-surface-hover: #EFFAFA;
   --bg-card: #FFFFFF;
-  --bg-card-subtle: #F2FAFC;
+  --bg-card-subtle: #EFFAFA;
   --bg-input: #FFFFFF;
   --bg-input-focus: #FFFFFF;
 
   /* النصوص والطباعة (Typography & Text) */
-  --text-main: #0F314A;
-  --text-muted: #185A80;
+  --text-main: #0E3544;
+  --text-muted: #195D73;
   --text-subtle: #64748B;
   --text-inverse: #FFFFFF;
 
-  /* اللون الأساسي للعلامة التجارية (RABA Primary Blue) */
-  --primary: #257EB8;
-  --primary-hover: #1D6899;
-  --primary-light: #E6F5FA;
+  /* اللون الأساسي المستوحى من شعار رابه (RABA Turquoise & Blue) */
+  --primary: #1E8E93;
+  --primary-hover: #156E73;
+  --primary-light: #DEF5F6;
   --primary-foreground: #FFFFFF;
 
   /* الحدود والفواصل (Borders & Dividers) */
-  --border-theme: #A5D9EA;
-  --border-subtle: #E6F5FA;
-  --border-focus: #257EB8;
+  --border-theme: #B2E2E5;
+  --border-subtle: #DEF5F6;
+  --border-focus: #1E8E93;
 
-  /* لون التمييز التركوازي (RABA Accent Turquoise) */
-  --accent: #2BB3B6;
-  --accent-hover: #229A9D;
-  --accent-light: #E6F5FA;
+  /* لون التمييز الأزرق والتركوازي من الشعار (RABA Accent) */
+  --accent: #247CB4;
+  --accent-hover: #1D6899;
+  --accent-light: #DEF5F6;
   --accent-foreground: #FFFFFF;
 
   /* شارات وحالات (Badges & Statuses) */
-  --badge-sale: #257EB8;
-  --badge-rent: #0F314A;
+  --badge-sale: #1E8E93;
+  --badge-rent: #0E3544;
   --success: #10B981;
   --danger: #EF4444;
   --warning: #F59E0B;
 
   /* الظلال وتأثيرات العمق (Shadows) */
-  --shadow-card: 0 8px 24px rgba(37, 126, 184, 0.08);
-  --shadow-card-hover: 0 20px 40px rgba(37, 126, 184, 0.14);
+  --shadow-card: 0 8px 24px rgba(30, 142, 147, 0.08);
+  --shadow-card-hover: 0 20px 40px rgba(30, 142, 147, 0.14);
 }

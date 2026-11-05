@@ -34,6 +34,11 @@ interface CompletedWorkCardProps {
   tr: (ar: string, ku: string, en: string) => string;
 }
 
+const toEnglishDigits = (val: string | number): string =>
+  String(val)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776));
+
 const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
   work,
   linkedReport,
@@ -42,7 +47,8 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
   isRTL,
   tr,
 }) => {
-  const [activeSlide, setActiveSlide] = useState<number>(0);
+  const [activeGroup, setActiveGroup] = useState<'after' | 'before'>('after');
+  const [activePhotoIdx, setActivePhotoIdx] = useState<number>(0);
 
   const sec = SECTOR_META[work.sector] || SECTOR_META.other;
   const secLabel = language === 'ku' ? sec.ku : language === 'en' ? sec.en : sec.ar;
@@ -74,266 +80,328 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
     return Array.from(new Set(rawBefore.filter(Boolean)));
   }, [work.beforeImages, work.beforeImage, linkedReport?.images, fallbackImg]);
 
-  // ترتيب الشرائح: كل صور (بعد) أولاً، وبعد انتهاء صور (بعد) تظهر كل صور (قبل)
-  const slides = React.useMemo(() => {
-    const afterSlides = afterImagesList.map((url, idx) => ({
-      type: 'after' as const,
-      url,
-      indexInGroup: idx + 1,
-      groupTotal: afterImagesList.length,
-      badge:
-        afterImagesList.length > 1
-          ? `${tr('بعد الإنجاز', 'دوای ئەنجامدان', 'After')} (${idx + 1}/${afterImagesList.length})`
-          : tr('بعد الإنجاز', 'دوای ئەنجامدان', 'After Completion'),
-    }));
+  const currentList = activeGroup === 'after' ? afterImagesList : beforeImagesList;
+  const safePhotoIdx = activePhotoIdx < currentList.length ? activePhotoIdx : 0;
+  const currentPhotoUrl = currentList[safePhotoIdx] || fallbackImg;
 
-    const beforeSlides = beforeImagesList.map((url, idx) => ({
-      type: 'before' as const,
-      url,
-      indexInGroup: idx + 1,
-      groupTotal: beforeImagesList.length,
-      badge:
-        beforeImagesList.length > 1
-          ? `${tr('قبل الإنجاز', 'پێش ئەنجامدان', 'Before')} (${idx + 1}/${beforeImagesList.length})`
-          : tr('قبل الإنجاز', 'پێش ئەنجامدان', 'Before'),
-    }));
+  const deptName =
+    work.completedDepartment ||
+    work.organizationName ||
+    linkedReport?.assignedTeam ||
+    tr(
+      'دائرة صيانة الطرق والجسور - باعدرى',
+      'فەرمانگەی چاککردنەوەی ڕێگاوبان و پردەکان - باعدرێ',
+      'Roads & Bridges Maintenance Dept - Baadre'
+    );
 
-    return [...afterSlides, ...beforeSlides];
-  }, [afterImagesList, beforeImagesList, language]);
+  const duration =
+    work.durationText ||
+    (linkedReport?.responseTimeHours
+      ? tr(
+          `خلال ${linkedReport.responseTimeHours} ساعة`,
+          `لە ماوەی ${linkedReport.responseTimeHours} کاتژمێردا`,
+          `Within ${linkedReport.responseTimeHours} hours`
+        )
+      : tr('خلال 24 ساعة', 'لە ماوەی 24 کاتژمێردا', 'Within 24 hours'));
+
+  // حساب وتنسيق الخط الزمني الميداني الدقيق (استلام -> إرسال وتحديد أولوية -> إنجاز)
+  const timelineDates = React.useMemo(() => {
+    const formatDateTime = (d: Date) => {
+      const locale = language === 'ku' ? 'ckb-IQ' : language === 'ar' ? 'ar-IQ' : 'en-US';
+      try {
+        const timeStr = d.toLocaleTimeString(locale, {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const dateStr = d.toLocaleDateString(locale, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        return toEnglishDigits(`${timeStr} • ${dateStr}`);
+      } catch {
+        return toEnglishDigits(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
+      }
+    };
+
+    // 1. تاريخ استلام البلاغ
+    const rawReceived = linkedReport?.createdAt || work.reportedAt || work.startDate;
+    const dateReceived = rawReceived ? new Date(rawReceived) : new Date(Date.now() - 36 * 3600 * 1000);
+    const safeReceived = Number.isNaN(dateReceived.getTime())
+      ? new Date(Date.now() - 36 * 3600 * 1000)
+      : dateReceived;
+
+    // 2. تاريخ إرسال البلاغ وتحديد الأولوية
+    const rawDispatched =
+      linkedReport?.statusTimestamps?.in_progress ||
+      linkedReport?.urgencySetAt ||
+      linkedReport?.openedAt;
+    let safeDispatched: Date;
+    if (rawDispatched) {
+      const parsed = new Date(rawDispatched);
+      safeDispatched = Number.isNaN(parsed.getTime())
+        ? new Date(safeReceived.getTime() + 90 * 60 * 1000)
+        : parsed;
+    } else {
+      safeDispatched = new Date(safeReceived.getTime() + 90 * 60 * 1000);
+    }
+
+    // 3. تاريخ الإنجاز والمعالجة
+    const rawResolved =
+      work.completedAt ||
+      linkedReport?.resolvedAt ||
+      linkedReport?.statusTimestamps?.resolved ||
+      work.expectedCompletionDate;
+    let safeResolved: Date;
+    if (rawResolved) {
+      const parsed = new Date(rawResolved);
+      safeResolved = Number.isNaN(parsed.getTime())
+        ? new Date(safeDispatched.getTime() + 18 * 3600 * 1000)
+        : parsed;
+    } else {
+      safeResolved = new Date(safeDispatched.getTime() + 18 * 3600 * 1000);
+    }
+
+    return {
+      received: formatDateTime(safeReceived),
+      dispatched: formatDateTime(safeDispatched),
+      resolved: formatDateTime(safeResolved),
+    };
+  }, [linkedReport, work, language]);
+
+  const handleToggleGroup = (group: 'after' | 'before') => {
+    playClickSound();
+    setActiveGroup(group);
+    setActivePhotoIdx(0);
+  };
 
   const galleryItems: GallerySlideItem[] = React.useMemo(
-    () => slides.map((s) => ({ url: s.url, badge: s.badge })),
-    [slides]
+    () => currentList.map((url) => ({ url })),
+    [currentList]
   );
-
-  const safeSlideIdx = activeSlide < slides.length ? activeSlide : 0;
-  const currentSlide = slides[safeSlideIdx] || slides[0];
-  const firstBeforeIndex = afterImagesList.length;
-
-  const deptName = work.completedDepartment || work.organizationName;
-  const duration = work.durationText || tr('6 ساعات', '6 کاتژمێر', '6 hours');
-
-  const handleNextSlide = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    playClickSound();
-    setActiveSlide((prev) => (prev + 1) % slides.length);
-  };
-
-  const handlePrevSlide = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    playClickSound();
-    setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length);
-  };
-
-  const handleSelectGroup = (group: 'after' | 'before', e: React.MouseEvent) => {
-    e.stopPropagation();
-    playClickSound();
-    if (group === 'after') {
-      if (currentSlide.type === 'after' && afterImagesList.length > 1) {
-        // إذا كان داخل مجموعة "بعد" بالفعل يتنقل للصورة التالية في "بعد"
-        const nextAfter = (safeSlideIdx + 1) % afterImagesList.length;
-        setActiveSlide(nextAfter);
-      } else {
-        setActiveSlide(0);
-      }
-    } else {
-      if (currentSlide.type === 'before' && beforeImagesList.length > 1) {
-        const offsetInBefore = safeSlideIdx - firstBeforeIndex;
-        const nextBefore = firstBeforeIndex + ((offsetInBefore + 1) % beforeImagesList.length);
-        setActiveSlide(nextBefore);
-      } else {
-        setActiveSlide(firstBeforeIndex);
-      }
-    }
-  };
 
   return (
     <div
       dir={dir}
-      className={`rounded-3xl bg-white transition-all duration-300 overflow-hidden flex flex-col justify-between border border-sky-200/90 hover:border-sky-300 shadow-[0_8px_28px_rgba(14,116,144,0.08)] hover:shadow-[0_12px_34px_rgba(14,116,144,0.13)] group ${
+      className={`rounded-3xl bg-white overflow-hidden flex flex-col justify-between border-0 shadow-[0_12px_36px_-6px_rgba(30,55,37,0.14),0_4px_16px_rgba(70,103,77,0.10)] hover:shadow-[0_20px_44px_-6px_rgba(30,55,37,0.22),0_6px_22px_rgba(70,103,77,0.15)] ring-1 ring-[#46674D]/12 hover:ring-[#46674D]/25 transition-all duration-300 group ${
         isRTL ? 'text-right' : 'text-left'
       }`}
     >
-      {/* معرض الصور المتسلسل: كل صور (بعد) أولاً ثم كل صور (قبل) */}
-      <div className="relative aspect-video w-full bg-[#1E3725] overflow-hidden border-b border-sky-100">
+      {/* 1. صورة الكارت: نظيفة تماماً بدون أي نصوص أو شارات مطبوعة فوق الصورة */}
+      <div className="relative aspect-[16/10] w-full bg-[#1E3725] overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${currentSlide.type}-${safeSlideIdx}`}
-            initial={{ opacity: 0.65, scale: 0.99 }}
+            key={`${activeGroup}-${safePhotoIdx}-${currentPhotoUrl}`}
+            initial={{ opacity: 0.7, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0.65 }}
+            exit={{ opacity: 0.7 }}
             transition={{ duration: 0.2 }}
             className="w-full h-full"
           >
             <SmartAdaptiveImage
-              src={currentSlide.url}
-              alt={currentSlide.badge}
+              src={currentPhotoUrl}
+              alt={work.title}
               gallery={galleryItems}
-              initialIndex={safeSlideIdx}
-              badgeText={currentSlide.badge}
+              initialIndex={safePhotoIdx}
             />
           </motion.div>
         </AnimatePresence>
+      </div>
 
-        {/* شارة "بعد" أو "قبل" مع رقم الصورة */}
-        <span
-          className={`absolute top-3 ${
-            isRTL ? 'right-3' : 'left-3'
-          } z-20 px-3.5 py-1 rounded-xl text-xs font-black text-white shadow-md backdrop-blur-md flex items-center gap-1.5 pointer-events-none ${
-            currentSlide.type === 'after' ? 'bg-[#46674D]/95' : 'bg-[#1E3725]/90'
-          }`}
-        >
-          {currentSlide.type === 'after' && <CheckCircle2 className="w-3.5 h-3.5" />}
-          <span>{currentSlide.badge}</span>
-        </span>
+      {/* 2. أسفل الصورة: زرّا (بعد) و (قبل) مع إمكانية التبديل بين صور القبل والبعد */}
+      <div className="px-5 pt-3.5 pb-2 bg-white">
+        <div className="flex items-center gap-2 p-1 rounded-2xl bg-[#F4F9F5] border-0">
+          <button
+            type="button"
+            onClick={() => handleToggleGroup('after')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 border-0 ${
+              activeGroup === 'after'
+                ? 'bg-[#1E3725] text-white shadow-sm'
+                : 'bg-transparent text-[#2D4833] hover:bg-[#E8F4EA]'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>{tr('بعد الإنجاز', 'دوای ئەنجامدان', 'After')}</span>
+            {afterImagesList.length > 1 && (
+              <span className="text-[10px] font-mono opacity-80">({afterImagesList.length})</span>
+            )}
+          </button>
 
-        {/* عداد إجمالي الصور في الزاوية المقابلة */}
-        <span
-          dir="ltr"
-          className={`absolute top-3 ${
-            isRTL ? 'left-3' : 'right-3'
-          } z-20 px-2.5 py-1 rounded-xl bg-black/55 text-white text-[11px] font-mono font-bold backdrop-blur-md pointer-events-none`}
-        >
-          {safeSlideIdx + 1} / {slides.length}
-        </span>
-
-        {/* أزرار التبديل السريع بين (بعد) و (قبل) + النقاط المتسلسلة */}
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-2.5 inset-x-0 flex flex-col items-center gap-1.5 z-20 pointer-events-none"
-        >
-          <div className="flex items-center justify-center gap-2 pointer-events-auto">
-            <button
-              type="button"
-              onClick={(e) => handleSelectGroup('after', e)}
-              className={`px-3.5 py-1 rounded-full text-[11px] font-black transition-all cursor-pointer backdrop-blur-md shadow-xs ${
-                currentSlide.type === 'after'
-                  ? 'bg-[#46674D] text-white'
-                  : 'bg-white/90 text-[#1E3725] hover:bg-white'
-              }`}
-            >
-              {tr('بعد', 'دوای', 'After')} ({afterImagesList.length})
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleSelectGroup('before', e)}
-              className={`px-3.5 py-1 rounded-full text-[11px] font-black transition-all cursor-pointer backdrop-blur-md shadow-xs ${
-                currentSlide.type === 'before'
-                  ? 'bg-[#1E3725] text-white'
-                  : 'bg-white/90 text-[#1E3725] hover:bg-white'
-              }`}
-            >
-              {tr('قبل', 'پێش', 'Before')} ({beforeImagesList.length})
-            </button>
-          </div>
-
-          {slides.length > 2 && (
-            <div className="flex items-center gap-1 pointer-events-auto">
-              {slides.map((s, idx) => (
-                <button
-                  key={`dot-${idx}`}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    playClickSound();
-                    setActiveSlide(idx);
-                  }}
-                  className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                    idx === safeSlideIdx
-                      ? s.type === 'after'
-                        ? 'w-5 bg-emerald-400'
-                        : 'w-5 bg-amber-300'
-                      : 'w-1.5 bg-white/60 hover:bg-white'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => handleToggleGroup('before')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 border-0 ${
+              activeGroup === 'before'
+                ? 'bg-[#1E3725] text-white shadow-sm'
+                : 'bg-transparent text-[#2D4833] hover:bg-[#E8F4EA]'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 stroke-[2.2]" />
+            <span>{tr('قبل الإنجاز', 'پێش ئەنجامدان', 'Before')}</span>
+            {beforeImagesList.length > 1 && (
+              <span className="text-[10px] font-mono opacity-80">({beforeImagesList.length})</span>
+            )}
+          </button>
         </div>
 
-        {/* أزرار الأسهم للتمرير المتسلسل (كل صور بعد ثم كل صور قبل) */}
-        {slides.length > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={isRTL ? handleNextSlide : handlePrevSlide}
-              aria-label="Previous Slide"
-              className="absolute top-1/2 -translate-y-1/2 left-2.5 z-20 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-[#1E3725] flex items-center justify-center shadow-md backdrop-blur-xs transition-all cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={isRTL ? handlePrevSlide : handleNextSlide}
-              aria-label="Next Slide"
-              className="absolute top-1/2 -translate-y-1/2 right-2.5 z-20 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-[#1E3725] flex items-center justify-center shadow-md backdrop-blur-xs transition-all cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </>
+        {/* مؤشرات تصفح الصور في حال وجود أكثر من صورة داخل المجموعة الحالية */}
+        {currentList.length > 1 && (
+          <div className="flex items-center justify-center gap-1.5 pt-2">
+            {currentList.map((_, idx) => (
+              <button
+                key={`photo-dot-${idx}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playClickSound();
+                  setActivePhotoIdx(idx);
+                }}
+                className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                  idx === safePhotoIdx
+                    ? 'w-6 bg-[#1E3725]'
+                    : 'w-2 bg-[#BBDDC6] hover:bg-[#46674D]'
+                }`}
+                aria-label={`Photo ${idx + 1}`}
+              />
+            ))}
+          </div>
         )}
       </div>
 
-      {/* تفاصيل الكارت المتناسقة والمرتبة */}
+      {/* 3. جسم الكارت: نصوص أنيقة وبدون إطارات مع خلفيات ناعمة */}
       <div
         dir={dir}
-        className={`p-5 flex-1 flex flex-col justify-between gap-4 bg-gradient-to-b from-white to-[#F4F9F5]/50 ${
+        className={`px-5 pb-5 flex-1 flex flex-col justify-between gap-3.5 ${
           isRTL ? 'text-right' : 'text-left'
         }`}
       >
         <div className="space-y-3">
-          {/* شريط القطاع والمدة المتناسق */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#E8F4EA]">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6] text-[11px] font-black shrink-0">
-              <span>{secLabel}</span>
-            </span>
-
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#F4F9F5] text-[#2D4833] border border-[#BBDDC6]/70 text-[11px] font-black">
-              <Clock className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-              <span>
-                {tr('المدة:', 'ماوە:', 'Duration:')} {duration}
-              </span>
-            </span>
+          {/* النص التوضيحي الرسمي: تم إنجاز ومعالجة البلاغ الميداني من قبل [الدائرة] بنجاح */}
+          <div className="p-3.5 rounded-2xl bg-[#E8F4EA]/80 border-0 flex items-start gap-2.5">
+            <div className="w-6 h-6 rounded-full bg-[#1E3725] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+              <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-[13px] font-black text-[#1E3725] leading-relaxed">
+                {tr(
+                  `تم إنجاز ومعالجة البلاغ الميداني من قبل ${deptName} بنجاح.`,
+                  `ڕاپۆرتی مەیدانی لەلایەن ${deptName} بە سەرکەوتوویی چارەسەر و ئەنجامدرا.`,
+                  `The field report has been successfully resolved and completed by ${deptName}.`
+                )}
+              </p>
+            </div>
           </div>
 
-          {/* عنوان العمل المنجز */}
-          <h3 className="text-[15px] sm:text-base font-black text-[#1E3725] leading-snug">
-            <bdi>{work.title}</bdi>
-          </h3>
+          {/* 4. الخط الزمني العريض المترابط للمراحل الميدانية الثلاث */}
+          <div className="p-3.5 rounded-2xl bg-[#F4F9F5] border-0 space-y-2.5">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[11px] font-black text-[#1E3725]">
+                {tr('المسار الزمني للإنجاز', 'هێڵی کاتی ئەنجامدان', 'Completion Timeline')}
+              </span>
+              <span className="text-[10px] font-bold text-[#46674D]">
+                {tr('مراحل مكتملة بالكامل', 'قۆناغە تەواوکراوەکان', 'Fully Completed')}
+              </span>
+            </div>
 
-          {/* وصف مختصر للعمل المنجز */}
-          {(work.completionNotes || work.description) && (
-            <p className="text-xs font-bold text-[#46674D] leading-relaxed line-clamp-3">
-              {work.completionNotes || work.description}
-            </p>
-          )}
+            {/* شريط المسار الزمني العريض مع خط ربط مستمر وأيقونات المراحل */}
+            <div className="relative space-y-3 before:absolute before:top-2 before:bottom-2 before:w-0.5 before:bg-[#BBDDC6] before:start-2.5">
+              {/* المرحلة 1: استلام البلاغ */}
+              <div className="relative flex items-start gap-3">
+                <div className="relative z-10 w-5 h-5 rounded-full bg-[#1E3725] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
+                </div>
+                <div className="flex-1 min-w-0 text-start">
+                  <p className="text-[11px] font-black text-[#1E3725] leading-tight">
+                    {tr(
+                      `تم استلام البلاغ في ${timelineDates.received}`,
+                      `ڕاپۆرت وەرگیرا لە ${timelineDates.received}`,
+                      `Report received at ${timelineDates.received}`
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* المرحلة 2: إرسال البلاغ وتحديد الأولوية */}
+              <div className="relative flex items-start gap-3">
+                <div className="relative z-10 w-5 h-5 rounded-full bg-[#46674D] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Building2 className="w-2.5 h-2.5 stroke-[2.5]" />
+                </div>
+                <div className="flex-1 min-w-0 text-start">
+                  <p className="text-[11px] font-black text-[#1E3725] leading-tight">
+                    {tr(
+                      `تم إرسال البلاغ وتحديد الأولوية في ${timelineDates.dispatched}`,
+                      `ڕاپۆرت نێردرا و ئەولەویەت دیاریکرا لە ${timelineDates.dispatched}`,
+                      `Report dispatched & priority set at ${timelineDates.dispatched}`
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* المرحلة 3: الإنجاز والمعالجة */}
+              <div className="relative flex items-start gap-3">
+                <div className="relative z-10 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <CheckCircle2 className="w-2.5 h-2.5 stroke-[2.5]" />
+                </div>
+                <div className="flex-1 min-w-0 text-start">
+                  <p className="text-[11px] font-black text-[#1E3725] leading-tight">
+                    {tr(
+                      `تم الإنجاز والمعالجة في ${timelineDates.resolved}`,
+                      `کارەکە ئەنجامدرا و چارەسەرکرا لە ${timelineDates.resolved}`,
+                      `Completed and resolved at ${timelineDates.resolved}`
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* الدائرة المنجزة والموقع بتصميم بطاقة مرتبة ومحاذاة RTL سليمة */}
-        <div
-          dir={dir}
-          className={`p-3.5 rounded-2xl bg-[#F4F9F5] border border-[#E8F4EA] space-y-2 ${
-            isRTL ? 'text-right' : 'text-left'
-          }`}
-        >
-          <div className="flex items-center justify-start gap-2">
-            <Building2 className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-            <span className="text-[11px] font-bold text-[#46674D] shrink-0">
-              {tr('الجهة المنجزة:', 'لایەنی ئەنجامدەر:', 'Department:')}
-            </span>
-            <span className="text-xs font-black text-[#1E3725] truncate">
-              <bdi>{deptName}</bdi>
-            </span>
+        {/* 5. التفاصيل السفلية بدون إطارات: مدة الإنجاز • نوع البلاغ • الدائرة المنجزة */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-0">
+          {/* مدة الإنجاز */}
+          <div className="p-2.5 rounded-xl bg-[#F4F9F5] border-0 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-bold text-[#46674D]">
+                {tr('مدة الإنجاز:', 'ماوەی ئەنجامدان:', 'Duration:')}
+              </span>
+              <span className="block text-xs font-black text-[#1E3725] truncate">
+                {duration}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center justify-start gap-2 pt-2 border-t border-[#E8F4EA]">
-            <MapPin className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-            <span className="text-[11px] font-bold text-[#46674D] shrink-0">
-              {tr('الموقع:', 'شوێن:', 'Location:')}
-            </span>
-            <span className="text-xs font-black text-[#1E3725] truncate">
-              <bdi>{work.neighborhood}</bdi>
-            </span>
+          {/* نوع البلاغ */}
+          <div className="p-2.5 rounded-xl bg-[#F4F9F5] border-0 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+              <MapPin className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-bold text-[#46674D]">
+                {tr('نوع البلاغ:', 'جۆری ڕاپۆرت:', 'Report Type:')}
+              </span>
+              <span className="block text-xs font-black text-[#1E3725] truncate">
+                {secLabel}
+              </span>
+            </div>
+          </div>
+
+          {/* الدائرة المنجزة */}
+          <div className="p-2.5 rounded-xl bg-[#F4F9F5] border-0 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+              <Building2 className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-bold text-[#46674D]">
+                {tr('الدائرة المنجزة:', 'فەرمانگەی ئەنجامدەر:', 'Department:')}
+              </span>
+              <span className="block text-xs font-black text-[#1E3725] truncate" title={deptName}>
+                {deptName}
+              </span>
+            </div>
           </div>
         </div>
       </div>

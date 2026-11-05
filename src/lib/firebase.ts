@@ -284,16 +284,22 @@ export function compressImageFile(
 }
 
 /**
- * رفع الصورة المضغوطة إلى مخزن صور مشروع فايربيس الرسمي:
+ * رفع الصورة إلى مخزن صور فايربيس السحابي الرسمي:
  * gs://baadre-smarteye.firebasestorage.app
- * وإرجاع رابط التحميل المباشر (Download URL) لحفظه في وثيقة Firestore.
+ * وإرجاع رابط التنزيل المباشر (Download URL).
+ * يُمنع نهائياً التراجع إلى حفظ نصوص Base64 في وثائق Firestore لحماية قاعدة البيانات من تجاوز حد الـ 1MB.
  */
 export async function uploadImageToFirebaseStorage(
   dataUrl: string,
   folder: 'reports' | 'completed_work' | 'projects' = 'reports'
 ): Promise<string> {
   if (!dataUrl) return '';
-  if (dataUrl.startsWith('http://') || dataUrl.startsWith('https://')) {
+  // إذا كانت الصورة رابطاً سحابياً أو مساراً ثابتاً، يتم إرجاعها مباشرة
+  if (
+    dataUrl.startsWith('http://') ||
+    dataUrl.startsWith('https://') ||
+    (dataUrl.startsWith('/') && !dataUrl.startsWith('data:'))
+  ) {
     return dataUrl;
   }
 
@@ -314,14 +320,18 @@ export async function uploadImageToFirebaseStorage(
     })();
 
     const timeoutPromise = new Promise<string>((_, reject) =>
-      setTimeout(() => reject(new Error('Storage upload timeout')), 10000)
+      setTimeout(() => reject(new Error('Storage upload timeout')), 12000)
     );
 
     const downloadUrl = await Promise.race([uploadTaskPromise, timeoutPromise]);
-    return downloadUrl || dataUrl;
-  } catch {
-    // في حال عدم توفر اتصال أو قيود صلاحيات Storage، يتم الاحتفاظ بالصورة المضغوطة كاحتياط فوري
-    return dataUrl;
+    if (!downloadUrl || downloadUrl.startsWith('data:')) {
+      throw new Error('فشل الحصول على رابط التنزيل السحابي من Firebase Storage.');
+    }
+    return downloadUrl;
+  } catch (err) {
+    console.warn('[FirebaseStorage] فشل رفع الصورة إلى Storage:', err);
+    // إلغاء التراجع إلى Base64 لمنع تضخم وثائق Firestore؛ يتم إرجاع سلسلة فارغة ليتم استبدالها برابط الأيقونة التوضيحية
+    return '';
   }
 }
 

@@ -40,11 +40,12 @@ interface DraftQuestion {
 
 export const SurveysView: React.FC = () => {
   const { language } = useLanguage();
-  const { currentUser, isAdmin, isSuperAdmin } = useAuth();
+  const { currentUser, isAdmin, isSuperAdmin, isCitizen, role } = useAuth();
   const isRTL = language === 'ar' || language === 'ku';
   const dir: 'rtl' | 'ltr' = isRTL ? 'rtl' : 'ltr';
 
   const {
+    activeRole,
     surveys,
     createSurvey,
     updateSurvey,
@@ -334,7 +335,13 @@ export const SurveysView: React.FC = () => {
     }
   };
 
-  if (!currentUser || (!isAdmin && !isSuperAdmin)) {
+  if (
+    !currentUser ||
+    isCitizen ||
+    (!isAdmin && !isSuperAdmin) ||
+    (role !== 'admin' && role !== 'super_admin') ||
+    activeRole !== 'admin'
+  ) {
     return null;
   }
 
@@ -708,12 +715,7 @@ export const SurveysView: React.FC = () => {
               <ClipboardList className="w-5.5 h-5.5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#E8F4EA] text-[#46674D] text-[10px] font-black">
-                  ÇAVÊ BAADRÊ • منظمة RABA
-                </span>
-              </div>
-              <h1 className="text-base sm:text-xl font-black text-[#1E3725] mt-0.5">
+              <h1 className="text-base sm:text-xl font-black text-[#1E3725]">
                 {tr(
                   'قسم الاستبيانات واستطلاعات رأي المواطنين',
                   'بەشی ڕاپرسییەکان و وەرگرتنی ڕای هاووڵاتیان',
@@ -763,14 +765,10 @@ export const SurveysView: React.FC = () => {
                   )
                 )
               }
-              placeholder={tr(
-                'ابحث في عنوان الاستبيان أو الأسئلة...',
-                'گەڕان لە ناونیشانی ڕاپرسی یان پرسیارەکان...',
-                'Search survey title or questions...'
-              )}
+              placeholder={tr('ابحث...', 'بگەڕێ...', 'Search...')}
               className={`w-full bg-[#F4F9F5] rounded-2xl py-3 ${
                 isRTL ? 'pr-10 pl-9' : 'pl-10 pr-9'
-              } text-xs font-bold text-[#1E3725] placeholder-[#46674D]/60 focus:bg-white focus:ring-2 focus:ring-[#46674D]/30 focus:outline-none shadow-2xs`}
+              } text-xs font-bold text-[#1E3725] placeholder-[#46674D]/45 focus:bg-white focus:ring-2 focus:ring-[#46674D]/30 focus:outline-none shadow-2xs`}
             />
             {searchQuery && (
               <button

@@ -30,18 +30,136 @@ export interface RegisterCitizenInput {
   email: string;
   password: string;
   phone: string;
-  birthDate: string;
+  birthDate?: string;
 }
 
 export interface UpdateAccountInput {
   fullName: string;
   phone: string;
-  birthDate: string;
+  birthDate?: string;
   newPassword?: string;
 }
 
 export const DESIGNATED_SUPER_ADMIN_EMAIL = '11kattak11@gmail.com';
 export const DESIGNATED_SUPER_ADMIN_NAME = 'كاوار عادل طاهر';
+
+const WRONG_EMAIL_STORAGE_KEY = 'baadre_pwd_reset_wrong_attempts_v1';
+const CLIENT_KEY_STORAGE = 'baadre_pwd_reset_client_key_v1';
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+export function getRecoveryClientKey(): string {
+  try {
+    let key = localStorage.getItem(CLIENT_KEY_STORAGE);
+    if (!key) {
+      key = `ck_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(CLIENT_KEY_STORAGE, key);
+    }
+    return key;
+  } catch {
+    return 'default_client';
+  }
+}
+
+export interface WrongEmailLockStatus {
+  isLocked: boolean;
+  count: number;
+  lockedUntilMs: number | null;
+  remainingMinutes: number;
+}
+
+export function getPasswordResetLockoutStatus(): WrongEmailLockStatus {
+  try {
+    const raw = localStorage.getItem(WRONG_EMAIL_STORAGE_KEY);
+    if (!raw) {
+      return { isLocked: false, count: 0, lockedUntilMs: null, remainingMinutes: 0 };
+    }
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    if (parsed.lockedUntilMs && now < parsed.lockedUntilMs) {
+      const remainingMinutes = Math.max(1, Math.ceil((parsed.lockedUntilMs - now) / 60000));
+      return {
+        isLocked: true,
+        count: parsed.count || 3,
+        lockedUntilMs: parsed.lockedUntilMs,
+        remainingMinutes,
+      };
+    }
+    if (
+      (parsed.lockedUntilMs && now >= parsed.lockedUntilMs) ||
+      (parsed.windowStartMs && now - parsed.windowStartMs >= ONE_HOUR_MS)
+    ) {
+      localStorage.removeItem(WRONG_EMAIL_STORAGE_KEY);
+      return { isLocked: false, count: 0, lockedUntilMs: null, remainingMinutes: 0 };
+    }
+    return {
+      isLocked: false,
+      count: parsed.count || 0,
+      lockedUntilMs: null,
+      remainingMinutes: 0,
+    };
+  } catch {
+    return { isLocked: false, count: 0, lockedUntilMs: null, remainingMinutes: 0 };
+  }
+}
+
+export function recordClientWrongEmailAttempt(serverLockedUntilMs?: number, serverCount?: number): WrongEmailLockStatus {
+  try {
+    const now = Date.now();
+    const current = getPasswordResetLockoutStatus();
+    if (current.isLocked && current.lockedUntilMs) {
+      return current;
+    }
+    const raw = localStorage.getItem(WRONG_EMAIL_STORAGE_KEY);
+    let parsed: { count: number; windowStartMs: number; lockedUntilMs?: number } = {
+      count: 0,
+      windowStartMs: now,
+    };
+    if (raw) {
+      try {
+        const temp = JSON.parse(raw);
+        if (temp.windowStartMs && now - temp.windowStartMs < ONE_HOUR_MS && (!temp.lockedUntilMs || now < temp.lockedUntilMs)) {
+          parsed = temp;
+        }
+      } catch {}
+    }
+
+    const nextCount = serverCount !== undefined ? Math.max(parsed.count + 1, serverCount) : parsed.count + 1;
+    if (nextCount >= 3) {
+      const lockedUntilMs = serverLockedUntilMs || now + ONE_HOUR_MS;
+      const updated = { count: 3, windowStartMs: parsed.windowStartMs, lockedUntilMs };
+      localStorage.setItem(WRONG_EMAIL_STORAGE_KEY, JSON.stringify(updated));
+      return {
+        isLocked: true,
+        count: 3,
+        lockedUntilMs,
+        remainingMinutes: Math.max(1, Math.ceil((lockedUntilMs - now) / 60000)),
+      };
+    }
+
+    const updated = { count: nextCount, windowStartMs: parsed.windowStartMs };
+    localStorage.setItem(WRONG_EMAIL_STORAGE_KEY, JSON.stringify(updated));
+    return {
+      isLocked: false,
+      count: nextCount,
+      lockedUntilMs: null,
+      remainingMinutes: 0,
+    };
+  } catch {
+    return { isLocked: false, count: 1, lockedUntilMs: null, remainingMinutes: 0 };
+  }
+}
+
+export function clearClientWrongEmailAttempts(): void {
+  try {
+    localStorage.removeItem(WRONG_EMAIL_STORAGE_KEY);
+  } catch {}
+}
+
+export function isDesignatedSuperAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return clean === DESIGNATED_SUPER_ADMIN_EMAIL;
+}
 
 export const authService = {
   /**
@@ -52,9 +170,9 @@ export const authService = {
     profile: CitizenProfileDTO;
     role: UserRole;
   }> {
-    const { fullName, email, password, phone, birthDate } = input;
+    const { fullName, email, password, phone, birthDate = '' } = input;
     const normalizedEmail = email.trim().toLowerCase();
-    const isDesignatedSuperAdmin = normalizedEmail === DESIGNATED_SUPER_ADMIN_EMAIL;
+    const isDesignatedSuperAdmin = isDesignatedSuperAdminEmail(normalizedEmail);
     const effectiveFullName = isDesignatedSuperAdmin
       ? DESIGNATED_SUPER_ADMIN_NAME
       : fullName.trim();
@@ -76,15 +194,43 @@ export const authService = {
       throw new Error('رقم الهاتف غير صالح.');
     }
 
-    if (!birthDate) {
-      throw new Error('تاريخ الميلاد مطلوب.');
+    // التحقق المسبق من عدم وجود الحساب بنفس البريد الإلكتروني
+    try {
+      const checkRes = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (checkData.exists && !isDesignatedSuperAdmin) {
+          const dupErr: any = new Error('البريد الإلكتروني مسجل مسبقاً، لا نقبل إنشاء حساب ببريد موجود.');
+          dupErr.code = 'auth/email-already-in-use';
+          throw dupErr;
+        }
+      }
+    } catch (err: any) {
+      if (err?.code === 'auth/email-already-in-use') {
+        throw err;
+      }
     }
 
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      normalizedEmail,
-      password
-    );
+    let userCredential;
+    try {
+      userCredential = await createUserWithEmailAndPassword(
+        auth,
+        normalizedEmail,
+        password
+      );
+    } catch (err: any) {
+      const raw = String(err?.code || err?.message || '').toLowerCase();
+      if (raw.includes('email-already-in-use')) {
+        const dupErr: any = new Error('البريد الإلكتروني مسجل مسبقاً، لا نقبل إنشاء حساب ببريد موجود.');
+        dupErr.code = 'auth/email-already-in-use';
+        throw dupErr;
+      }
+      throw err;
+    }
     const user = userCredential.user;
 
     try {
@@ -99,7 +245,7 @@ export const authService = {
       fullName: effectiveFullName,
       email: normalizedEmail,
       phone: phone.trim(),
-      birthDate,
+      birthDate: birthDate || '',
       role: resolvedRole,
       neighborhood: 'ناحية باعدرى',
       reportsSubmittedCount: 0,
@@ -114,7 +260,7 @@ export const authService = {
       name: effectiveFullName,
       email: normalizedEmail,
       phone: phone.trim(),
-      birthDate,
+      birthDate: birthDate || '',
       role: resolvedRole,
       neighborhood: 'ناحية باعدرى',
       reportsSubmittedCount: 0,
@@ -167,7 +313,7 @@ export const authService = {
           fullName: effectiveFullName,
           email: normalizedEmail,
           phone: phone.trim(),
-          birthDate,
+          birthDate: birthDate || '',
         }),
       });
 
@@ -214,7 +360,7 @@ export const authService = {
     role: UserRole;
   }> {
     const cleanEmail = (user.email || '').trim().toLowerCase();
-    const isDesignatedSuperAdmin = cleanEmail === DESIGNATED_SUPER_ADMIN_EMAIL;
+    const isDesignatedSuperAdmin = isDesignatedSuperAdminEmail(cleanEmail);
     const nowIso = new Date().toISOString();
 
     if (isDesignatedSuperAdmin) {
@@ -352,7 +498,7 @@ export const authService = {
   },
 
   /**
-   * 4b. Update User Account (Name, Phone, BirthDate, and optional Password)
+   * 4b. Update User Account (Name, Phone, optional BirthDate, and optional Password)
    */
   async updateUserAccount(
     user: User,
@@ -368,9 +514,7 @@ export const authService = {
       throw new Error('رقم الهاتف غير صالح.');
     }
 
-    if (!input.birthDate) {
-      throw new Error('تاريخ الميلاد مطلوب.');
-    }
+    const cleanBirthDate = input.birthDate ? input.birthDate.trim() : '';
 
     if (input.newPassword && input.newPassword.trim().length > 0) {
       if (input.newPassword.trim().length < 6) {
@@ -395,7 +539,7 @@ export const authService = {
           uid: user.uid,
           fullName: cleanName,
           phone: cleanPhone,
-          birthDate: input.birthDate,
+          ...(cleanBirthDate ? { birthDate: cleanBirthDate } : {}),
           updatedAt: nowIso,
         },
         { merge: true }
@@ -406,7 +550,7 @@ export const authService = {
           id: user.uid,
           name: cleanName,
           phone: cleanPhone,
-          birthDate: input.birthDate,
+          ...(cleanBirthDate ? { birthDate: cleanBirthDate } : {}),
           updatedAt: nowIso,
         },
         { merge: true }
@@ -424,7 +568,7 @@ export const authService = {
         body: JSON.stringify({
           fullName: cleanName,
           phone: cleanPhone,
-          birthDate: input.birthDate,
+          birthDate: cleanBirthDate,
         }),
       });
       if (res.ok) {
@@ -468,7 +612,7 @@ export const authService = {
   },
 
   /**
-   * 5. Password Recovery Request (Protected 3 times per 1 hour in backend)
+   * 5. Password Recovery Request (Protected: 3 wrong email attempts locks for 1 hour & shows Contact Admin)
    */
   async requestCitizenPasswordReset(email: string): Promise<{
     success: boolean;
@@ -477,24 +621,67 @@ export const authService = {
     role?: UserRole;
     message: string;
   }> {
-    const cleanEmail = email.trim().toLowerCase();
-    const isDesignatedSuperAdmin =
-      cleanEmail === '11kattak11@gmail.com' || cleanEmail === 'kawarbani@gmail.com';
+    const currentLock = getPasswordResetLockoutStatus();
+    if (currentLock.isLocked) {
+      const lockErr: any = new Error(
+        'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم إيقاف المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.'
+      );
+      lockErr.lockedForOneHour = true;
+      lockErr.remainingMinutes = currentLock.remainingMinutes;
+      throw lockErr;
+    }
 
-    // 1. Try server endpoint first if it returns valid JSON
+    const cleanEmail = email.trim().toLowerCase();
+    const isDesignatedSuperAdmin = isDesignatedSuperAdminEmail(cleanEmail);
+    const clientKey = getRecoveryClientKey();
+
+    // 1. Try server endpoint first
+    let serverHandled = false;
     try {
       const res = await fetch('/api/auth/citizen-password-recovery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail }),
+        body: JSON.stringify({ email: cleanEmail, clientKey }),
       });
 
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
+        serverHandled = true;
         const data = await res.json();
         if (!res.ok) {
+          if (data.lockedForOneHour) {
+            const status = recordClientWrongEmailAttempt(data.lockedUntilMs, 3);
+            const lockErr: any = new Error(
+              data.error ||
+                'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم إيقاف المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.'
+            );
+            lockErr.lockedForOneHour = true;
+            lockErr.remainingMinutes = status.remainingMinutes;
+            throw lockErr;
+          }
+
+          if (res.status === 404 || data.wrongEmailAttempt) {
+            const status = recordClientWrongEmailAttempt(undefined, data.wrongEmailAttempt);
+            if (status.isLocked) {
+              const lockErr: any = new Error(
+                'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم إيقاف المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.'
+              );
+              lockErr.lockedForOneHour = true;
+              lockErr.remainingMinutes = status.remainingMinutes;
+              throw lockErr;
+            }
+            const wrongErr: any = new Error(
+              data.error || `البريد الإلكتروني غير صحيح أو غير مسجل. (المحاولة ${status.count} من 3)`
+            );
+            wrongErr.wrongEmailAttempt = status.count;
+            wrongErr.remainingAttempts = 3 - status.count;
+            throw wrongErr;
+          }
+
           throw new Error(data.error || 'تجاوزت الحد المسموح (3 مرات بالساعة).');
         }
+
+        clearClientWrongEmailAttempts();
 
         if (data.success && !data.requiresSuperAdminSecret && !data.requiresAdminRecoveryCode) {
           try {
@@ -511,17 +698,14 @@ export const authService = {
         };
       }
     } catch (err: any) {
-      if (
-        err?.message?.includes('الحد المسموح') ||
-        err?.message?.includes('3 مرات') ||
-        err?.message?.includes('البريد غير صالح')
-      ) {
+      if (serverHandled) {
         throw err;
       }
     }
 
-    // 2. Resilient Direct Fallback (guarantees operation across any hosting environment)
+    // 2. Resilient Direct Fallback (if server endpoint is unreachable)
     if (isDesignatedSuperAdmin) {
+      clearClientWrongEmailAttempts();
       return {
         success: false,
         requiresSuperAdminSecret: true,
@@ -532,6 +716,7 @@ export const authService = {
 
     try {
       await sendPasswordResetEmail(auth, cleanEmail);
+      clearClientWrongEmailAttempts();
       return {
         success: true,
         requiresSuperAdminSecret: false,
@@ -541,14 +726,22 @@ export const authService = {
       };
     } catch (firebaseErr: any) {
       const errCode = String(firebaseErr?.code || firebaseErr?.message || '').toLowerCase();
-      if (errCode.includes('user-not-found')) {
-        return {
-          success: true,
-          message: 'تم إرسال رابط آمن لإعادة تعيين كلمة المرور إلى بريدك.',
-        };
-      }
-      if (errCode.includes('invalid-email')) {
-        throw new Error('البريد غير صالح.');
+      if (errCode.includes('user-not-found') || errCode.includes('invalid-email')) {
+        const status = recordClientWrongEmailAttempt();
+        if (status.isLocked) {
+          const lockErr: any = new Error(
+            'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم إيقاف المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.'
+          );
+          lockErr.lockedForOneHour = true;
+          lockErr.remainingMinutes = status.remainingMinutes;
+          throw lockErr;
+        }
+        const wrongErr: any = new Error(
+          `البريد الإلكتروني غير صحيح أو غير مسجل. (المحاولة ${status.count} من 3)`
+        );
+        wrongErr.wrongEmailAttempt = status.count;
+        wrongErr.remainingAttempts = 3 - status.count;
+        throw wrongErr;
       }
       if (errCode.includes('too-many-requests')) {
         throw new Error('تجاوزت الحد المسموح (3 مرات بالساعة).');
@@ -646,7 +839,7 @@ export const authService = {
         const u = uDoc.data() as UserProfileDocument;
         const uid = uDoc.id;
         const cExtra = citizensExtra.get(uid);
-        const isDesig = (u.email || '').trim().toLowerCase() === DESIGNATED_SUPER_ADMIN_EMAIL;
+        const isDesig = isDesignatedSuperAdminEmail(u.email);
         const role: UserRole = isDesig ? 'super_admin' : u.role || 'citizen';
 
         const mergedDoc: UserProfileDocument = {
@@ -680,7 +873,7 @@ export const authService = {
         if (!dtoMap.has(cDoc.id)) {
           const c = cDoc.data() as any;
           const uid = cDoc.id;
-          const isDesig = (c.email || '').trim().toLowerCase() === DESIGNATED_SUPER_ADMIN_EMAIL;
+          const isDesig = isDesignatedSuperAdminEmail(c.email);
           const role: UserRole = isDesig ? 'super_admin' : (c.role as UserRole) || 'citizen';
           dtoMap.set(uid, {
             uid,

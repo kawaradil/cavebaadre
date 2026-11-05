@@ -22,12 +22,14 @@ export const bootstrapFirstSuperAdmin = functions.https.onCall(
 
     const { setupSecretKey, adminEmail, adminFullName, adminPhone } = request.data;
 
-    // 1. Validate Secret Token against configured environment secret
-    const EXPECTED_SECRET = process.env.SYSTEM_BOOTSTRAP_SECRET || 'RABA_BAADRE_BOOTSTRAP_2026';
-    if (!setupSecretKey || setupSecretKey.trim() !== EXPECTED_SECRET) {
+    // 1. Validate that the email matches the designated Super Admin strictly
+    const DESIGNATED_SUPER_ADMIN_EMAIL = '11kattak11@gmail.com';
+    const cleanAdminEmail = (adminEmail || '').trim().toLowerCase();
+
+    if (cleanAdminEmail !== DESIGNATED_SUPER_ADMIN_EMAIL) {
       throw new functions.https.HttpsError(
         'permission-denied',
-        'مفتاح التهيئة السري غير صحيح. يتطلب صلاحية موثوقة لإجراء التهيئة.'
+        'غير مصرح: تعيين السوبر أدمن محصور حصرياً بالبريد الإلكتروني المعتمد (11kattak11@gmail.com).'
       );
     }
 

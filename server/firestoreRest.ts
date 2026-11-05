@@ -34,6 +34,10 @@ export interface LocalSecurityStore {
   notification_dispatch_locks: Record<string, Record<string, any>>;
   user_fcm_tokens: Record<string, Record<string, any>>;
   password_reset_limits?: Record<string, { count: number; windowStartMs: number; updatedAt: string }>;
+  password_reset_wrong_attempts?: Record<
+    string,
+    { count: number; windowStartMs: number; lockedUntilMs?: number; updatedAt: string }
+  >;
 }
 
 function getDefaultStore(): LocalSecurityStore {
@@ -48,6 +52,7 @@ function getDefaultStore(): LocalSecurityStore {
     notification_dispatch_locks: {},
     user_fcm_tokens: {},
     password_reset_limits: {},
+    password_reset_wrong_attempts: {},
   };
 }
 

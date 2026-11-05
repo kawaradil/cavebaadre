@@ -202,27 +202,11 @@ async function verifyCodeForUser(
     }
   }
 
-  const configuredSuperAdminSecret = (
-    process.env.SUPER_ADMIN_SECRET_CODE ||
-    process.env.SYSTEM_BOOTSTRAP_SECRET ||
-    'RABA_BAADRE_BOOTSTRAP_2026'
-  )
-    .trim()
-    .toUpperCase();
-
   let isMatch = false;
   if (storedCode) {
     const bufA = Buffer.from(cleanCode);
     const bufB = Buffer.from(storedCode);
     if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
-      isMatch = true;
-    }
-  }
-
-  if (!isMatch && role === 'super_admin') {
-    const bufA = Buffer.from(cleanCode);
-    const bufMaster = Buffer.from(configuredSuperAdminSecret);
-    if (bufA.length === bufMaster.length && crypto.timingSafeEqual(bufA, bufMaster)) {
       isMatch = true;
     }
   }

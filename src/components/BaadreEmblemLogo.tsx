@@ -1,4 +1,5 @@
 import React from 'react';
+import { useColorTheme } from '../context/ColorContext';
 
 interface BaadreEmblemLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'splash';
@@ -10,6 +11,7 @@ export const BaadreEmblemLogo: React.FC<BaadreEmblemLogoProps> = ({
   size = 'splash',
   className = '',
 }) => {
+  const { palette } = useColorTheme();
   const sizeMap = {
     sm: 'w-8 h-8 sm:w-9 sm:h-9',
     md: 'w-12 h-12 sm:w-14 sm:h-14',
@@ -24,6 +26,7 @@ export const BaadreEmblemLogo: React.FC<BaadreEmblemLogoProps> = ({
         src="/assets/aistudio/cave_baadre_logo.png"
         alt="ÇAVÊ BAADRÊ Logo"
         className={`${sizeMap[size]} object-contain select-none pointer-events-none`}
+        style={{ filter: palette.logoFilter }}
         loading="eager"
       />
     </div>

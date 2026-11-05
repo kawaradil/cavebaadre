@@ -373,7 +373,6 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
       `🚨 *الأولوية:* ${urgency.labelAr}`,
       `📍 *الموقع:* ناحية باعذرة - ${report.neighborhood} (${report.street})`,
       `📝 *تفاصيل البلاغ:* ${report.description}`,
-      `👤 *مقدم البلاغ:* ${report.citizenName} (${report.citizenPhone})`,
     ];
 
     if (adminNoteText.trim()) {
@@ -517,14 +516,17 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     }
     setStatusNotes(updatedNotesMap);
 
-    let finalResolvedImages = resolvedImages;
+    let finalResolvedImages = resolvedImages.filter((img) => !img.startsWith('data:'));
     if (stepStatus === 'resolved' && resolvedImages.length > 0) {
       setIsUploadingStorage(true);
       try {
-        finalResolvedImages = await Promise.all(
+        const uploaded = await Promise.all(
           resolvedImages
             .slice(0, MAX_UPLOAD_IMAGES)
             .map((img) => uploadImageToFirebaseStorage(img, 'completed_work'))
+        );
+        finalResolvedImages = uploaded.filter(
+          (url): url is string => Boolean(url && !url.startsWith('data:'))
         );
         setResolvedImages(finalResolvedImages);
       } finally {

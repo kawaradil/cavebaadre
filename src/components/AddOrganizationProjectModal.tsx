@@ -104,18 +104,26 @@ export const AddOrganizationProjectModal: React.FC<AddOrganizationProjectModalPr
 
     try {
       if (beforeImages.length > 0) {
-        finalBeforeList = await Promise.all(
+        const uploaded = await Promise.all(
           beforeImages
             .slice(0, MAX_UPLOAD_IMAGES)
             .map((img) => uploadImageToFirebaseStorage(img, 'completed_work'))
         );
+        const validUploaded = uploaded.filter((url): url is string => Boolean(url && !url.startsWith('data:')));
+        if (validUploaded.length > 0) {
+          finalBeforeList = validUploaded;
+        }
       }
       if (afterImages.length > 0) {
-        finalAfterList = await Promise.all(
+        const uploaded = await Promise.all(
           afterImages
             .slice(0, MAX_UPLOAD_IMAGES)
             .map((img) => uploadImageToFirebaseStorage(img, 'completed_work'))
         );
+        const validUploaded = uploaded.filter((url): url is string => Boolean(url && !url.startsWith('data:')));
+        if (validUploaded.length > 0) {
+          finalAfterList = validUploaded;
+        }
       }
     } finally {
       setIsUploadingStorage(false);

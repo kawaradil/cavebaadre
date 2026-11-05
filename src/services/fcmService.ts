@@ -267,3 +267,79 @@ export async function triggerNewReportServerNotification(reportId: string): Prom
     // Non-blocking: Cloud Function Firestore trigger also handles background dispatch
   }
 }
+
+/**
+ * Displays a native OS / Mobile notification via the registered Service Worker.
+ * Mobile browsers (Android Chrome & iOS 16.4+ Standalone PWA) strictly require
+ * `serviceWorkerRegistration.showNotification()` rather than `new Notification()`.
+ */
+export async function showSystemNotificationViaSW(
+  title: string,
+  body: string,
+  extra?: { reportId?: string; trackingCode?: string; url?: string }
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return false;
+  }
+
+  if (Notification.permission !== 'granted') {
+    return false;
+  }
+
+  const notifOptions: any = {
+    body,
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    vibrate: [200, 100, 200],
+    tag: extra?.reportId ? `baadre_report_${extra.reportId}_${Date.now()}` : `baadre_notif_${Date.now()}`,
+    renotify: true,
+    data: {
+      url: extra?.url || (extra?.reportId ? `/?reportId=${encodeURIComponent(extra.reportId)}` : '/'),
+      reportId: extra?.reportId || '',
+      trackingCode: extra?.trackingCode || '',
+    },
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg =
+        (await navigator.serviceWorker.getRegistration('/')) ||
+        (await navigator.serviceWorker.ready);
+      if (reg && typeof reg.showNotification === 'function') {
+        await reg.showNotification(title, notifOptions);
+        return true;
+      }
+    }
+  } catch {}
+
+  try {
+    new Notification(title, notifOptions);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Requests mobile/browser notification permission from a direct user gesture (tap/click)
+ * and registers the Service Worker so notifications appear on mobile devices.
+ */
+export async function requestMobileNotificationPermission(): Promise<NotificationPermission | 'unsupported'> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+
+  try {
+    let permission = Notification.permission;
+    if (permission === 'default') {
+      permission = await Notification.requestPermission();
+    }
+    if (permission === 'granted' && 'serviceWorker' in navigator) {
+      await navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    return permission;
+  } catch {
+    return Notification.permission;
+  }
+}
+

@@ -38,7 +38,7 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
   startWithConfirmation = false,
 }) => {
   const { language, dir } = useLanguage();
-  const { currentUser, isSuperAdmin } = useAuth();
+  const { currentUser, isSuperAdmin, isAdmin } = useAuth();
 
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
@@ -55,9 +55,9 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Check if target is another Super Admin
-  const isTargetAnotherSuperAdmin =
-    citizen.role === 'super_admin' && currentUser?.uid !== citizen.uid;
+  // Check if target is a Super Admin that cannot be modified
+  const isTargetProtectedSuperAdmin =
+    citizen.role === 'super_admin' && (!isSuperAdmin || currentUser?.uid !== citizen.uid);
 
   const getRoleLabel = (r: UserRole) =>
     r === 'super_admin'
@@ -68,24 +68,35 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
 
   const handleProceedToConfirmStep = () => {
     playClickSound();
-    if (!currentUser || !isSuperAdmin) {
+    if (!currentUser || (!isSuperAdmin && !isAdmin)) {
       setError(
         tr(
-          'منح صلاحية الأدمن وتغيير الأدوار محصور بحساب السوبر أدمن فقط.',
-          'تەنها سوپەر ئەدمین دەتوانێت ڕۆڵ بگۆڕێت.',
-          'Only a Super Admin can grant Admin privileges.'
+          'تغيير الأدوار متاح لحسابات الإدارة فقط.',
+          'گۆڕینی ڕۆڵ تەنها بۆ بەڕێوەبەرایەتییە.',
+          'Role management is restricted to administrators.'
         )
       );
       return;
     }
     if (selectedRole === citizen.role) return;
 
-    if (isTargetAnotherSuperAdmin) {
+    if (!isSuperAdmin && selectedRole === 'super_admin') {
       setError(
         tr(
-          'قيد أمني إلزامي: لا يُسمح لأي سوبر أدمن بتعديل أو تخفيض صلاحيات سوبر أدمن آخر.',
-          'ڕێگریی ئەمنی: ڕێگەپێدراو نییە سوپەر ئەدمین دەستکاری سوپەر ئەدمینێکی تر بکات.',
-          'Mandatory server constraint: No Super Admin can modify or demote another Super Admin.'
+          'غير مصرح: الأدمن لا يملك صلاحية منح دور سوبر أدمن.',
+          'ڕێگەپێدراو نییە: ئەدمین ناتوانێت ڕۆڵی سوپەر ئەدمین بدات.',
+          'Unauthorized: An Admin cannot grant Super Admin role.'
+        )
+      );
+      return;
+    }
+
+    if (isTargetProtectedSuperAdmin) {
+      setError(
+        tr(
+          'قيد أمني إلزامي: لا يُسمح بتعديل أو تخفيض صلاحيات حساب السوبر أدمن.',
+          'ڕێگریی ئەمنی: ڕێگەپێدراو نییە دەستکاری هەژماری سوپەر ئەدمین بکرێت.',
+          'Mandatory server constraint: Super Admin account cannot be modified or demoted.'
         )
       );
       return;
@@ -100,15 +111,26 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
   };
 
   const handleApplyRoleChange = async () => {
-    if (!currentUser || !isSuperAdmin) return;
+    if (!currentUser || (!isSuperAdmin && !isAdmin)) return;
     if (selectedRole === citizen.role) return;
 
-    if (isTargetAnotherSuperAdmin) {
+    if (!isSuperAdmin && selectedRole === 'super_admin') {
       setError(
         tr(
-          'قيد أمني إلزامي: لا يُسمح لأي سوبر أدمن بتعديل أو تخفيض صلاحيات سوبر أدمن آخر.',
-          'ڕێگریی ئەمنی: ڕێگەپێدراو نییە سوپەر ئەدمین دەستکاری سوپەر ئەدمینێکی تر بکات.',
-          'Mandatory server constraint: No Super Admin can modify or demote another Super Admin.'
+          'غير مصرح: الأدمن لا يملك صلاحية منح دور سوبر أدمن.',
+          'ڕێگەپێدراو نییە: ئەدمین ناتوانێت ڕۆڵی سوپەر ئەدمین بدات.',
+          'Unauthorized: An Admin cannot grant Super Admin role.'
+        )
+      );
+      return;
+    }
+
+    if (isTargetProtectedSuperAdmin) {
+      setError(
+        tr(
+          'قيد أمني إلزامي: لا يُسمح بتعديل أو تخفيض صلاحيات حساب السوبر أدمن.',
+          'ڕێگریی ئەمنی: ڕێگەپێدراو نییە دەستکاری هەژماری سوپەر ئەدمین بکرێت.',
+          'Mandatory server constraint: Super Admin account cannot be modified or demoted.'
         )
       );
       return;
@@ -238,8 +260,8 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
           </div>
         )}
 
-        {/* If target is another Super Admin: Lock message */}
-        {isTargetAnotherSuperAdmin ? (
+        {/* If target is a protected Super Admin: Lock message */}
+        {isTargetProtectedSuperAdmin ? (
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-300 text-slate-700 space-y-2 text-center">
             <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center mx-auto">
               <Lock className="w-5 h-5" />
@@ -253,9 +275,9 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
             </p>
             <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
               {tr(
-                'لا يستطيع أي سوبر أدمن حذف حساب سوبر أدمن آخر أو تخفيض صلاحياته أو تغيير كلمة مروره أو تغيير رمز استرداده. القيود مفروضة على مستوى الخادم.',
-                'هیچ سوپەر ئەدمینێک ناتوانێت دەستکاری هەژماری سوپەر ئەدمینێکی تر بکات بەپێی یاساکانی سێرڤەر.',
-                'Mandatory server-enforced security: No Super Admin can delete, demote, or change another Super Admin.'
+                'لا يمكن تعديل حساب السوبر أدمن أو تخفيض صلاحياته. القيود مفروضة على مستوى الخادم.',
+                'ناتوانرێت دەستکاری هەژماری سوپەر ئەدمین بکرێت بەپێی یاساکانی سێرڤەر.',
+                'Mandatory server-enforced security: Super Admin account cannot be modified or demoted.'
               )}
             </p>
           </div>
@@ -338,15 +360,15 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
                       <ShieldAlert className="w-5 h-5 text-[#46674D] shrink-0" />
                       <h4 className="text-xs font-black">
                         {tr(
-                          'تأكيد منح الصلاحية',
-                          'پشتڕاستکردنەوەی پێدانی دەسەڵات',
-                          'Confirm Granting Role'
+                          'تأكيد تغيير الصلاحية',
+                          'پشتڕاستکردنەوەی گۆڕینی دەسەڵات',
+                          'Confirm Role Change'
                         )}
                       </h4>
                     </div>
                     <p className="text-[11px] font-bold text-[#2D4833] leading-relaxed">
                       {tr(
-                        `أنت على وشك اعتماد ترقية وتغيير دور (${citizen.fullName}) بشكل رسمي إلى (${getRoleLabel(selectedRole)}) وتوليد رمز خاص به. هل تؤكد تنفيذ العملية الآن؟`,
+                        `أنت على وشك اعتماد تغيير دور (${citizen.fullName}) بشكل رسمي إلى (${getRoleLabel(selectedRole)}). هل تؤكد تنفيذ العملية الآن؟`,
                         `ئێستا بە فەرمی ڕۆڵی (${citizen.fullName}) دەگۆڕیت بۆ (${getRoleLabel(selectedRole)}). ئایا دڵنیایت؟`,
                         `You are about to officially set (${citizen.fullName}) as (${getRoleLabel(selectedRole)}). Confirm execution now?`
                       )}
@@ -378,9 +400,9 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
                           <ShieldCheck className="w-4 h-4" />
                           <span>
                             {tr(
-                              'تأكيد ومنح الصلاحية',
-                              'پشتڕاستکردنەوە و پێدانی دەسەڵات',
-                              'Confirm & Grant Role'
+                              'تأكيد واعتماد الدور',
+                              'پشتڕاستکردنەوە و پەسەندکردن',
+                              'Confirm & Apply Role'
                             )}
                           </span>
                         </>
@@ -464,42 +486,44 @@ export const RoleManagementModal: React.FC<RoleManagementModalProps> = ({
                       {selectedRole === 'admin' && <Check className="w-4 h-4 text-[#46674D]" />}
                     </button>
 
-                    {/* 3. Super Admin */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playClickSound();
-                        setSelectedRole('super_admin');
-                      }}
-                      className={`w-full p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
-                        selectedRole === 'super_admin'
-                          ? 'border-purple-600 bg-purple-50 text-purple-900 shadow-xs'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-[#F4F9F5]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-white border border-purple-300 flex items-center justify-center">
-                          <ShieldAlert className="w-4 h-4 text-purple-700" />
+                    {/* 3. Super Admin (متاح للسوبر أدمن فقط، ولا يملك الأدمن صلاحية منح دور سوبر أدمن) */}
+                    {isSuperAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playClickSound();
+                          setSelectedRole('super_admin');
+                        }}
+                        className={`w-full p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                          selectedRole === 'super_admin'
+                            ? 'border-purple-600 bg-purple-50 text-purple-900 shadow-xs'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-[#F4F9F5]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-white border border-purple-300 flex items-center justify-center">
+                            <ShieldAlert className="w-4 h-4 text-purple-700" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black">
+                              {tr('سوبر أدمن (Super Admin)', 'سوپەر ئەدمین', 'Super Admin')}
+                            </p>
+                            <p className="text-[10px] font-semibold text-slate-500">
+                              {tr(
+                                'صلاحيات كاملة لإدارة التطبيق وتعيين وتعديل المسؤولين ورموز الاسترداد',
+                                'دەسەڵاتی تەواو بەسەر هەموو بەشەکاندا',
+                                'Full permissions, role assignments, recovery management'
+                              )}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-black">
-                            {tr('سوبر أدمن (Super Admin)', 'سوپەر ئەدمین', 'Super Admin')}
-                          </p>
-                          <p className="text-[10px] font-semibold text-slate-500">
-                            {tr(
-                              'صلاحيات كاملة لإدارة التطبيق وتعيين وتعديل المسؤولين ورموز الاسترداد',
-                              'دەسەڵاتی تەواو بەسەر هەموو بەشەکاندا',
-                              'Full permissions, role assignments, recovery management'
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      {selectedRole === 'super_admin' && <Check className="w-4 h-4 text-purple-700" />}
-                    </button>
+                        {selectedRole === 'super_admin' && <Check className="w-4 h-4 text-purple-700" />}
+                      </button>
+                    )}
                   </div>
 
-                  {/* Reveal Code button if citizen is already an Admin */}
-                  {citizen.role === 'admin' && onOpenRevealCode && (
+                  {/* Reveal Code button if citizen is already an Admin (Super Admin only) */}
+                  {isSuperAdmin && citizen.role === 'admin' && onOpenRevealCode && (
                     <div className="pt-2 border-t border-[#E8F4EA]">
                       <button
                         type="button"

@@ -338,6 +338,88 @@ function recordPasswordResetLinkSent(cleanEmail: string): void {
 }
 
 /**
+ * Checks if an email is already registered in local store or Firebase Auth
+ */
+async function isEmailRegisteredOnPlatform(cleanEmail: string, excludeUid?: string): Promise<boolean> {
+  if (!cleanEmail) return false;
+  if (isDesignatedSuperAdminEmail(cleanEmail)) {
+    return true;
+  }
+
+  const store = readLocalStore();
+  for (const [uid, u] of Object.entries(store.users || {})) {
+    if (excludeUid && uid === excludeUid) continue;
+    if (String(u?.email || '').trim().toLowerCase() === cleanEmail) {
+      return true;
+    }
+  }
+  for (const [id, c] of Object.entries(store.citizens || {})) {
+    if (excludeUid && id === excludeUid) continue;
+    if (String(c?.email || '').trim().toLowerCase() === cleanEmail) {
+      return true;
+    }
+  }
+  for (const [uid, a] of Object.entries(store.admins || {})) {
+    if (excludeUid && uid === excludeUid) continue;
+    if (String(a?.email || '').trim().toLowerCase() === cleanEmail) {
+      return true;
+    }
+  }
+  for (const [uid, s] of Object.entries(store.super_admins || {})) {
+    if (excludeUid && uid === excludeUid) continue;
+    if (String(s?.email || '').trim().toLowerCase() === cleanEmail) {
+      return true;
+    }
+  }
+
+  try {
+    const res = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${firebaseConfig.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: cleanEmail,
+          continueUri: 'http://localhost',
+        }),
+      }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.registered === true) {
+        return true;
+      }
+    }
+  } catch {}
+
+  return false;
+}
+
+function getRecoveryCallerKey(req: Request): string {
+  const clientKey = String(req.body?.clientKey || '').trim();
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = forwarded || req.ip || 'default_ip';
+  return clientKey ? `client_${clientKey}` : `ip_${ip}`;
+}
+
+/**
+ * 0. Check if Email Exists before Registration
+ */
+apiRouter.post('/auth/check-email', async (req: Request, res: Response) => {
+  try {
+    const rawEmail = String(req.body?.email || '').trim().toLowerCase();
+    if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+      res.status(400).json({ exists: false, error: 'البريد غير صالح.' });
+      return;
+    }
+    const exists = await isEmailRegisteredOnPlatform(rawEmail);
+    res.json({ exists });
+  } catch {
+    res.json({ exists: false });
+  }
+});
+
+/**
  * 1. Citizen / User Registration Profile
  */
 apiRouter.post('/auth/register-citizen', async (req: Request, res: Response) => {
@@ -370,11 +452,6 @@ apiRouter.post('/auth/register-citizen', async (req: Request, res: Response) => 
       return;
     }
 
-    if (!birthDate) {
-      res.status(400).json({ error: 'تاريخ الميلاد مطلوب.' });
-      return;
-    }
-
     if (!uid) {
       res.status(400).json({ error: 'بيانات الحساب غير مكتملة.' });
       return;
@@ -382,7 +459,28 @@ apiRouter.post('/auth/register-citizen', async (req: Request, res: Response) => 
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPhone = phone.trim();
+    const cleanBirthDate = birthDate ? String(birthDate).trim() : '';
     const isDesignatedSuperAdmin = isDesignatedSuperAdminEmail(cleanEmail);
+
+    // Prevent duplicate email registration for another uid
+    if (!isDesignatedSuperAdmin) {
+      const storeCheck = readLocalStore();
+      const duplicateInUsers = Object.entries(storeCheck.users || {}).some(
+        ([existingUid, u]) =>
+          existingUid !== uid && String(u?.email || '').trim().toLowerCase() === cleanEmail
+      );
+      const duplicateInCitizens = Object.entries(storeCheck.citizens || {}).some(
+        ([existingId, c]) =>
+          existingId !== uid && String(c?.email || '').trim().toLowerCase() === cleanEmail
+      );
+      if (duplicateInUsers || duplicateInCitizens) {
+        res.status(409).json({
+          error: 'هذا البريد الإلكتروني موجود ومسجل مسبقاً، لا نقبل إنشاء حساب ببريد موجود.',
+        });
+        return;
+      }
+    }
+
     const cleanFullName = isDesignatedSuperAdmin
       ? DESIGNATED_SUPER_ADMIN_NAME
       : fullName.trim();
@@ -395,7 +493,7 @@ apiRouter.post('/auth/register-citizen', async (req: Request, res: Response) => 
         email: cleanEmail,
         fullName: cleanFullName,
         phone: cleanPhone,
-        birthDate,
+        birthDate: cleanBirthDate,
         idToken,
       });
 
@@ -413,7 +511,7 @@ apiRouter.post('/auth/register-citizen', async (req: Request, res: Response) => 
       fullName: cleanFullName,
       email: cleanEmail,
       phone: cleanPhone,
-      birthDate,
+      birthDate: cleanBirthDate,
       role: assignedRole,
       reportsSubmittedCount: 0,
       resolvedReportsCount: 0,
@@ -427,7 +525,7 @@ apiRouter.post('/auth/register-citizen', async (req: Request, res: Response) => 
       name: cleanFullName,
       email: cleanEmail,
       phone: cleanPhone,
-      birthDate,
+      birthDate: cleanBirthDate,
       role: assignedRole,
       neighborhood: 'ناحية باعدرى',
       reportsSubmittedCount: 0,
@@ -537,15 +635,12 @@ apiRouter.post('/auth/update-account', authenticateUser, async (req: Request, re
       return;
     }
 
-    if (!birthDate) {
-      res.status(400).json({ error: 'تاريخ الميلاد مطلوب.' });
-      return;
-    }
-
     const nowIso = new Date().toISOString();
     const store = readLocalStore();
     const remoteUser = await restGetDoc('users', caller.uid, caller.idToken);
     const existing = (remoteUser || store.users[caller.uid] || {}) as Partial<UserProfileDocument>;
+    const resolvedBirthDate =
+      birthDate !== undefined ? String(birthDate).trim() : existing.birthDate || '';
 
     const isDesignated = isDesignatedSuperAdminEmail(caller.email);
     const effectiveRole: UserRole = isDesignated
@@ -557,7 +652,7 @@ apiRouter.post('/auth/update-account', authenticateUser, async (req: Request, re
       fullName: cleanName,
       email: (caller.email || existing.email || '').trim().toLowerCase(),
       phone: cleanPhone,
-      birthDate,
+      birthDate: resolvedBirthDate,
       role: effectiveRole,
       neighborhood: existing.neighborhood || 'ناحية باعدرى',
       reportsSubmittedCount: existing.reportsSubmittedCount || 0,
@@ -574,7 +669,7 @@ apiRouter.post('/auth/update-account', authenticateUser, async (req: Request, re
       name: cleanName,
       email: updatedUserDoc.email,
       phone: cleanPhone,
-      birthDate,
+      birthDate: resolvedBirthDate,
       role: effectiveRole,
       neighborhood: updatedUserDoc.neighborhood || 'ناحية باعدرى',
       reportsSubmittedCount: updatedUserDoc.reportsSubmittedCount,
@@ -655,18 +750,99 @@ apiRouter.post('/auth/delete-account', authenticateUser, async (req: Request, re
 });
 
 /**
- * 3. Password Recovery Request (Protected 3 times per 1 hour in backend)
+ * 3. Password Recovery Request
+ *    - Enforces 3 wrong-email attempts limit: on 3rd wrong email, blocks further attempts for 1 hour and prompts user to contact administration.
+ *    - Also enforces 3 reset links per hour per valid email.
  */
 apiRouter.post('/auth/citizen-password-recovery', async (req: Request, res: Response) => {
-  const { email } = req.body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    res.status(400).json({ error: 'البريد غير صالح.' });
+  const callerKey = getRecoveryCallerKey(req);
+  const store = readLocalStore();
+  if (!store.password_reset_wrong_attempts) {
+    store.password_reset_wrong_attempts = {};
+  }
+
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  const wrongRecord = store.password_reset_wrong_attempts[callerKey];
+
+  // 1. Check if caller is currently locked out for 1 hour due to 3 wrong email attempts
+  if (wrongRecord && wrongRecord.lockedUntilMs && now < wrongRecord.lockedUntilMs) {
+    const remainingMinutes = Math.max(1, Math.ceil((wrongRecord.lockedUntilMs - now) / 60000));
+    res.status(429).json({
+      error: 'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم إيقاف المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.',
+      lockedForOneHour: true,
+      lockedUntilMs: wrongRecord.lockedUntilMs,
+      remainingMinutes,
+    });
     return;
   }
 
-  const cleanEmail = email.trim().toLowerCase();
+  const { email } = req.body;
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const isValidFormat = Boolean(cleanEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail));
+  const isRegistered = isValidFormat ? await isEmailRegisteredOnPlatform(cleanEmail) : false;
 
-  // Check backend-protected 3-times-per-1-hour limit
+  // 2. If email is invalid or not registered in the system -> record wrong email attempt
+  if (!isValidFormat || !isRegistered) {
+    const isExpiredWindow =
+      !wrongRecord ||
+      (wrongRecord.lockedUntilMs && now >= wrongRecord.lockedUntilMs) ||
+      now - wrongRecord.windowStartMs >= PASSWORD_RESET_WINDOW_MS;
+
+    const nextCount = isExpiredWindow ? 1 : (wrongRecord.count || 0) + 1;
+    const windowStart = isExpiredWindow ? now : wrongRecord.windowStartMs;
+
+    if (nextCount >= 3) {
+      const lockedUntilMs = now + PASSWORD_RESET_WINDOW_MS; // 1 hour lock
+      store.password_reset_wrong_attempts[callerKey] = {
+        count: nextCount,
+        windowStartMs: windowStart,
+        lockedUntilMs,
+        updatedAt: nowIso,
+      };
+      writeLocalStore(store);
+
+      appendAuditLog({
+        action: 'PASSWORD_RESET_WRONG_EMAIL_LOCKED_1H',
+        actorUid: callerKey,
+        targetEmail: cleanEmail || 'INVALID',
+        timestamp: nowIso,
+      });
+
+      res.status(429).json({
+        error: 'تم إدخال بريد إلكتروني خاطئ 3 مرات. تم إيقاف المحاولات لمدة ساعة، يرجى الاتصال بالإدارة.',
+        lockedForOneHour: true,
+        lockedUntilMs,
+        remainingMinutes: 60,
+        wrongEmailAttempt: 3,
+        remainingAttempts: 0,
+      });
+      return;
+    }
+
+    store.password_reset_wrong_attempts[callerKey] = {
+      count: nextCount,
+      windowStartMs: windowStart,
+      updatedAt: nowIso,
+    };
+    writeLocalStore(store);
+
+    res.status(404).json({
+      error: `البريد الإلكتروني غير مسجل أو غير صحيح. (المحاولة ${nextCount} من 3)`,
+      wrongEmailAttempt: nextCount,
+      remainingAttempts: 3 - nextCount,
+      lockedForOneHour: false,
+    });
+    return;
+  }
+
+  // Valid registered email -> reset wrong email attempts counter for this caller
+  if (store.password_reset_wrong_attempts[callerKey]) {
+    delete store.password_reset_wrong_attempts[callerKey];
+    writeLocalStore(store);
+  }
+
+  // Check backend-protected 3-times-per-1-hour limit for sending reset links
   if (!canSendPasswordResetLink(cleanEmail)) {
     res.status(429).json({
       error: 'تجاوزت الحد المسموح (3 مرات بالساعة).',
@@ -679,7 +855,6 @@ apiRouter.post('/auth/citizen-password-recovery', async (req: Request, res: Resp
       ? 'super_admin'
       : 'citizen';
 
-    const store = readLocalStore();
     for (const u of Object.values(store.users)) {
       if (u.email?.trim().toLowerCase() === cleanEmail) {
         if (u.role === 'super_admin') {
@@ -803,10 +978,10 @@ apiRouter.post('/auth/admin-verify-recovery', async (req: Request, res: Response
     return;
   }
 
-  const rateLimit = checkRateLimit(`admin_rec_${cleanEmail}`, 5, 30 * 60 * 1000);
+  const rateLimit = checkRateLimit(`admin_rec_${cleanEmail}`, 6, 30 * 60 * 1000);
   if (!rateLimit.allowed) {
     res.status(429).json({
-      error: 'تم حظر المحاولات مؤقتاً.',
+      error: 'تم تجاوز الحد المسموح (6 محاولات). تم حظر المحاولات مؤقتاً.',
     });
     return;
   }
@@ -901,24 +1076,8 @@ apiRouter.post('/auth/admin-verify-recovery', async (req: Request, res: Response
       } catch {}
     }
 
-    const configuredAdminSecret = (
-      process.env.ADMIN_SECRET_CODE ||
-      process.env.SUPER_ADMIN_SECRET_CODE ||
-      process.env.SYSTEM_BOOTSTRAP_SECRET ||
-      'RABA_BAADRE_BOOTSTRAP_2026'
-    )
-      .trim()
-      .toUpperCase();
-
     let isMatch = false;
     if (storedCode && timingSafeMatch(cleanCode, storedCode)) {
-      isMatch = true;
-    }
-    if (
-      !isMatch &&
-      (effectiveRole === 'super_admin' || effectiveRole === 'admin') &&
-      timingSafeMatch(cleanCode, configuredAdminSecret)
-    ) {
       isMatch = true;
     }
 
@@ -1148,19 +1307,41 @@ apiRouter.get('/admin/citizens', authenticateUser, async (req: Request, res: Res
 });
 
 /**
- * 6. Change User Role (Super Admin Only)
- * Enforces mandatory server constraint: No Super Admin can modify another Super Admin!
+ * 6. Change User Role (Admin & Super Admin)
+ * - Admin can change Citizen -> Admin and Admin -> Citizen, but CANNOT grant Super Admin or modify a Super Admin.
+ * - Super Admin can change Citizen <-> Admin and grant Super Admin, but CANNOT modify another Super Admin.
  */
 apiRouter.post('/admin/change-role', authenticateUser, async (req: Request, res: Response) => {
   const caller = (req as any).user;
-  if (caller.role !== 'super_admin') {
-    res.status(403).json({ error: 'غير مصرح: تعديل الأدوار محصور بالسوبر أدمن (Super Admin).' });
+  if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+    res.status(403).json({ error: 'غير مصرح: تعديل الأدوار محصور بحسابات الإدارة (Admin / Super Admin).' });
     return;
   }
 
   const { targetUid, newRole } = req.body;
   if (!targetUid || !newRole || !['citizen', 'admin', 'super_admin'].includes(newRole)) {
     res.status(400).json({ error: 'البيانات المدخلة غير صحيحة.' });
+    return;
+  }
+
+  // MANDATORY CONSTRAINT: Admin CANNOT grant super_admin role!
+  if (caller.role !== 'super_admin' && newRole === 'super_admin') {
+    appendAuditLog(
+      {
+        action: 'ROLE_CHANGE_DENIED',
+        actorUid: caller.uid,
+        actorEmail: caller.email,
+        actorRole: caller.role,
+        targetUid,
+        reason: 'Admin attempted to grant super_admin role (server constraint enforced).',
+        timestamp: new Date().toISOString(),
+      },
+      caller.idToken
+    );
+
+    res.status(403).json({
+      error: 'غير مصرح: الأدمن له حق تغيير دور المواطن إلى أدمن واسترجاعه إلى مواطن فقط، وليس لديه الحق لمنح دور سوبر أدمن.',
+    });
     return;
   }
 
@@ -1198,23 +1379,27 @@ apiRouter.post('/admin/change-role', authenticateUser, async (req: Request, res:
       ? 'super_admin'
       : existingUser.role || 'citizen';
 
-    // MANDATORY CONSTRAINT: Cannot modify another super_admin!
-    if (targetExistingRole === 'super_admin' && caller.uid !== targetUid) {
+    // MANDATORY CONSTRAINT: Cannot modify a super_admin!
+    if (
+      targetExistingRole === 'super_admin' &&
+      (caller.role !== 'super_admin' || caller.uid !== targetUid)
+    ) {
       appendAuditLog(
         {
           action: 'ROLE_CHANGE_DENIED',
           actorUid: caller.uid,
           actorEmail: caller.email,
+          actorRole: caller.role,
           targetUid,
           targetEmail: existingUser.email,
-          reason: 'Attempted to modify another Super Admin account (server constraint enforced).',
+          reason: 'Attempted to modify a Super Admin account (server constraint enforced).',
           timestamp: new Date().toISOString(),
         },
         caller.idToken
       );
 
       res.status(403).json({
-        error: 'قيد أمني إلزامي: لا يُسمح لأي سوبر أدمن بتعديل أو تخفيض صلاحيات سوبر أدمن آخر.',
+        error: 'قيد أمني إلزامي: لا يُسمح بتعديل أو تخفيض صلاحيات حساب السوبر أدمن.',
       });
       return;
     }
@@ -1294,7 +1479,7 @@ apiRouter.post('/admin/change-role', authenticateUser, async (req: Request, res:
         action: 'ROLE_CHANGED',
         actorUid: caller.uid,
         actorEmail: caller.email,
-        actorRole: 'super_admin',
+        actorRole: caller.role,
         targetUid,
         targetEmail: updatedUserDoc.email,
         oldRole: targetExistingRole,
@@ -1308,7 +1493,7 @@ apiRouter.post('/admin/change-role', authenticateUser, async (req: Request, res:
       success: true,
       message: `تم تغيير دور المستخدم إلى (${newRole}) بنجاح.`,
       newRole,
-      generatedRecoveryCode,
+      generatedRecoveryCode: caller.role === 'super_admin' ? generatedRecoveryCode : null,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'فشلت عملية تغيير الدور.' });
@@ -1334,10 +1519,10 @@ apiRouter.post(
       return;
     }
 
-    const rateLimit = checkRateLimit(`reveal_code_${caller.uid}`, 5, 15 * 60 * 1000);
+    const rateLimit = checkRateLimit(`reveal_code_${caller.uid}`, 6, 15 * 60 * 1000);
     if (!rateLimit.allowed) {
       res.status(429).json({
-        error: `تم تجاوز الحد المسموح لكشف رموز الاسترداد. يرجى المحاولة بعد ${rateLimit.retryAfterSeconds} ثانية.`,
+        error: `تم تجاوز الحد المسموح لكشف رموز الاسترداد (6 محاولات). يرجى المحاولة بعد ${rateLimit.retryAfterSeconds} ثانية.`,
       });
       return;
     }
@@ -1417,21 +1602,20 @@ apiRouter.post(
  * 8. Bootstrap First Super Admin
  */
 apiRouter.post('/admin/bootstrap-first-super-admin', async (req: Request, res: Response) => {
-  const { setupSecretKey, adminEmail, adminFullName, adminUid, adminPhone } = req.body;
+  const { adminEmail, adminFullName, adminUid, adminPhone } = req.body;
   const authHeader = req.headers.authorization;
   const idToken =
     authHeader && authHeader.startsWith('Bearer ')
       ? authHeader.split('Bearer ')[1].trim()
       : undefined;
 
-  const EXPECTED_SECRET = process.env.SYSTEM_BOOTSTRAP_SECRET || 'RABA_BAADRE_BOOTSTRAP_2026';
-  if (!setupSecretKey || setupSecretKey.trim() !== EXPECTED_SECRET) {
-    res.status(403).json({ error: 'مفتاح التهيئة السري غير صحيح.' });
+  if (!adminEmail || !isDesignatedSuperAdminEmail(adminEmail)) {
+    res.status(403).json({ error: 'العملية مخصصة فقط لبريد السوبر أدمن المعتمد.' });
     return;
   }
 
-  if (!adminEmail || !adminUid) {
-    res.status(400).json({ error: 'البريد الإلكتروني ومعرّف المستخدم مطلوبان.' });
+  if (!adminUid) {
+    res.status(400).json({ error: 'معرّف المستخدم مطلوب.' });
     return;
   }
 

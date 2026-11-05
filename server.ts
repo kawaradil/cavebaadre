@@ -11,6 +11,48 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
+// Disable x-powered-by to prevent server fingerprinting
+app.disable('x-powered-by');
+
+// High-performance, zero-overhead security headers middleware
+app.use((_req, res, next) => {
+  // Prevent MIME-sniffing exploits
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  // Protect sensitive user URLs and referrers
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Legacy browser cross-site scripting filter
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+
+  // Restrict sensitive hardware features to self only and block microphone/payment misuse
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(self), geolocation=(self), microphone=(), payment=(), usb=()'
+  );
+
+  // Enable Cross-Origin Opener Isolation while supporting Firebase Auth popups
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+
+  // Flexible Content Security Policy ensuring smooth Firebase, Maps, and AI Studio iframe operation
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https: http:",
+    "connect-src 'self' https://* wss://* http://localhost:* ws://localhost:*",
+    "frame-src 'self' https://*.firebaseapp.com https://*.google.com",
+    "frame-ancestors 'self' https://aistudio.google.com https://*.google.com https://*.run.app",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ');
+
+  res.setHeader('Content-Security-Policy', csp);
+
+  next();
+});
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

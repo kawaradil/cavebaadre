@@ -33,6 +33,7 @@ import {
   Mail,
   Calendar,
   UserPlus,
+  ChevronDown,
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -64,6 +65,579 @@ import {
   FieldLimitBadge,
 } from '../lib/inputLimits';
 import { playClickSound, playSuccessSound } from '../lib/sound';
+
+const formatWaNumberHelper = (phoneStr?: string) => {
+  if (!phoneStr) return '9647504738358';
+  const digits = phoneStr.replace(/\D/g, '');
+  if (digits.startsWith('964')) return digits;
+  if (digits.startsWith('0')) return `964${digits.slice(1)}`;
+  return `964${digits}`;
+};
+
+interface CitizenAccordionCardProps {
+  cit: AdminCitizenDTO;
+  currentUser: any;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isRTL: boolean;
+  tr: (ar: string, ku: string, en: string) => string;
+  onSelectForRole: (cit: AdminCitizenDTO) => void;
+  onGrantAdminDirect: (cit: AdminCitizenDTO) => void;
+  onRevertCitizenDirect: (cit: AdminCitizenDTO) => void;
+  onSelectForRecovery: (cit: AdminCitizenDTO) => void;
+  onToggleBlock: (citId: string) => void;
+}
+
+const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = ({
+  cit,
+  currentUser,
+  isAdmin,
+  isSuperAdmin,
+  isRTL,
+  tr,
+  onSelectForRole,
+  onGrantAdminDirect,
+  onRevertCitizenDirect,
+  onSelectForRecovery,
+  onToggleBlock,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const displayName = cit.fullName || (cit as any).name || 'مواطن';
+  const citId = cit.uid || (cit as any).id;
+  const isProtectedSuperAdmin =
+    cit.role === 'super_admin' && (!isSuperAdmin || currentUser?.uid !== cit.uid);
+  const joinedDateFormatted = (() => {
+    if (!cit.joinedAt) return '—';
+    const d = new Date(cit.joinedAt);
+    if (Number.isNaN(d.getTime())) return cit.joinedAt.slice(0, 10);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  return (
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      className={`rounded-3xl bg-white border border-[#E8F4EA] shadow-[0_8px_24px_rgba(70,103,77,0.06)] hover:shadow-[0_12px_32px_rgba(70,103,77,0.1)] transition-all overflow-hidden ${
+        isRTL ? 'text-right' : 'text-left'
+      }`}
+    >
+      {/* 1. رأس الأكورديون (Accordion Header): يحمل فقط الإيميل والدور والزر التفاعلي */}
+      <button
+        type="button"
+        onClick={() => {
+          playClickSound();
+          setIsOpen((prev) => !prev);
+        }}
+        className={`w-full p-4 flex items-center justify-between gap-3 text-start cursor-pointer transition-colors ${
+          isOpen ? 'bg-[#F4F9F5]/70' : 'bg-white hover:bg-[#F4F9F5]/40'
+        }`}
+        aria-expanded={isOpen}
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {/* أيقونة الدور */}
+          <div
+            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-xs transition-colors ${
+              cit.role === 'super_admin'
+                ? 'bg-[#E8F4EA] text-[#1E3725]'
+                : cit.role === 'admin'
+                ? 'bg-[#E8F4EA] text-[#46674D]'
+                : 'bg-[#F4F9F5] text-[#46674D]'
+            }`}
+          >
+            {cit.role === 'super_admin' ? (
+              <ShieldAlert className="w-5 h-5" />
+            ) : cit.role === 'admin' ? (
+              <ShieldCheck className="w-5 h-5" />
+            ) : (
+              <Users className="w-5 h-5" />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            {/* البريد الإلكتروني */}
+            <div className="flex items-center gap-1.5 truncate">
+              <Mail className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
+              <bdi
+                dir="ltr"
+                className="text-xs sm:text-sm font-black font-mono text-[#1E3725] truncate"
+              >
+                {cit.email || '—'}
+              </bdi>
+            </div>
+
+            {/* الاسم الثلاثي بشكل لطيف تحت الإيميل */}
+            <p className="text-xs font-bold text-[#2D4833] truncate mt-0.5">
+              <bdi>{displayName}</bdi>
+            </p>
+
+            {/* الدور والحالة بدون إطارات */}
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-black border-0 ${
+                  cit.role === 'super_admin'
+                    ? 'bg-[#1E3725] text-white shadow-2xs'
+                    : cit.role === 'admin'
+                    ? 'bg-[#46674D] text-white shadow-2xs'
+                    : 'bg-[#E8F4EA] text-[#2D4833]'
+                }`}
+              >
+                {cit.role === 'super_admin'
+                  ? tr('سوبر أدمن', 'سوپەر ئەدمین', 'Super Admin')
+                  : cit.role === 'admin'
+                  ? tr('مسؤول (أدمن)', 'بەڕێوەبەر', 'Admin')
+                  : tr('مواطن مسجل', 'هاووڵاتی تۆمارکراو', 'Registered Citizen')}
+              </span>
+
+              {cit.isBlocked && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-600 border-0">
+                  {tr('محظور', 'بلۆککراو', 'Blocked')}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* سهم فتح وإغلاق الأكورديون */}
+        <div className="flex items-center gap-1 shrink-0">
+          <div
+            className={`w-7 h-7 rounded-xl flex items-center justify-center transition-transform duration-300 ${
+              isOpen
+                ? 'bg-[#1E3725] text-white rotate-180'
+                : 'bg-[#F4F9F5] text-[#46674D]'
+            }`}
+          >
+            <ChevronDown className="w-4 h-4" />
+          </div>
+        </div>
+      </button>
+
+      {/* 2. تفاصيل الحساب: لا تظهر ولا تُحمّل إلا بعد فتح الأكورديون */}
+      {isOpen && (
+        <div className="p-4 pt-2 border-t border-[#E8F4EA] space-y-3.5 bg-white">
+          {/* الاسم وأزرار الاتصال المباشر */}
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-[#46674D] block">
+                {tr('الاسم الكامل للمواطن:', 'ناوی تەواوی هاووڵاتی:', 'Citizen Full Name:')}
+              </span>
+              <h4 className="font-black text-sm text-[#1E3725] truncate">
+                <bdi>{displayName}</bdi>
+              </h4>
+            </div>
+
+            {cit.phone && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <a
+                  href={`tel:${cit.phone}`}
+                  className="p-2 rounded-xl bg-[#F4F9F5] text-[#46674D] hover:bg-[#E8F4EA] transition-all"
+                  title={tr('اتصال هاتفي', 'پەیوەندیکردن', 'Call Citizen')}
+                >
+                  <Phone className="w-4 h-4" />
+                </a>
+                <a
+                  href={`https://wa.me/${formatWaNumberHelper(cit.phone)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-xl bg-[#E8F4EA] text-[#46674D] hover:bg-[#46674D] hover:text-white transition-all"
+                  title={tr(
+                    'تواصل مباشر عبر واتساب',
+                    'پەیوەندی ڕاستەوخۆ بە واتسئەپ',
+                    'Direct WhatsApp Contact'
+                  )}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* صندوق تفاصيل الحساب الكاملة */}
+          <div
+            dir={isRTL ? 'rtl' : 'ltr'}
+            className={`p-3.5 rounded-2xl bg-[#F4F9F5]/95 border border-[#E8F4EA] space-y-2 text-xs ${
+              isRTL ? 'text-right' : 'text-left'
+            }`}
+          >
+            {/* الموبايل */}
+            <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
+              <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
+                <Phone className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                <span>{tr('الموبايل:', 'مۆبایل:', 'Phone:')}</span>
+              </span>
+              <bdi
+                className="font-mono font-black text-[#1E3725] text-[11px] tabular-nums"
+                dir="ltr"
+              >
+                {cit.phone || '—'}
+              </bdi>
+            </div>
+
+            {/* تاريخ الميلاد */}
+            <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
+              <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
+                <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                <span>{tr('تاريخ الميلاد:', 'لەدایکبوون:', 'Birth Date:')}</span>
+              </span>
+              <bdi
+                className="text-[11px] font-mono font-black text-[#1E3725] tabular-nums"
+                dir="ltr"
+              >
+                {cit.birthDate || '—'}
+              </bdi>
+            </div>
+
+            {/* تاريخ التسجيل */}
+            <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
+              <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
+                <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                <span>{tr('تاريخ التسجيل:', 'بەرواری تۆمار:', 'Joined Date:')}</span>
+              </span>
+              <bdi
+                className="text-[11px] font-mono font-black text-[#1E3725] tabular-nums"
+                dir="ltr"
+              >
+                {joinedDateFormatted}
+              </bdi>
+            </div>
+
+            {/* الموقع وملخص البلاغات */}
+            <div className="pt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-[#1E3725]">
+              <span className="inline-flex items-center gap-1.5 text-[#46674D] truncate">
+                <MapPin className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
+                <span className="font-black text-[#1E3725] truncate">
+                  {cit.neighborhood || tr('ناحية باعدرى', 'ناحیا باعەدرێ', 'Baadre')}
+                </span>
+              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="px-2 py-0.5 rounded-lg bg-white border border-[#E8F4EA] text-[#1E3725] font-black">
+                  {cit.reportsSubmittedCount} {tr('بلاغ', 'سکاڵا', 'reports')}
+                </span>
+                <span className="px-2 py-0.5 rounded-lg bg-[#E8F4EA] text-[#1E3725] font-black">
+                  {cit.resolvedReportsCount} {tr('منجز', 'ئەنجامدراو', 'resolved')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* إدارة الدور والصلاحيات والحظر (متاحة للسوبر أدمن وللأدمن لتحويل المواطن إلى أدمن واسترجاعه إلى مواطن) */}
+          {(isSuperAdmin || isAdmin) && (
+            <div className="space-y-2 pt-1">
+              {cit.role === 'citizen' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    onGrantAdminDirect(cit);
+                  }}
+                  className="w-full py-2.5 px-3.5 rounded-2xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>
+                    {tr(
+                      'منح صلاحية أدمن',
+                      'پێدانی دەسەڵاتی ئەدمین',
+                      'Grant Admin Role'
+                    )}
+                  </span>
+                </button>
+              )}
+
+              {cit.role === 'admin' && currentUser?.uid !== cit.uid && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    onRevertCitizenDirect(cit);
+                  }}
+                  className="w-full py-2.5 px-3.5 rounded-2xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#1E3725] text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                >
+                  <UserCog className="w-4 h-4 text-[#46674D]" />
+                  <span>
+                    {tr(
+                      'استرجاع إلى مواطن',
+                      'گەڕاندنەوە بۆ هاووڵاتی',
+                      'Revert to Citizen'
+                    )}
+                  </span>
+                </button>
+              )}
+
+              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                {isProtectedSuperAdmin ? (
+                  <div
+                    className="px-2.5 py-1.5 rounded-xl bg-[#F4F9F5] text-[#46674D] text-[10px] font-bold flex items-center gap-1 cursor-not-allowed"
+                    title={tr(
+                      'سوبر أدمن محمي - لا يمكن تعديل أو تخفيض صلاحيات سوبر أدمن',
+                      'سوپەر ئەدمینی پارێزراو',
+                      'Protected Super Admin'
+                    )}
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>{tr('سوبر أدمن (محمي)', 'پارێزراو', 'Protected')}</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      onSelectForRole(cit);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#1E3725] text-[11px] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-[#46674D]" />
+                    <span>{tr('تغيير الدور', 'گۆڕینی ڕۆڵ', 'Change Role')}</span>
+                  </button>
+                )}
+
+                {isSuperAdmin &&
+                  (cit.role === 'admin' ||
+                    (cit.role === 'super_admin' && currentUser?.uid === cit.uid)) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        onSelectForRecovery(cit);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Key className="w-3.5 h-3.5 text-amber-700" />
+                      <span>{tr('الرمز', 'کۆد', 'Code')}</span>
+                    </button>
+                  )}
+
+                {!isProtectedSuperAdmin &&
+                  cit.role !== 'super_admin' &&
+                  (isSuperAdmin || cit.role === 'citizen') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        onToggleBlock(citId);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                        cit.isBlocked
+                          ? 'bg-[#46674D] text-white'
+                          : 'bg-[#F4F9F5] text-rose-600 hover:bg-rose-50'
+                      }`}
+                    >
+                      {cit.isBlocked ? (
+                        <>
+                          <Unlock className="w-3.5 h-3.5" />
+                          <span>{tr('إلغاء الحظر', 'لادانی بلۆک', 'Unblock')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>{tr('حظر', 'بلۆک', 'Block')}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface DepartmentAccordionCardProps {
+  dept: MunicipalDepartment;
+  isRTL: boolean;
+  tr: (ar: string, ku: string, en: string) => string;
+  completedCount: number;
+  displayName: string;
+  formatWaNumber: (num: string) => string;
+  onDeleteDept: (dept: MunicipalDepartment) => void;
+}
+
+const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = ({
+  dept,
+  isRTL,
+  tr,
+  completedCount,
+  displayName,
+  formatWaNumber,
+  onDeleteDept,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const engPhone = dept.engineerPhone || dept.phone || '07504738358';
+  const engName = dept.engineerName || dept.headName || tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer');
+
+  const depName = dept.deputyName || tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director');
+  const depPhone = dept.deputyPhone || dept.phone || '07504738358';
+
+  const mgrName = dept.managerName || dept.headName || tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director');
+  const mgrPhone = dept.managerPhone || dept.emergencyPhone || '07504738358';
+
+  return (
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      className={`rounded-3xl bg-white border border-[#E8F4EA] shadow-[0_8px_24px_rgba(70,103,77,0.06)] hover:shadow-[0_12px_32px_rgba(70,103,77,0.1)] transition-all overflow-hidden ${
+        isRTL ? 'text-right' : 'text-left'
+      }`}
+    >
+      {/* 1. رأس الأكورديون (Accordion Header): اسم الدائرة وعدد الأعمال والسهم */}
+      <button
+        type="button"
+        onClick={() => {
+          playClickSound();
+          setIsOpen((prev) => !prev);
+        }}
+        className={`w-full p-4 flex items-center justify-between gap-3 text-start cursor-pointer transition-colors ${
+          isOpen ? 'bg-[#F4F9F5]/70' : 'bg-white hover:bg-[#F4F9F5]/40'
+        }`}
+        aria-expanded={isOpen}
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0 shadow-xs">
+            <Building2 className="w-5 h-5" />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h4 className="text-sm sm:text-base font-black text-[#1E3725] leading-snug truncate">
+              <bdi>{displayName}</bdi>
+            </h4>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#E8F4EA] text-[#2D4833] border-0">
+                {completedCount} {tr('عمل منجز', 'کاری ئەنجامدراو', 'completed')}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <div
+            className={`w-7 h-7 rounded-xl flex items-center justify-center transition-transform duration-300 ${
+              isOpen
+                ? 'bg-[#1E3725] text-white rotate-180'
+                : 'bg-[#F4F9F5] text-[#46674D]'
+            }`}
+          >
+            <ChevronDown className="w-4 h-4" />
+          </div>
+        </div>
+      </button>
+
+      {/* 2. تفاصيل الدائرة تظهر عند فتح الأكورديون فقط */}
+      {isOpen && (
+        <div className="p-4 pt-2 border-t border-[#E8F4EA] space-y-3 bg-white">
+          {/* المهندس المختص */}
+          <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
+            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
+              <span className="text-[10px] font-black text-[#46674D] block">
+                {tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer')}
+              </span>
+              <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
+                <bdi>{engName}</bdi>
+              </p>
+              <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
+                {engPhone}
+              </bdi>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <a
+                href={`tel:${engPhone}`}
+                className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
+                title={tr('اتصال بالمهندس', 'پەیوەندیکردن بە ئەندازیار', 'Call Engineer')}
+              >
+                <Phone className="w-4 h-4" />
+              </a>
+              <a
+                href={`https://wa.me/${formatWaNumber(engPhone)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
+                title={tr('واتساب المهندس', 'واتسئەپی ئەندازیار', 'WhatsApp Engineer')}
+              >
+                <MessageCircle className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* معاون المدير */}
+          <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
+            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
+              <span className="text-[10px] font-black text-[#46674D] block">
+                {tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director')}
+              </span>
+              <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
+                <bdi>{depName}</bdi>
+              </p>
+              <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
+                {depPhone}
+              </bdi>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <a
+                href={`tel:${depPhone}`}
+                className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
+                title={tr('اتصال بالمعاون', 'پەیوەندیکردن بە یاریدەدەر', 'Call Deputy')}
+              >
+                <Phone className="w-4 h-4" />
+              </a>
+              <a
+                href={`https://wa.me/${formatWaNumber(depPhone)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
+                title={tr('واتساب المعاون', 'واتسئەپی یاریدەدەر', 'WhatsApp Deputy')}
+              >
+                <MessageCircle className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* مدير الدائرة */}
+          <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
+            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
+              <span className="text-[10px] font-black text-[#46674D] block">
+                {tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director')}
+              </span>
+              <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
+                <bdi>{mgrName}</bdi>
+              </p>
+              <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
+                {mgrPhone}
+              </bdi>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <a
+                href={`tel:${mgrPhone}`}
+                className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
+                title={tr('اتصال بالمدير', 'پەیوەندیکردن بە بەڕێوەبەر', 'Call Director')}
+              >
+                <Phone className="w-4 h-4" />
+              </a>
+              <a
+                href={`https://wa.me/${formatWaNumber(mgrPhone)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
+                title={tr('واتساب المدير', 'واتسئەپی بەڕێوەبەر', 'WhatsApp Director')}
+              >
+                <MessageCircle className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* زر حذف الدائرة */}
+          <div className="flex items-center justify-end pt-1">
+            <button
+              type="button"
+              onClick={() => onDeleteDept(dept)}
+              className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-black inline-flex items-center gap-1.5 transition-colors cursor-pointer border-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{tr('حذف الدائرة', 'سڕینەوەی فەرمانگە', 'Delete Department')}</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface MunicipalControlDashboardProps {
   onSelectReport: (report: CivicReport) => void;
@@ -101,18 +675,40 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
   const [reportToDelete, setReportToDelete] = useState<CivicReport | null>(null);
   const [deptToDelete, setDeptToDelete] = useState<MunicipalDepartment | null>(null);
   const [selectedCitizenForRole, setSelectedCitizenForRole] = useState<AdminCitizenDTO | null>(null);
-  const [grantAdminDirectTarget, setGrantAdminDirectTarget] = useState<AdminCitizenDTO | null>(null);
+  const [directRoleTarget, setDirectRoleTarget] = useState<{
+    cit: AdminCitizenDTO;
+    role: UserRole;
+  } | null>(null);
   const [selectedAdminForRecovery, setSelectedAdminForRecovery] = useState<AdminCitizenDTO | null>(null);
-  const [registeredUsersList, setRegisteredUsersList] = useState<AdminCitizenDTO[]>([]);
+  const [registeredUsersList, setRegisteredUsersList] = useState<AdminCitizenDTO[]>(() => {
+    try {
+      const raw = localStorage.getItem('cave_baadre_persisted_registered_users_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const canAccessAdmin = Boolean(currentUser && (isAdmin || isSuperAdmin));
 
   // Fetch remote registered users with verified RBAC roles + real-time Firestore listener on users collection
   React.useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !canAccessAdmin) {
+      setRegisteredUsersList([]);
+      return;
+    }
 
     authService
       .fetchCitizensList(currentUser)
       .then((users) => {
-        setRegisteredUsersList(users);
+        if (users && users.length > 0) {
+          setRegisteredUsersList(users);
+          try {
+            localStorage.setItem('cave_baadre_persisted_registered_users_v1', JSON.stringify(users.slice(0, 100)));
+          } catch {}
+        }
       })
       .catch(() => {});
 
@@ -139,6 +735,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
         });
         if (liveUsers.length > 0) {
           setRegisteredUsersList(liveUsers);
+          try {
+            localStorage.setItem('cave_baadre_persisted_registered_users_v1', JSON.stringify(liveUsers.slice(0, 100)));
+          } catch {}
         }
       },
       () => {}
@@ -176,7 +775,6 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
   const [deptSearch, setDeptSearch] = useState('');
   const [citizenSearch, setCitizenSearch] = useState('');
   const [directoryChip, setDirectoryChip] = useState<'departments' | 'citizens'>('departments');
-  const [selectedDeptModal, setSelectedDeptModal] = useState<MunicipalDepartment | null>(null);
 
   // Add Department Form State
   const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
@@ -503,268 +1101,209 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
 
   const localeCode = 'en-US';
 
+  if (!canAccessAdmin) {
+    return null;
+  }
+
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} className="max-w-7xl mx-auto px-3 sm:px-6 py-5 space-y-6">
       {/* 1️⃣ الإحصائيات والمؤشرات (Analytics) */}
       {adminTab === 'analytics' && (
         <div className="space-y-6">
-          {/* Top Control Header & Harmonious Long Horizontal Stat Cards (بدون إطارات مع ظل أنيق) */}
-          <div className="p-4 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(37,126,184,0.08)] space-y-4">
+          {/* Top Control Header & Harmonious Borderless Stat Cards */}
+          <div className="p-4 sm:p-6 rounded-3xl bg-white/90 backdrop-blur-2xl border-0 shadow-[0_10px_34px_rgba(30,142,147,0.08)] space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#E8F4EA] shadow-xs flex items-center justify-center text-[#46674D]">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#467586] to-[#58899A] shadow-xs flex items-center justify-center text-white">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
-                <h1 className="text-xl sm:text-2xl font-black text-[#1E3725]">
+                <h1 className="text-xl sm:text-2xl font-black text-[#1B3A46]">
                   {tr('لوحة الإحصاءات والمؤشرات', 'تەختەی ئامار و نیشاندەرەکان', 'Analytics Dashboard')}
                 </h1>
               </div>
             </div>
 
-            {/* Unified Long Horizontal Cards (9 مؤشرات مرتبة حسب الطلب بدون أي ظل وبدون إطارات Flat تماماً وبألوان متناسقة) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* 1. اجمالي البلاغات */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+            {/* 9 مؤشرات بألوان بارزة قليلاً ومتناسقة وبدون إطارات */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {/* 1. اجمالي البلاغات (Sky Slate / Turquoise) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-[#E6F2F6] to-[#F2F8FA] border-0 shadow-[0_4px_14px_rgba(30,142,147,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#46674D] text-white flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#3B6878] to-[#58899A] text-white flex items-center justify-center shrink-0 shadow-xs">
                     <ClipboardList className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="text-sm font-black text-[#1E3725] truncate">
+                    <p className="text-sm font-black text-[#1B3A46] truncate">
                       {tr('اجمالي البلاغات', 'کۆی گشتی سکاڵاکان', 'Total Reports')}
-                    </p>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        'موزعة على 6 قطاعات خدمية',
-                        'دابەشکراوە بەسەر 6 کەرتی خزمەتگوزاری',
-                        'Across 6 service sectors'
-                      )}
                     </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-2xl font-black text-[#285060] tabular-nums leading-none">
                     {reportCardTotals.total}
                   </span>
                 </div>
               </div>
 
-              {/* 2. الحالات الطارئة */}
-              <div className="px-4 py-3.5 rounded-2xl bg-rose-50/50 border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 2. الحالات الطارئة (Rose Coral) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-rose-50/95 to-rose-50/50 border-0 shadow-[0_4px_14px_rgba(244,63,94,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-rose-100/80 text-rose-600 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <AlertTriangle className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-black text-rose-700 truncate">
+                      <p className="text-sm font-black text-rose-800 truncate">
                         {tr('الحالات الطارئة', 'حاڵەتە فریاگوزارییەکان', 'Emergency Cases')}
                       </p>
                       <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
                     </div>
-                    <p className="text-xs text-rose-600/90 font-bold mt-0.5 truncate">
-                      {tr(
-                        'أولوية استجابة عالية',
-                        'ئەولەویەتی وەڵامدانەوەی بەرز',
-                        'High response priority'
-                      )}
-                    </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
                   <span className="text-2xl font-black text-rose-700 tabular-nums leading-none">
                     {reportCardTotals.emergency}
                   </span>
                 </div>
               </div>
 
-              {/* 3. الأعمال المنجزة */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 3. الأعمال المنجزة (Emerald Mint) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-emerald-50/95 to-teal-50/50 border-0 shadow-[0_4px_14px_rgba(16,185,129,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-black text-[#1E3725] truncate">
+                      <p className="text-sm font-black text-emerald-900 truncate">
                         {tr('الأعمال المنجزة', 'کارە ئەنجامدراوەکان', 'Completed Works')}
                       </p>
                       <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     </div>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        'مشاريع موثقة قبل وبعد الإنجاز',
-                        'پڕۆژەی دیکۆمێنتکراو پێش و دوای ئەنجامدان',
-                        'Documented before & after projects'
-                      )}
-                    </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-2xl font-black text-emerald-700 tabular-nums leading-none">
                     {reportCardTotals.resolved}
                   </span>
                 </div>
               </div>
 
-              {/* 4. نسبة الانجاز */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 4. نسبة الانجاز (Teal Cyan) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-teal-50/90 to-cyan-50/50 border-0 shadow-[0_4px_14px_rgba(20,184,166,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="text-sm font-black text-[#1E3725] truncate">
+                    <p className="text-sm font-black text-teal-900 truncate">
                       {tr('نسبة الانجاز', 'ڕێژەی ئەنجامدان', 'Completion Rate')}
-                    </p>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        `متوسط الاستجابة: ${metrics.avgResponseHours} ساعة`,
-                        `تێکڕای وەڵامدانەوە: ${metrics.avgResponseHours} کاتژمێر`,
-                        `Avg response: ${metrics.avgResponseHours} hrs`
-                      )}
                     </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-xl font-black text-teal-800 tabular-nums leading-none">
                     {reportCardTotals.completionRate}%
                   </span>
                 </div>
               </div>
 
-              {/* 5. تم الارسال قيد المعالجة */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 5. تم الارسال قيد المعالجة (Warm Amber) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-amber-50/90 to-orange-50/40 border-0 shadow-[0_4px_14px_rgba(245,158,11,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Wrench className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-black text-[#1E3725] truncate">
+                      <p className="text-sm font-black text-amber-900 truncate">
                         {tr(
                           'تم الارسال قيد المعالجة',
                           'نێردراوە لەژێر چارەسەر',
                           'Sent / In-Progress'
                         )}
                       </p>
-                      <span className="w-2 h-2 rounded-full bg-[#46674D] shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                     </div>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        `الفرق في الموقع (${reportCardTotals.pending} بلاغ جديد)`,
-                        `تیمەکان لە شوێنەکەن (${reportCardTotals.pending} سکاڵای نوێ)`,
-                        `Teams on site (${reportCardTotals.pending} new)`
-                      )}
-                    </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-2xl font-black text-amber-700 tabular-nums leading-none">
                     {reportCardTotals.inProgress}
                   </span>
                 </div>
               </div>
 
-              {/* 6. البلاغات المرفوضة */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 6. البلاغات المرفوضة (Soft Orange/Rose) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-orange-50/85 to-rose-50/40 border-0 shadow-[0_4px_14px_rgba(249,115,22,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Ban className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="text-sm font-black text-[#1E3725] truncate">
+                    <p className="text-sm font-black text-orange-900 truncate">
                       {tr('البلاغات المرفوضة', 'سکاڵا ڕەتکراوەکان', 'Rejected Reports')}
-                    </p>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        'بلاغات غير مطابقة أو خارج الاختصاص',
-                        'سکاڵای ناگونجاو یان لە دەرەوەی پسپۆڕی',
-                        'Invalid or out-of-scope reports'
-                      )}
                     </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-2xl font-black text-orange-700 tabular-nums leading-none">
                     {reportCardTotals.rejected}
                   </span>
                 </div>
               </div>
 
-              {/* 7. الدوائر الخدمية */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 7. الدوائر الخدمية (Indigo Blue) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-indigo-50/85 to-blue-50/50 border-0 shadow-[0_4px_14px_rgba(99,102,241,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Building2 className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="text-sm font-black text-[#1E3725] truncate">
+                    <p className="text-sm font-black text-indigo-950 truncate">
                       {tr('الدوائر الخدمية', 'فەرمانگە خزمەتگوزارییەکان', 'Service Departments')}
-                    </p>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        'الدوائر والفرق البلدية المعتمدة',
-                        'فەرمانگە و تیمە شارەوانییەکان',
-                        'Registered municipal departments'
-                      )}
                     </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-2xl font-black text-indigo-700 tabular-nums leading-none">
                     {departments.length}
                   </span>
                 </div>
               </div>
 
-              {/* 8. المواطنين المسجلين */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 8. المواطنين المسجلين (Sky Blue) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-sky-50/90 to-cyan-50/50 border-0 shadow-[0_4px_14px_rgba(14,165,233,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Users className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="text-sm font-black text-[#1E3725] truncate">
+                    <p className="text-sm font-black text-sky-950 truncate">
                       {tr('المواطنين المسجلين', 'هاوڵاتییە تۆمارکراوەکان', 'Registered Citizens')}
-                    </p>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        'حسابات المواطنين المسجلة بالمنصة',
-                        'هەژماری هاوڵاتیانی تۆمارکراو',
-                        'Registered citizen accounts'
-                      )}
                     </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-2xl font-black text-sky-700 tabular-nums leading-none">
                     {citizens.length}
                   </span>
                 </div>
               </div>
 
-              {/* 9. المواطنين المبلغين */}
-              <div className="px-4 py-3.5 rounded-2xl bg-[#F8FBF9] border-0 flex items-center justify-between gap-3.5 transition-all shadow-none">
+              {/* 9. المواطنين المبلغين (Violet Purple) */}
+              <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-violet-50/85 to-purple-50/50 border-0 shadow-[0_4px_14px_rgba(139,92,246,0.06)] flex items-center justify-between gap-3.5 transition-all">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <UserCheck className="w-5 h-5" />
                   </div>
                   <div className={`min-w-0 flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="text-sm font-black text-[#1E3725] truncate">
+                    <p className="text-sm font-black text-violet-950 truncate">
                       {tr('المواطنين المبلغين', 'هاوڵاتییە سکاڵاکارەکان', 'Reporting Citizens')}
-                    </p>
-                    <p className="text-xs text-[#46674D] font-bold mt-0.5 truncate">
-                      {tr(
-                        'المواطنون الذين أرسلوا بلاغات خدمية',
-                        'ئەو هاوڵاتییانەی سکاڵایان ناردووە',
-                        'Citizens who submitted service reports'
-                      )}
                     </p>
                   </div>
                 </div>
-                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white border-0 flex items-center justify-center shrink-0">
-                  <span className="text-2xl font-black text-[#1E3725] tabular-nums leading-none">
+                <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="text-2xl font-black text-violet-700 tabular-nums leading-none">
                     {reportCardTotals.reportingCitizens}
                   </span>
                 </div>
@@ -772,21 +1311,21 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
             </div>
           </div>
 
-          {/* كارت الإحصاءات العامة لجميع الاستبيانات */}
-          <div className="p-5 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-xl shadow-[0_12px_36px_rgba(30,55,37,0.09)] space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#46674D] text-white flex items-center justify-center">
-                <BarChart3 className="w-4 h-4" />
+          {/* كارت الإحصاءات العامة لجميع الاستبيانات (بدون إطارات) */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-white/90 backdrop-blur-xl border-0 shadow-[0_10px_34px_rgba(30,142,147,0.08)] space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#467586] to-[#58899A] text-white flex items-center justify-center shadow-xs">
+                <BarChart3 className="w-4.5 h-4.5" />
               </div>
               <div>
-                <h2 className="text-sm sm:text-base font-black text-[#1E3725]">
+                <h2 className="text-sm sm:text-base font-black text-[#1B3A46]">
                   {tr(
                     'الإحصاءات العامة لجميع الاستبيانات',
                     'ئاماری گشتی سەرجەم ڕاپرسییەکان',
                     'General Statistics Across All Surveys'
                   )}
                 </h2>
-                <p className="text-[11px] font-bold text-[#46674D]">
+                <p className="text-[11px] font-bold text-[#3B6878]">
                   {tr(
                     'ملخص شامل لمجمل الاستبيانات المنشأة ومشاركات المواطنين الكلية',
                     'پوختەی گشتی سەرجەم ڕاپرسییەکان و بەشداری هاووڵاتیان',
@@ -797,26 +1336,26 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-4 rounded-2xl bg-[#F8FBF9] border-0 transition-all shadow-none space-y-1">
-                <div className="w-8 h-8 rounded-xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center">
+              <div className="p-4 rounded-2xl bg-gradient-to-b from-[#E8F3F7] to-[#F4F9FB] border-0 shadow-[0_4px_14px_rgba(30,142,147,0.06)] transition-all space-y-1.5">
+                <div className="w-8 h-8 rounded-xl bg-[#467586] text-white flex items-center justify-center shadow-2xs">
                   <ClipboardList className="w-4 h-4" />
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-[#1E3725] font-mono">
+                <p className="text-xl sm:text-2xl font-black text-[#1B3A46] font-mono">
                   {generalSurveyStats.totalSurveys}
                 </p>
-                <p className="text-[11px] font-bold text-[#46674D]">
+                <p className="text-[11px] font-bold text-[#3B6878]">
                   {tr('إجمالي الاستبيانات', 'کۆی ڕاپرسییەکان', 'Total Surveys')}
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#F8FBF9] border-0 transition-all shadow-none space-y-1">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <div className="p-4 rounded-2xl bg-gradient-to-b from-emerald-50/90 to-teal-50/40 border-0 shadow-[0_4px_14px_rgba(16,185,129,0.06)] transition-all space-y-1.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
                   <Send className="w-4 h-4" />
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-[#1E3725] font-mono">
+                <p className="text-xl sm:text-2xl font-black text-emerald-900 font-mono">
                   {generalSurveyStats.publishedCount}
                 </p>
-                <p className="text-[11px] font-bold text-[#46674D]">
+                <p className="text-[11px] font-bold text-emerald-700">
                   {tr(
                     'الاستبيانات المنشورة',
                     'ڕاپرسییە بڵاوکراوەکان',
@@ -825,14 +1364,14 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#F8FBF9] border-0 transition-all shadow-none space-y-1">
-                <div className="w-8 h-8 rounded-xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center">
+              <div className="p-4 rounded-2xl bg-gradient-to-b from-indigo-50/90 to-blue-50/40 border-0 shadow-[0_4px_14px_rgba(99,102,241,0.06)] transition-all space-y-1.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-2xs">
                   <Users className="w-4 h-4" />
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-[#1E3725] font-mono">
+                <p className="text-xl sm:text-2xl font-black text-indigo-950 font-mono">
                   {generalSurveyStats.totalResponses}
                 </p>
-                <p className="text-[11px] font-bold text-[#46674D]">
+                <p className="text-[11px] font-bold text-indigo-700">
                   {tr(
                     'إجمالي المشاركين بالاستبيانات',
                     'کۆی بەشداربووان',
@@ -841,14 +1380,14 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#F8FBF9] border-0 transition-all shadow-none space-y-1">
-                <div className="w-8 h-8 rounded-xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center">
+              <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-50/90 to-orange-50/40 border-0 shadow-[0_4px_14px_rgba(245,158,11,0.06)] transition-all space-y-1.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-2xs">
                   <HelpCircle className="w-4 h-4" />
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-[#1E3725] font-mono">
+                <p className="text-xl sm:text-2xl font-black text-amber-900 font-mono">
                   {generalSurveyStats.totalQuestions}
                 </p>
-                <p className="text-[11px] font-bold text-[#46674D]">
+                <p className="text-[11px] font-bold text-amber-700">
                   {tr(
                     'إجمالي الأسئلة المطروحة',
                     'کۆی پرسیارەکان',
@@ -860,11 +1399,11 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="p-5 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-xl space-y-4 shadow-[0_12px_36px_rgba(37,126,184,0.08)]">
+            <div className="p-5 sm:p-6 rounded-3xl bg-white/90 backdrop-blur-xl border-0 space-y-4 shadow-[0_10px_34px_rgba(30,142,147,0.08)]">
               <div className="flex flex-col gap-2">
                 <div className="min-w-0">
-                  <h3 className="text-[11px] sm:text-xs font-black text-[#1E3725] flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
-                    <TrendingUp className="w-4 h-4 text-[#46674D] shrink-0" />
+                  <h3 className="text-[11px] sm:text-xs font-black text-[#1B3A46] flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+                    <TrendingUp className="w-4 h-4 text-[#467586] shrink-0" />
                     <span className="whitespace-nowrap">
                       {tr(
                         'المخطط الأسبوعي: البلاغات المستلمة مقابل المنجزة',
@@ -873,7 +1412,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                       )}
                     </span>
                   </h3>
-                  <p className="text-[11px] text-[#46674D] font-semibold mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <p className="text-[11px] text-[#3B6878] font-semibold mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
                     {tr(
                       'مقارنة الأداء الميداني اليومي لفرق بلدية باعدرى خلال الأسبوع',
                       'بەراوردکردنی ئەدای مەیدانی ڕۆژانەی تیمەکانی شارەوانی باعەدرێ لەم هەفتەیەدا',
@@ -882,18 +1421,18 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   </p>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] font-bold whitespace-nowrap">
-                  <span className="flex items-center gap-1 text-[#2D4833] whitespace-nowrap">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-[#88B793] shrink-0" />{' '}
+                  <span className="flex items-center gap-1 text-[#285060] whitespace-nowrap">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-[#58899A] shrink-0" />{' '}
                     {tr('الواردة', 'هاتوو', 'Incoming')}
                   </span>
-                  <span className="flex items-center gap-1 text-[#1E3725] whitespace-nowrap">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-[#46674D] shrink-0" />{' '}
+                  <span className="flex items-center gap-1 text-emerald-800 whitespace-nowrap">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 shrink-0" />{' '}
                     {tr('المنجزة', 'ئەنجامدراو', 'Completed')}
                   </span>
                 </div>
               </div>
 
-              <div className="h-60 pt-6 flex items-end justify-between gap-1.5 sm:gap-2 pb-2 px-1.5 sm:px-2 bg-[#F4F9F5]/70 rounded-2xl shadow-inner">
+              <div className="h-60 pt-6 flex items-end justify-between gap-1.5 sm:gap-2 pb-2 px-1.5 sm:px-2 bg-[#F2F8FA] border-0 rounded-2xl">
                 {weeklyAnalyticsData.map((item) => {
                   const maxVal = Math.max(
                     1,
@@ -909,22 +1448,22 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                       <div className="w-full flex items-end justify-center gap-1.5 h-44">
                         <div
                           style={{ height: `${inHeight}%` }}
-                          className="w-3.5 sm:w-4 rounded-t-lg bg-[#88B793]"
+                          className="w-3.5 sm:w-4 rounded-t-lg bg-gradient-to-t from-[#467586] to-[#6C9DAE]"
                         >
-                          <span className="text-[9px] font-black text-[#2D4833] block text-center -mt-4">
+                          <span className="text-[9px] font-black text-[#285060] block text-center -mt-4">
                             {item.incoming}
                           </span>
                         </div>
                         <div
                           style={{ height: `${resHeight}%` }}
-                          className="w-3.5 sm:w-4 rounded-t-lg bg-[#46674D]"
+                          className="w-3.5 sm:w-4 rounded-t-lg bg-gradient-to-t from-emerald-600 to-teal-400"
                         >
-                          <span className="text-[9px] font-black text-[#1E3725] block text-center -mt-4">
+                          <span className="text-[9px] font-black text-emerald-800 block text-center -mt-4">
                             {item.resolved}
                           </span>
                         </div>
                       </div>
-                      <span className="text-[9.5px] sm:text-[10px] font-black text-[#2D4833] whitespace-nowrap">
+                      <span className="text-[9.5px] sm:text-[10px] font-black text-[#1B3A46] whitespace-nowrap">
                         {item.day}
                       </span>
                     </div>
@@ -933,9 +1472,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
               </div>
             </div>
 
-            <div className="p-5 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-xl space-y-4 shadow-[0_12px_36px_rgba(37,126,184,0.08)]">
-              <h3 className="text-base font-black text-[#1E3725] flex items-center gap-2">
-                <Activity className="w-5 h-5 text-[#46674D]" />
+            <div className="p-5 sm:p-6 rounded-3xl bg-white/90 backdrop-blur-xl border-0 space-y-4 shadow-[0_10px_34px_rgba(30,142,147,0.08)]">
+              <h3 className="text-base font-black text-[#1B3A46] flex items-center gap-2">
+                <Activity className="w-5 h-5 text-[#467586]" />
                 <span>
                   {tr(
                     'توزيع البلاغات حسب القطاعات البلدية',
@@ -946,27 +1485,37 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
               </h3>
 
               <div className="space-y-3">
-                {sectorDistribution.map((sec) => (
-                  <div key={sec.key} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-[#1E3725]">
-                        {sec.badgeEmoji} {getSectorLabel(sec.key)}
-                      </span>
-                      <span className="text-[#46674D] font-black">
-                        {sec.count} {tr('بلاغ', 'سکاڵا', 'reports')} ({sec.percentage}%)
-                      </span>
+                {sectorDistribution.map((sec) => {
+                  const sectorBarColors: Record<string, string> = {
+                    roads: 'linear-gradient(90deg, #3B82F6 0%, #60A5FA 100%)',
+                    water: 'linear-gradient(90deg, #0284C7 0%, #38BDF8 100%)',
+                    sewage: 'linear-gradient(90deg, #6366F1 0%, #818CF8 100%)',
+                    lighting: 'linear-gradient(90deg, #F59E0B 0%, #FBBF24 100%)',
+                    sanitation: 'linear-gradient(90deg, #10B981 0%, #34D399 100%)',
+                    other: 'linear-gradient(90deg, #467586 0%, #6C9DAE 100%)',
+                  };
+                  return (
+                    <div key={sec.key} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-[#1B3A46]">
+                          {sec.badgeEmoji} {getSectorLabel(sec.key)}
+                        </span>
+                        <span className="text-[#3B6878] font-black">
+                          {sec.count} {tr('بلاغ', 'سکاڵا', 'reports')} ({sec.percentage}%)
+                        </span>
+                      </div>
+                      <div className="w-full h-2.5 rounded-full bg-[#E3EFF3] overflow-hidden">
+                        <div
+                          style={{
+                            width: `${Math.max(sec.percentage, 6)}%`,
+                            background: sectorBarColors[sec.key] || sectorBarColors.other,
+                          }}
+                          className="h-full rounded-full transition-all duration-500"
+                        />
+                      </div>
                     </div>
-                    <div className="w-full h-2.5 rounded-full bg-[#E8F4EA] overflow-hidden">
-                      <div
-                        style={{
-                          width: `${Math.max(sec.percentage, 6)}%`,
-                          backgroundColor: '#46674D',
-                        }}
-                        className="h-full rounded-full transition-all duration-500"
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -996,14 +1545,10 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                     )
                   )
                 }
-                placeholder={tr(
-                  'بحث بكود البلاغ (BDR-2026-...) أو اسم المواطن أو الحي...',
-                  'گەڕان بە کۆدی سکاڵا (BDR-2026-...) یان ناوی هاوڵاتی یان گەڕەک...',
-                  'Search by report code (BDR-2026-...), citizen name, or neighborhood...'
-                )}
+                placeholder={tr('ابحث...', 'بگەڕێ...', 'Search...')}
                 className={`w-full bg-[#F4F9F5] border-0 rounded-xl ${
                   isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'
-                } py-2.5 text-xs font-bold text-[#1E3725] placeholder-[#46674D]/70 focus:bg-white focus:outline-none`}
+                } py-2.5 text-xs font-bold text-[#1E3725] placeholder-[#46674D]/45 focus:bg-white focus:outline-none`}
               />
             </div>
 
@@ -1362,14 +1907,10 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                         )
                       )
                     }
-                    placeholder={tr(
-                      'ابحث عن اسم الدائرة أو رقم المهندس...',
-                      'بگەڕێ بۆ ناوی فەرمانگە یان ژمارەی ئەندازیار...',
-                      'Search department name or engineer phone...'
-                    )}
+                    placeholder={tr('ابحث...', 'بگەڕێ...', 'Search...')}
                     className={`w-full bg-[#F4F9F5] rounded-2xl ${
                       isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'
-                    } py-2.5 text-xs font-bold text-[#1E3725] placeholder-[#46674D]/70 focus:outline-none`}
+                    } py-2.5 text-xs font-bold text-[#1E3725] placeholder-[#46674D]/45 focus:outline-none`}
                   />
                 </div>
 
@@ -1405,14 +1946,10 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                       )
                     )
                   }
-                  placeholder={tr(
-                    'ابحث باسم المواطن، رقم الهاتف، أو الحي...',
-                    'بگەڕێ بە ناوی هاوڵاتی، ژمارەی مۆبایل، یان گەڕەک...',
-                    'Search citizen name, phone number, or neighborhood...'
-                  )}
+                  placeholder={tr('ابحث...', 'بگەڕێ...', 'Search...')}
                   className={`w-full bg-[#F4F9F5] rounded-2xl ${
                     isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'
-                  } py-2.5 text-xs font-bold text-[#1E3725] placeholder-[#46674D]/70 focus:outline-none`}
+                  } py-2.5 text-xs font-bold text-[#1E3725] placeholder-[#46674D]/45 focus:outline-none`}
                 />
               </div>
             )}
@@ -1727,296 +2264,28 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                 </form>
               )}
 
-              {/* كروت الدوائر */}
+              {/* كروت الدوائر على شكل أكورديون تفاعلي مثل كروت المواطنين المسجلين */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
               >
                 {filteredDepartments.map((dept) => {
-                  const engPhone = dept.engineerPhone || dept.phone || '07504738358';
                   const completedCount = getDepartmentCompletedCount(dept);
 
                   return (
-                    <div
+                    <DepartmentAccordionCard
                       key={dept.id}
-                      dir={isRTL ? 'rtl' : 'ltr'}
-                      onClick={() => {
-                        playClickSound();
-                        setSelectedDeptModal(dept);
-                      }}
-                      className={`p-5 rounded-3xl bg-white border border-[#E8F4EA] shadow-[0_8px_26px_rgba(70,103,77,0.07)] hover:shadow-[0_14px_34px_rgba(70,103,77,0.14)] hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between gap-4 ${
-                        isRTL ? 'text-right' : 'text-left'
-                      }`}
-                    >
-                      {/* اسم الدائرة */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
-                            <Building2 className="w-5 h-5" />
-                          </div>
-                          <h4 className="text-base font-black text-[#1E3725] leading-snug">
-                            <bdi>{getDeptDisplayName(dept)}</bdi>
-                          </h4>
-                        </div>
-                      </div>
-
-                      {/* رقم المهندس وعدد الأعمال المنجزة بمحاذاة RTL متناسقة */}
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div
-                          className={`p-3 rounded-2xl bg-[#F4F9F5] flex flex-col justify-center ${
-                            isRTL ? 'items-start text-right' : 'items-start text-left'
-                          }`}
-                        >
-                          <span className="text-[10px] font-bold text-[#46674D]">
-                            {tr('رقم المهندس', 'ژمارەی ئەندازیار', 'Engineer Phone')}
-                          </span>
-                          <bdi
-                            className="text-xs font-mono font-black text-[#1E3725] mt-0.5"
-                            dir="ltr"
-                          >
-                            {engPhone}
-                          </bdi>
-                        </div>
-
-                        <div
-                          className={`p-3 rounded-2xl bg-[#E8F4EA]/75 flex flex-col justify-center ${
-                            isRTL ? 'items-start text-right' : 'items-start text-left'
-                          }`}
-                        >
-                          <span className="text-[10px] font-bold text-[#46674D]">
-                            {tr('الأعمال المنجزة', 'کارە ئەنجامدراوەکان', 'Completed Works')}
-                          </span>
-                          <span className="text-xs font-black text-[#1E3725] mt-0.5">
-                            {completedCount} {tr('عمل منجز', 'کاری ئەنجامدراو', 'completed')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                      dept={dept}
+                      isRTL={isRTL}
+                      tr={tr}
+                      completedCount={completedCount}
+                      displayName={getDeptDisplayName(dept)}
+                      formatWaNumber={formatWaNumber}
+                      onDeleteDept={(d) => setDeptToDelete(d)}
+                    />
                   );
                 })}
               </div>
-
-              {/* نافذة تفاصيل الدائرة عند فتح الكارت */}
-              {selectedDeptModal && (
-                <div
-                  className="fixed inset-0 z-[100] bg-[#1E3725]/45 backdrop-blur-xs flex items-center justify-center p-4"
-                  onClick={() => setSelectedDeptModal(null)}
-                >
-                  <div
-                    dir={isRTL ? 'rtl' : 'ltr'}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`w-full max-w-lg rounded-3xl bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(30,55,37,0.22)] space-y-5 ${
-                      isRTL ? 'text-right' : 'text-left'
-                    }`}
-                  >
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
-                          <Building2 className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <h3 className="text-base sm:text-lg font-black text-[#1E3725]">
-                            <bdi>{getDeptDisplayName(selectedDeptModal)}</bdi>
-                          </h3>
-                          <p className="text-xs font-bold text-[#46674D] mt-0.5">
-                            {tr('الأعمال المنجزة:', 'کارە ئەنجامدراوەکان:', 'Completed Works:')}{' '}
-                            {getDepartmentCompletedCount(selectedDeptModal)}{' '}
-                            {tr('عمل منجز', 'کاری ئەنجامدراو', 'works')}
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDeptModal(null)}
-                        className="w-9 h-9 rounded-xl bg-[#F4F9F5] hover:bg-[#E8F4EA] text-[#1E3725] flex items-center justify-center cursor-pointer"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* القائمة الكاملة لأسماء وأرقام المسؤولين في الدائرة */}
-                    <div className="space-y-2.5">
-                      {/* المهندس */}
-                      {(() => {
-                        const engName =
-                          selectedDeptModal.engineerName ||
-                          selectedDeptModal.headName ||
-                          tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer');
-                        const engPhone =
-                          selectedDeptModal.engineerPhone ||
-                          selectedDeptModal.phone ||
-                          '07504738358';
-                        return (
-                          <div className="p-3.5 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-                              <span className="text-[10px] font-black text-[#46674D] block">
-                                {tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer')}
-                              </span>
-                              <p className="text-sm font-black text-[#1E3725] truncate mt-0.5">
-                                <bdi>{engName}</bdi>
-                              </p>
-                              <p className="mt-0.5">
-                                <bdi
-                                  className="text-xs font-mono font-bold text-[#2D4833]"
-                                  dir="ltr"
-                                >
-                                  {engPhone}
-                                </bdi>
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <a
-                                href={`tel:${engPhone}`}
-                                className="p-2.5 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
-                                title={tr('اتصال بالمهندس', 'پەیوەندیکردن بە ئەندازیار', 'Call Engineer')}
-                              >
-                                <Phone className="w-4 h-4" />
-                              </a>
-                              <a
-                                href={`https://wa.me/${formatWaNumber(engPhone)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
-                                title={tr('واتساب المهندس', 'واتسئەپی ئەندازیار', 'WhatsApp Engineer')}
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* المعاون */}
-                      {(() => {
-                        const depName =
-                          selectedDeptModal.deputyName ||
-                          tr('معاون مدير الدائرة', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director');
-                        const depPhone =
-                          selectedDeptModal.deputyPhone ||
-                          selectedDeptModal.phone ||
-                          '07504738358';
-                        return (
-                          <div className="p-3.5 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-                              <span className="text-[10px] font-black text-[#46674D] block">
-                                {tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director')}
-                              </span>
-                              <p className="text-sm font-black text-[#1E3725] truncate mt-0.5">
-                                <bdi>{depName}</bdi>
-                              </p>
-                              <p className="mt-0.5">
-                                <bdi
-                                  className="text-xs font-mono font-bold text-[#2D4833]"
-                                  dir="ltr"
-                                >
-                                  {depPhone}
-                                </bdi>
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <a
-                                href={`tel:${depPhone}`}
-                                className="p-2.5 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
-                                title={tr('اتصال بالمعاون', 'پەیوەندیکردن بە یاریدەدەر', 'Call Deputy')}
-                              >
-                                <Phone className="w-4 h-4" />
-                              </a>
-                              <a
-                                href={`https://wa.me/${formatWaNumber(depPhone)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
-                                title={tr('واتساب المعاون', 'واتسئەپی یاریدەدەر', 'WhatsApp Deputy')}
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* المدير */}
-                      {(() => {
-                        const mgrName =
-                          selectedDeptModal.managerName ||
-                          selectedDeptModal.headName ||
-                          tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director');
-                        const mgrPhone =
-                          selectedDeptModal.managerPhone ||
-                          selectedDeptModal.emergencyPhone ||
-                          '07504738358';
-                        return (
-                          <div className="p-3.5 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-                              <span className="text-[10px] font-black text-[#46674D] block">
-                                {tr(
-                                  'مدير الدائرة (عند الضرورة)',
-                                  'بەڕێوەبەری فەرمانگە (لەکاتی پێویست)',
-                                  'Department Director (Emergency)'
-                                )}
-                              </span>
-                              <p className="text-sm font-black text-[#1E3725] truncate mt-0.5">
-                                <bdi>{mgrName}</bdi>
-                              </p>
-                              <p className="mt-0.5">
-                                <bdi
-                                  className="text-xs font-mono font-bold text-[#2D4833]"
-                                  dir="ltr"
-                                >
-                                  {mgrPhone}
-                                </bdi>
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <a
-                                href={`tel:${mgrPhone}`}
-                                className="p-2.5 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
-                                title={tr('اتصال بالمدير', 'پەیوەندیکردن بە بەڕێوەبەر', 'Call Director')}
-                              >
-                                <Phone className="w-4 h-4" />
-                              </a>
-                              <a
-                                href={`https://wa.me/${formatWaNumber(mgrPhone)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
-                                title={tr('واتساب المدير', 'واتسئەپی بەڕێوەبەر', 'WhatsApp Director')}
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Footer Actions */}
-                    <div className="flex items-center justify-between pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playClickSound();
-                          setDeptToDelete(selectedDeptModal);
-                        }}
-                        className="px-4 py-2 rounded-xl bg-[#F4F9F5] hover:bg-rose-50 text-rose-600 text-xs font-black flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>{tr('حذف الدائرة', 'سڕینەوەی فەرمانگە', 'Delete Department')}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDeptModal(null)}
-                        className="px-5 py-2 rounded-xl bg-[#46674D] text-white text-xs font-black cursor-pointer"
-                      >
-                        {tr('إغلاق', 'داخستن', 'Close')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* نافذة تأكيد حذف الدائرة */}
               {deptToDelete && (
@@ -2054,7 +2323,6 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                           playClickSound();
                           deleteDepartment(deptToDelete.id);
                           setDeptToDelete(null);
-                          setSelectedDeptModal(null);
                         }}
                         className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer transition-colors shadow-xs"
                       >
@@ -2092,298 +2360,35 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                     dir={isRTL ? 'rtl' : 'ltr'}
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                 >
-                  {filteredCitizens.slice(0, adminVisibleCitizensCount).map((cit) => {
-                    const displayName = cit.fullName || (cit as any).name || 'مواطن';
-                    const citId = cit.uid || (cit as any).id;
-                    const isAnotherSuperAdmin =
-                      cit.role === 'super_admin' && currentUser?.uid !== cit.uid;
-                    const joinedDateFormatted = (() => {
-                      if (!cit.joinedAt) return '—';
-                      const d = new Date(cit.joinedAt);
-                      if (Number.isNaN(d.getTime())) return cit.joinedAt.slice(0, 10);
-                      return d.toISOString().slice(0, 10);
-                    })();
-
-                    return (
-                      <div
-                        key={citId}
-                        dir={isRTL ? 'rtl' : 'ltr'}
-                        className={`p-5 rounded-3xl bg-white border border-[#E8F4EA] shadow-[0_10px_30px_rgba(70,103,77,0.08)] flex flex-col justify-between gap-4 transition-all hover:shadow-[0_14px_36px_rgba(70,103,77,0.12)] ${
-                          isRTL ? 'text-right' : 'text-left'
-                        }`}
-                      >
-                        {/* Top Header: Avatar + Name + Role & Status Badges + Contact */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
-                                cit.role === 'super_admin'
-                                  ? 'bg-[#E8F4EA] text-[#1E3725]'
-                                  : cit.role === 'admin'
-                                  ? 'bg-[#E8F4EA] text-[#46674D]'
-                                  : 'bg-[#F4F9F5] text-[#46674D]'
-                              }`}
-                            >
-                              {cit.role === 'super_admin' ? (
-                                <ShieldAlert className="w-6 h-6" />
-                              ) : cit.role === 'admin' ? (
-                                <ShieldCheck className="w-6 h-6" />
-                              ) : (
-                                <Users className="w-6 h-6" />
-                              )}
-                            </div>
-                            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-                              <h4
-                                className={`font-black text-sm sm:text-base text-[#1E3725] truncate ${
-                                  isRTL ? 'text-right' : 'text-left'
-                                }`}
-                              >
-                                <bdi>{displayName}</bdi>
-                              </h4>
-                              <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                                {/* Role Badge */}
-                                <span
-                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                                    cit.role === 'super_admin'
-                                      ? 'bg-[#E8F4EA] text-[#1E3725] border border-[#88B793]'
-                                      : cit.role === 'admin'
-                                      ? 'bg-[#E8F4EA] text-[#1E3725] border border-[#88B793]'
-                                      : 'bg-[#F4F9F5] text-[#2D4833] border border-[#BBDDC6]/80'
-                                  }`}
-                                >
-                                  {cit.role === 'super_admin'
-                                    ? tr('سوبر أدمن', 'سوپەر ئەدمین', 'Super Admin')
-                                    : cit.role === 'admin'
-                                    ? tr('مسؤول (أدمن)', 'بەڕێوەبەر', 'Admin')
-                                    : tr('مواطن مسجل', 'هاووڵاتی تۆمارکراو', 'Registered Citizen')}
-                                </span>
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                    cit.isBlocked
-                                      ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                                      : 'bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6]/60'
-                                  }`}
-                                >
-                                  {cit.isBlocked
-                                    ? tr('محظور', 'بلۆککراو', 'Blocked')
-                                    : tr('نشط', 'چالاک', 'Active')}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {cit.phone && (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <a
-                                href={`tel:${cit.phone}`}
-                                className="p-2 rounded-xl bg-[#F4F9F5] text-[#46674D] hover:bg-[#E8F4EA] transition-all"
-                                title={tr('اتصال هاتفي', 'پەیوەندیکردن', 'Call Citizen')}
-                              >
-                                <Phone className="w-4 h-4" />
-                              </a>
-                              <a
-                                href={`https://wa.me/${formatWaNumber(cit.phone)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2 rounded-xl bg-[#E8F4EA] text-[#46674D] hover:bg-[#46674D] hover:text-white transition-all"
-                                title={tr(
-                                  'تواصل مباشر عبر واتساب',
-                                  'پەیوەندی ڕاستەوخۆ بە واتسئەپ',
-                                  'Direct WhatsApp Contact'
-                                )}
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </a>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Pleasant Account Details Box (تفاصيل الحساب بتصحيح RTL ومحاذاة نصوص وألوان متناسقة) */}
-                        <div
-                          dir={isRTL ? 'rtl' : 'ltr'}
-                          className={`p-3.5 rounded-2xl bg-[#F4F9F5]/95 border border-[#E8F4EA] space-y-2 text-xs ${
-                            isRTL ? 'text-right' : 'text-left'
-                          }`}
-                        >
-                          {/* 1. البريد */}
-                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
-                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
-                              <Mail className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
-                              <span>{tr('البريد:', 'ئیمەیڵ:', 'Email:')}</span>
-                            </span>
-                            <bdi
-                              className="font-mono font-bold text-[#1E3725] truncate text-[11px]"
-                              dir="ltr"
-                            >
-                              {cit.email || '—'}
-                            </bdi>
-                          </div>
-
-                          {/* 2. الموبايل */}
-                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
-                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
-                              <Phone className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
-                              <span>{tr('الموبايل:', 'مۆبایل:', 'Phone:')}</span>
-                            </span>
-                            <bdi
-                              className="font-mono font-black text-[#1E3725] text-[11px] tabular-nums"
-                              dir="ltr"
-                            >
-                              {cit.phone || '—'}
-                            </bdi>
-                          </div>
-
-                          {/* 3. تاريخ الميلاد وتاريخ التسجيل بمحاذاة RTL موحدة وأيقونات متناسقة */}
-                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
-                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
-                              <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
-                              <span>{tr('تاريخ الميلاد:', 'لەدایکبوون:', 'Birth Date:')}</span>
-                            </span>
-                            <bdi
-                              className="text-[11px] font-mono font-black text-[#1E3725] tabular-nums"
-                              dir="ltr"
-                            >
-                              {cit.birthDate || '—'}
-                            </bdi>
-                          </div>
-
-                          <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
-                            <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
-                              <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
-                              <span>{tr('تاريخ التسجيل:', 'بەرواری تۆمار:', 'Joined Date:')}</span>
-                            </span>
-                            <bdi
-                              className="text-[11px] font-mono font-black text-[#1E3725] tabular-nums"
-                              dir="ltr"
-                            >
-                              {joinedDateFormatted}
-                            </bdi>
-                          </div>
-
-                          {/* 4. الموقع وملخص البلاغات */}
-                          <div className="pt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-[#1E3725]">
-                            <span className="inline-flex items-center gap-1.5 text-[#46674D] truncate">
-                              <MapPin className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
-                              <span className="font-black text-[#1E3725] truncate">
-                                {cit.neighborhood || tr('ناحية باعدرى', 'ناحیا باعەدرێ', 'Baadre')}
-                              </span>
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="px-2 py-0.5 rounded-lg bg-white border border-[#E8F4EA] text-[#1E3725] font-black">
-                                {cit.reportsSubmittedCount} {tr('بلاغ', 'سکاڵا', 'reports')}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-lg bg-[#E8F4EA] text-[#1E3725] font-black">
-                                {cit.resolvedReportsCount} {tr('منجز', 'ئەنجامدراو', 'resolved')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Grant Admin Privilege Button (after 2 confirmations) & Role Management */}
-                        {(isSuperAdmin || (isAdmin && cit.role === 'citizen')) && (
-                          <div className="space-y-2">
-                            {isSuperAdmin && cit.role === 'citizen' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  playClickSound();
-                                  setGrantAdminDirectTarget(cit);
-                                  setSelectedCitizenForRole(cit);
-                                }}
-                                className="w-full py-2.5 px-3.5 rounded-2xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
-                              >
-                                <UserPlus className="w-4 h-4" />
-                                <span>
-                                  {tr(
-                                    'منح صلاحية أدمن',
-                                    'پێدانی دەسەڵاتی ئەدمین',
-                                    'Grant Admin Role'
-                                  )}
-                                </span>
-                              </button>
-                            )}
-
-                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                              {isSuperAdmin && (
-                                <>
-                                  {isAnotherSuperAdmin ? (
-                                    <div
-                                      className="px-2.5 py-1.5 rounded-xl bg-[#F4F9F5] text-[#46674D] text-[10px] font-bold flex items-center gap-1 cursor-not-allowed"
-                                      title={tr(
-                                        'سوبر أدمن محمي - لا يمكن تعديل أو تخفيض صلاحيات سوبر أدمن آخر',
-                                        'سوپەر ئەدمینی پارێزراو',
-                                        'Protected Super Admin'
-                                      )}
-                                    >
-                                      <Lock className="w-3 h-3" />
-                                      <span>{tr('سوبر أدمن (محمي)', 'پارێزراو', 'Protected')}</span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        playClickSound();
-                                        setGrantAdminDirectTarget(null);
-                                        setSelectedCitizenForRole(cit);
-                                      }}
-                                      className="px-3 py-1.5 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#1E3725] text-[11px] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
-                                    >
-                                      <Shield className="w-3.5 h-3.5 text-[#46674D]" />
-                                      <span>{tr('تغيير الدور', 'گۆڕینی ڕۆڵ', 'Change Role')}</span>
-                                    </button>
-                                  )}
-
-                                  {(cit.role === 'admin' ||
-                                    (cit.role === 'super_admin' && currentUser?.uid === cit.uid)) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        playClickSound();
-                                        setSelectedAdminForRecovery(cit);
-                                      }}
-                                      className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
-                                    >
-                                      <Key className="w-3.5 h-3.5 text-amber-700" />
-                                      <span>{tr('الرمز', 'کۆد', 'Code')}</span>
-                                    </button>
-                                  )}
-                                </>
-                              )}
-
-                              {!isAnotherSuperAdmin &&
-                                cit.role !== 'super_admin' &&
-                                (isSuperAdmin || cit.role === 'citizen') && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      playClickSound();
-                                      toggleBlockCitizen(citId);
-                                    }}
-                                    className={`px-3 py-1.5 rounded-xl text-[11px] font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                                      cit.isBlocked
-                                        ? 'bg-[#46674D] text-white'
-                                        : 'bg-[#F4F9F5] text-rose-600 hover:bg-rose-50'
-                                    }`}
-                                  >
-                                    {cit.isBlocked ? (
-                                      <>
-                                        <Unlock className="w-3.5 h-3.5" />
-                                        <span>{tr('إلغاء الحظر', 'لادانی بلۆک', 'Unblock')}</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Ban className="w-3.5 h-3.5" />
-                                        <span>{tr('حظر', 'بلۆک', 'Block')}</span>
-                                      </>
-                                    )}
-                                  </button>
-                                )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {filteredCitizens.slice(0, adminVisibleCitizensCount).map((cit) => (
+                    <CitizenAccordionCard
+                      key={cit.uid || (cit as any).id}
+                      cit={cit}
+                      currentUser={currentUser}
+                      isAdmin={isAdmin}
+                      isSuperAdmin={isSuperAdmin}
+                      isRTL={isRTL}
+                      tr={tr}
+                      onSelectForRole={(targetCit) => {
+                        setDirectRoleTarget(null);
+                        setSelectedCitizenForRole(targetCit);
+                      }}
+                      onGrantAdminDirect={(targetCit) => {
+                        setDirectRoleTarget({ cit: targetCit, role: 'admin' });
+                        setSelectedCitizenForRole(targetCit);
+                      }}
+                      onRevertCitizenDirect={(targetCit) => {
+                        setDirectRoleTarget({ cit: targetCit, role: 'citizen' });
+                        setSelectedCitizenForRole(targetCit);
+                      }}
+                      onSelectForRecovery={(targetCit) => {
+                        setSelectedAdminForRecovery(targetCit);
+                      }}
+                      onToggleBlock={(citId) => {
+                        toggleBlockCitizen(citId);
+                      }}
+                    />
+                  ))}
                 </div>
 
                 {filteredCitizens.length > adminVisibleCitizensCount && (
@@ -2468,26 +2473,26 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
         </div>
       )}
 
-      {/* Super Admin Role Management Modal (Supports 2-Confirmation Grant Admin Flow) */}
+      {/* Role Management Modal (Supports 2-Confirmation Grant Admin & Revert to Citizen Flow) */}
       {selectedCitizenForRole && (
         <RoleManagementModal
           citizen={selectedCitizenForRole}
           isOpen={Boolean(selectedCitizenForRole)}
           initialTargetRole={
-            grantAdminDirectTarget && grantAdminDirectTarget.uid === selectedCitizenForRole.uid
-              ? 'admin'
+            directRoleTarget && directRoleTarget.cit.uid === selectedCitizenForRole.uid
+              ? directRoleTarget.role
               : undefined
           }
           startWithConfirmation={Boolean(
-            grantAdminDirectTarget && grantAdminDirectTarget.uid === selectedCitizenForRole.uid
+            directRoleTarget && directRoleTarget.cit.uid === selectedCitizenForRole.uid
           )}
           onClose={() => {
             setSelectedCitizenForRole(null);
-            setGrantAdminDirectTarget(null);
+            setDirectRoleTarget(null);
           }}
           onOpenRevealCode={(adminCit) => {
             setSelectedCitizenForRole(null);
-            setGrantAdminDirectTarget(null);
+            setDirectRoleTarget(null);
             setSelectedAdminForRecovery(adminCit);
           }}
           onRoleUpdated={(newRole, uid) => {

@@ -114,18 +114,20 @@
     --baadre-dark: #0F172A;
     --app-header-height: 4.5rem;
 
-    /* متغيرات السمة اللونية الديناميكية (تُحدث تلقائياً من ColorContext) */
-    --theme-primary: #257EB8;
-    --theme-accent: #2BB3B6;
-    --theme-primary-hover: #1D6899;
-    --theme-secondary: #185A80;
+    /* متغيرات السمة اللونية الديناميكية (تُحدث تلقائياً من ColorContext - افتراضياً سمة شعار رابه التركوازية) */
+    --theme-primary: #1E8E93;
+    --theme-accent: #247CB4;
+    --theme-primary-hover: #156E73;
+    --theme-secondary: #195D73;
     --theme-gradient-to: #2BB3B6;
-    --theme-text-dark: #0F314A;
-    --theme-bg-light: #E6F5FA;
-    --theme-bg-soft: #F2FAFC;
-    --theme-bg-hover: #D0ECF5;
-    --theme-border: #A5D9EA;
-    --theme-rgb: 37, 126, 184;
+    --theme-text-dark: #0E3544;
+    --theme-bg-light: #DEF5F6;
+    --theme-bg-soft: #EFFAFA;
+    --theme-bg-hover: #C4ECEE;
+    --theme-border: #B2E2E5;
+    --theme-rgb: 30, 142, 147;
+    --theme-logo-filter: hue-rotate(-18deg) saturate(1.12) brightness(0.97);
+    --theme-splash-filter: hue-rotate(-18deg) saturate(0.84) brightness(1.02) contrast(0.97);
   }
 
   html, body {
@@ -138,101 +140,246 @@
 
 /* ==========================================================================
    Dynamic ColorContext Utility Bindings
-   ربط جميع كلاسات الألوان في التطبيق بـ ColorContext ليتغير لون التطبيق بالكامل فوراً
+   ربط جميع كلاسات الألوان والشعار في التطبيق بـ ColorContext ليتغير لون التطبيق بالكامل فوراً
    ========================================================================== */
 
-/* 1. Backgrounds */
-.bg-\[\#46674D\] { background-color: var(--theme-primary) !important; }
-.bg-\[\#46674D\]\/10 { background-color: color-mix(in srgb, var(--theme-primary) 10%, transparent) !important; }
-.bg-\[\#46674D\]\/15 { background-color: color-mix(in srgb, var(--theme-primary) 15%, transparent) !important; }
-.bg-\[\#46674D\]\/20 { background-color: color-mix(in srgb, var(--theme-primary) 20%, transparent) !important; }
-.hover\:bg-\[\#46674D\]:hover { background-color: var(--theme-primary) !important; }
-.bg-\[\#36593F\] { background-color: var(--theme-primary-hover) !important; }
-.hover\:bg-\[\#36593F\]:hover { background-color: var(--theme-primary-hover) !important; }
-.bg-\[\#2D4833\] { background-color: var(--theme-secondary) !important; }
-.bg-\[\#1E3725\] { background-color: var(--theme-text-dark) !important; }
-.bg-\[\#1E3725\]\/20 { background-color: color-mix(in srgb, var(--theme-text-dark) 20%, transparent) !important; }
-.bg-\[\#1E3725\]\/40 { background-color: color-mix(in srgb, var(--theme-text-dark) 40%, transparent) !important; }
-.bg-\[\#1E3725\]\/50 { background-color: color-mix(in srgb, var(--theme-text-dark) 50%, transparent) !important; }
-.bg-\[\#1E3725\]\/60 { background-color: color-mix(in srgb, var(--theme-text-dark) 60%, transparent) !important; }
+/* 0. Logo & Splash Dynamic Color Filter */
+img[src*="cave_baadre_logo"] {
+  filter: var(--theme-logo-filter) !important;
+}
 
-.bg-\[\#E8F4EA\] { background-color: var(--theme-bg-light) !important; }
-.bg-\[\#E8F4EA\]\/40 { background-color: color-mix(in srgb, var(--theme-bg-light) 40%, transparent) !important; }
-.bg-\[\#E8F4EA\]\/50 { background-color: color-mix(in srgb, var(--theme-bg-light) 50%, transparent) !important; }
-.bg-\[\#E8F4EA\]\/60 { background-color: color-mix(in srgb, var(--theme-bg-light) 60%, transparent) !important; }
-.bg-\[\#E8F4EA\]\/70 { background-color: color-mix(in srgb, var(--theme-bg-light) 70%, transparent) !important; }
-.bg-\[\#E8F4EA\]\/80 { background-color: color-mix(in srgb, var(--theme-bg-light) 80%, transparent) !important; }
-.bg-\[\#E8F4EA\]\/90 { background-color: color-mix(in srgb, var(--theme-bg-light) 90%, transparent) !important; }
-.hover\:bg-\[\#E8F4EA\]:hover { background-color: var(--theme-bg-light) !important; }
-.hover\:bg-\[\#E8F4EA\]\/70:hover { background-color: color-mix(in srgb, var(--theme-bg-light) 70%, transparent) !important; }
-.hover\:bg-\[\#E8F4EA\]\/80:hover { background-color: color-mix(in srgb, var(--theme-bg-light) 80%, transparent) !important; }
+/* 1. Backgrounds - Primary & Accent */
+.bg-\[\#46674D\],
+.bg-\[\#467586\],
+.bg-\[\#386373\] { background-color: var(--theme-primary) !important; }
+.bg-\[\#548596\],
+.bg-\[\#58899A\],
+.bg-\[\#88B793\] { background-color: var(--theme-accent) !important; }
+.bg-\[\#46674D\]\/10,
+.bg-\[\#467586\]\/10 { background-color: color-mix(in srgb, var(--theme-primary) 10%, transparent) !important; }
+.bg-\[\#46674D\]\/15,
+.bg-\[\#467586\]\/15 { background-color: color-mix(in srgb, var(--theme-primary) 15%, transparent) !important; }
+.bg-\[\#46674D\]\/20,
+.bg-\[\#467586\]\/20 { background-color: color-mix(in srgb, var(--theme-primary) 20%, transparent) !important; }
+.hover\:bg-\[\#46674D\]:hover,
+.hover\:bg-\[\#467586\]:hover { background-color: var(--theme-primary) !important; }
+.group:hover .group-hover\:bg-\[\#46674D\],
+.group:hover .group-hover\:bg-\[\#467586\] { background-color: var(--theme-primary) !important; }
+.bg-\[\#36593F\],
+.bg-\[\#3B6878\] { background-color: var(--theme-primary-hover) !important; }
+.hover\:bg-\[\#36593F\]:hover,
+.hover\:bg-\[\#3B6878\]:hover { background-color: var(--theme-primary-hover) !important; }
+.bg-\[\#2D4833\],
+.bg-\[\#285060\] { background-color: var(--theme-secondary) !important; }
+.bg-\[\#1E3725\],
+.bg-\[\#1B3A46\] { background-color: var(--theme-text-dark) !important; }
+.bg-\[\#1E3725\]\/20,
+.bg-\[\#1B3A46\]\/20 { background-color: color-mix(in srgb, var(--theme-text-dark) 20%, transparent) !important; }
+.bg-\[\#1B3A46\]\/30 { background-color: color-mix(in srgb, var(--theme-text-dark) 30%, transparent) !important; }
+.bg-\[\#1E3725\]\/40,
+.bg-\[\#1B3A46\]\/40 { background-color: color-mix(in srgb, var(--theme-text-dark) 40%, transparent) !important; }
+.bg-\[\#1E3725\]\/50,
+.bg-\[\#1B3A46\]\/50 { background-color: color-mix(in srgb, var(--theme-text-dark) 50%, transparent) !important; }
+.bg-\[\#1E3725\]\/60,
+.bg-\[\#1B3A46\]\/60 { background-color: color-mix(in srgb, var(--theme-text-dark) 60%, transparent) !important; }
 
+/* Light Surface Backgrounds */
+.bg-\[\#E8F4EA\],
+.bg-\[\#EAF4EC\],
+.bg-\[\#E3EFF3\],
+.bg-\[\#E4F0F4\],
+.bg-\[\#E7F2F5\],
+.bg-\[\#DFEEF3\],
+.bg-\[\#DCEBEF\] { background-color: var(--theme-bg-light) !important; }
+.bg-\[\#E8F4EA\]\/40,
+.bg-\[\#E3EFF3\]\/40 { background-color: color-mix(in srgb, var(--theme-bg-light) 40%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/50,
+.bg-\[\#E3EFF3\]\/50 { background-color: color-mix(in srgb, var(--theme-bg-light) 50%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/60,
+.bg-\[\#E3EFF3\]\/60 { background-color: color-mix(in srgb, var(--theme-bg-light) 60%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/70,
+.bg-\[\#E3EFF3\]\/70 { background-color: color-mix(in srgb, var(--theme-bg-light) 70%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/80,
+.bg-\[\#E3EFF3\]\/80 { background-color: color-mix(in srgb, var(--theme-bg-light) 80%, transparent) !important; }
+.bg-\[\#E8F4EA\]\/90,
+.bg-\[\#E3EFF3\]\/90 { background-color: color-mix(in srgb, var(--theme-bg-light) 90%, transparent) !important; }
+.hover\:bg-\[\#E8F4EA\]:hover,
+.hover\:bg-\[\#E3EFF3\]:hover,
+.hover\:bg-\[\#DFEEF3\]:hover { background-color: var(--theme-bg-light) !important; }
+.hover\:bg-\[\#E8F4EA\]\/70:hover,
+.hover\:bg-\[\#E6F1F5\]\/70:hover { background-color: color-mix(in srgb, var(--theme-bg-light) 70%, transparent) !important; }
+.hover\:bg-\[\#E8F4EA\]\/80:hover,
+.hover\:bg-\[\#E6F1F5\]\/80:hover,
+.hover\:bg-\[\#E8F2F6\]\/80:hover { background-color: color-mix(in srgb, var(--theme-bg-light) 80%, transparent) !important; }
+
+/* Soft Surface Backgrounds */
 .bg-\[\#F4F9F5\],
-.bg-\[\#F8FBF9\] { background-color: var(--theme-bg-soft) !important; }
-.bg-\[\#F4F9F5\]\/50 { background-color: color-mix(in srgb, var(--theme-bg-soft) 50%, transparent) !important; }
-.bg-\[\#F4F9F5\]\/60 { background-color: color-mix(in srgb, var(--theme-bg-soft) 60%, transparent) !important; }
-.bg-\[\#F4F9F5\]\/70 { background-color: color-mix(in srgb, var(--theme-bg-soft) 70%, transparent) !important; }
-.bg-\[\#F4F9F5\]\/75 { background-color: color-mix(in srgb, var(--theme-bg-soft) 75%, transparent) !important; }
-.bg-\[\#F4F9F5\]\/80 { background-color: color-mix(in srgb, var(--theme-bg-soft) 80%, transparent) !important; }
-.hover\:bg-\[\#F4F9F5\]:hover { background-color: var(--theme-bg-soft) !important; }
+.bg-\[\#F8FBF9\],
+.bg-\[\#F2F8FA\],
+.bg-\[\#F4F9FB\],
+.bg-\[\#F7FBFC\],
+.bg-\[\#EFF6F8\],
+.bg-\[\#F5FAF8\] { background-color: var(--theme-bg-soft) !important; }
+.bg-\[\#F4F9F5\]\/45,
+.bg-\[\#F2F8FA\]\/45 { background-color: color-mix(in srgb, var(--theme-bg-soft) 45%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/50,
+.bg-\[\#F2F8FA\]\/50 { background-color: color-mix(in srgb, var(--theme-bg-soft) 50%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/60,
+.bg-\[\#F2F8FA\]\/60 { background-color: color-mix(in srgb, var(--theme-bg-soft) 60%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/70,
+.bg-\[\#F2F8FA\]\/70 { background-color: color-mix(in srgb, var(--theme-bg-soft) 70%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/75,
+.bg-\[\#F2F8FA\]\/75 { background-color: color-mix(in srgb, var(--theme-bg-soft) 75%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/80,
+.bg-\[\#F2F8FA\]\/80 { background-color: color-mix(in srgb, var(--theme-bg-soft) 80%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/85,
+.bg-\[\#F2F8FA\]\/85 { background-color: color-mix(in srgb, var(--theme-bg-soft) 85%, transparent) !important; }
+.bg-\[\#F4F9F5\]\/90,
+.bg-\[\#F2F8FA\]\/90 { background-color: color-mix(in srgb, var(--theme-bg-soft) 90%, transparent) !important; }
+.hover\:bg-\[\#F4F9F5\]:hover,
+.hover\:bg-\[\#F2F8FA\]:hover { background-color: var(--theme-bg-soft) !important; }
 
-.bg-\[\#D4EADB\] { background-color: var(--theme-bg-hover) !important; }
-.hover\:bg-\[\#D4EADB\]:hover { background-color: var(--theme-bg-hover) !important; }
+.bg-\[\#D4EADB\],
+.bg-\[\#D8EDDC\],
+.bg-\[\#D2E6EC\],
+.bg-\[\#CDE3EB\] { background-color: var(--theme-bg-hover) !important; }
+.hover\:bg-\[\#D4EADB\]:hover,
+.hover\:bg-\[\#D8EDDC\]:hover,
+.hover\:bg-\[\#D2E6EC\]:hover,
+.hover\:bg-\[\#CDE3EB\]:hover { background-color: var(--theme-bg-hover) !important; }
 
-/* 2. Text Colors - Unified Harmonious RABA Palette */
+/* 2. Text Colors */
 .text-\[\#46674D\],
+.text-\[\#467586\],
+.text-\[\#58899A\],
 .text-sky-700,
-.text-sky-800 { color: var(--theme-secondary) !important; }
+.text-sky-800 { color: var(--theme-primary) !important; }
 .text-\[\#36593F\],
-.text-\[\#3E5E44\] { color: var(--theme-primary-hover) !important; }
+.text-\[\#3E5E44\],
+.text-\[\#3B6878\],
+.text-\[\#356374\],
+.text-\[\#2F5969\] { color: var(--theme-primary-hover) !important; }
 .text-\[\#2D4833\],
+.text-\[\#285060\],
+.text-\[\#3B5965\],
+.text-\[\#3D6371\],
+.text-\[\#4A6875\],
+.text-\[\#4D6E7A\],
 .text-slate-700,
 .text-slate-600 { color: var(--theme-secondary) !important; }
 .text-\[\#1E3725\],
 .text-\[\#223E2A\],
+.text-\[\#1B3A46\],
+.text-\[\#1E3A46\],
 .text-slate-900,
 .text-slate-800,
-.text-sky-900,
-.text-emerald-800 { color: var(--theme-text-dark) !important; }
-.hover\:text-\[\#1E3725\]:hover { color: var(--theme-text-dark) !important; }
-.hover\:text-\[\#46674D\]:hover { color: var(--theme-primary) !important; }
-.group:hover .group-hover\:text-\[\#46674D\] { color: var(--theme-primary) !important; }
+.text-sky-900 { color: var(--theme-text-dark) !important; }
+.hover\:text-\[\#1E3725\]:hover,
+.hover\:text-\[\#1B3A46\]:hover { color: var(--theme-text-dark) !important; }
+.hover\:text-\[\#46674D\]:hover,
+.hover\:text-\[\#467586\]:hover { color: var(--theme-primary) !important; }
+.group:hover .group-hover\:text-\[\#46674D\],
+.group:hover .group-hover\:text-\[\#467586\] { color: var(--theme-primary) !important; }
 
 /* 3. Borders & Rings */
 .border-\[\#BBDDC6\],
-.border-\[\#E2EFE5\] { border-color: var(--theme-border) !important; }
-.border-\[\#BBDDC6\]\/50 { border-color: color-mix(in srgb, var(--theme-border) 50%, transparent) !important; }
-.border-\[\#BBDDC6\]\/60 { border-color: color-mix(in srgb, var(--theme-border) 60%, transparent) !important; }
-.border-\[\#BBDDC6\]\/70 { border-color: color-mix(in srgb, var(--theme-border) 70%, transparent) !important; }
-.border-\[\#BBDDC6\]\/80 { border-color: color-mix(in srgb, var(--theme-border) 80%, transparent) !important; }
-.border-\[\#E8F4EA\] { border-color: var(--theme-bg-light) !important; }
-.border-\[\#46674D\] { border-color: var(--theme-primary) !important; }
-.border-\[\#88B793\] { border-color: var(--theme-accent) !important; }
-.hover\:border-\[\#46674D\]:hover { border-color: var(--theme-primary) !important; }
+.border-\[\#E2EFE5\],
+.border-\[\#CFE2E8\],
+.border-\[\#DAE9EE\],
+.border-\[\#D3E5EA\],
+.border-\[\#C6DCE2\],
+.border-\[\#C5DFE7\],
+.border-\[\#C6E0E8\],
+.border-\[\#BFD8DF\],
+.border-\[\#DCEBE3\] { border-color: var(--theme-border) !important; }
+.border-\[\#BBDDC6\]\/50,
+.border-\[\#CFE2E8\]\/50 { border-color: color-mix(in srgb, var(--theme-border) 50%, transparent) !important; }
+.border-\[\#BBDDC6\]\/60,
+.border-\[\#CFE2E8\]\/60 { border-color: color-mix(in srgb, var(--theme-border) 60%, transparent) !important; }
+.border-\[\#BBDDC6\]\/70,
+.border-\[\#CFE2E8\]\/70 { border-color: color-mix(in srgb, var(--theme-border) 70%, transparent) !important; }
+.border-\[\#BBDDC6\]\/80,
+.border-\[\#CFE2E8\]\/80 { border-color: color-mix(in srgb, var(--theme-border) 80%, transparent) !important; }
+.border-\[\#E8F4EA\],
+.border-\[\#E3EFF3\] { border-color: var(--theme-bg-light) !important; }
+.border-\[\#46674D\],
+.border-\[\#467586\] { border-color: var(--theme-primary) !important; }
+.border-\[\#88B793\],
+.border-\[\#58899A\] { border-color: var(--theme-accent) !important; }
+.hover\:border-\[\#46674D\]:hover,
+.hover\:border-\[\#467586\]:hover,
+.hover\:border-\[\#58899A\]:hover { border-color: var(--theme-primary) !important; }
 .hover\:border-\[\#46674D\]\/40:hover { border-color: color-mix(in srgb, var(--theme-primary) 40%, transparent) !important; }
-.focus\:border-\[\#46674D\]:focus { border-color: var(--theme-primary) !important; }
-.focus\:ring-\[\#46674D\]\/20:focus { --tw-ring-color: color-mix(in srgb, var(--theme-primary) 20%, transparent) !important; }
+.focus\:border-\[\#46674D\]:focus,
+.focus\:border-\[\#467586\]:focus { border-color: var(--theme-primary) !important; }
+.focus\:ring-\[\#46674D\]\/20:focus,
+.focus\:ring-\[\#467586\]\/20:focus { --tw-ring-color: color-mix(in srgb, var(--theme-primary) 20%, transparent) !important; }
 
 /* 4. Gradients & Accents */
-.bg-\[\#88B793\] { background-color: var(--theme-accent) !important; }
-.bg-\[\#EAF4EC\] { background-color: var(--theme-bg-light) !important; }
 .from-\[\#46674D\],
+.from-\[\#467586\],
+.from-\[\#3B6878\],
 .from-\[\#2F5238\],
 .from-\[\#33553C\],
-.from-\[\#315338\] {
+.from-\[\#315338\],
+.hover\:from-\[\#3B6878\]:hover {
   --tw-gradient-from: var(--theme-primary) !important;
 }
+.from-\[\#467586\]\/55 {
+  --tw-gradient-from: color-mix(in srgb, var(--theme-primary) 55%, transparent) !important;
+}
+.from-\[\#1B3A46\] {
+  --tw-gradient-from: var(--theme-text-dark) !important;
+}
+.from-\[\#E7F2F5\],
+.from-\[\#E6F2F6\],
+.from-\[\#E8F3F7\] {
+  --tw-gradient-from: var(--theme-bg-light) !important;
+}
+.from-\[\#E7F2F5\]\/95 {
+  --tw-gradient-from: color-mix(in srgb, var(--theme-bg-light) 95%, transparent) !important;
+}
 .via-\[\#2D4833\],
-.via-\[\#46674D\] {
-  --tw-gradient-via: var(--theme-secondary) !important;
+.via-\[\#46674D\],
+.via-\[\#58899A\],
+.via-\[\#3B6878\] {
+  --tw-gradient-via: var(--theme-accent) !important;
+}
+.via-\[\#58899A\]\/35 {
+  --tw-gradient-via: color-mix(in srgb, var(--theme-accent) 35%, transparent) !important;
+}
+.via-\[\#58899A\]\/50 {
+  --tw-gradient-via: color-mix(in srgb, var(--theme-accent) 50%, transparent) !important;
+}
+.via-\[\#F2F8FA\] {
+  --tw-gradient-via: var(--theme-bg-soft) !important;
+}
+.via-\[\#F2F8FA\]\/95 {
+  --tw-gradient-via: color-mix(in srgb, var(--theme-bg-soft) 95%, transparent) !important;
 }
 .to-\[\#2D4833\],
 .to-\[\#88B793\],
-.to-\[\#5C8564\] {
+.to-\[\#5C8564\],
+.to-\[\#58899A\],
+.to-\[\#6C9DAE\],
+.hover\:to-\[\#467586\]:hover {
   --tw-gradient-to: var(--theme-gradient-to) !important;
 }
-.to-\[\#1E3725\] {
+.to-\[\#6C9DAE\]\/55 {
+  --tw-gradient-to: color-mix(in srgb, var(--theme-gradient-to) 55%, transparent) !important;
+}
+.to-\[\#1E3725\],
+.to-\[\#1B3A46\] {
   --tw-gradient-to: var(--theme-text-dark) !important;
+}
+.to-\[\#F2F8FA\],
+.to-\[\#F4F9FB\],
+.to-\[\#DCEBEF\],
+.to-\[\#E4F0F4\] {
+  --tw-gradient-to: var(--theme-bg-soft) !important;
+}
+.to-\[\#E4F0F4\]\/95 {
+  --tw-gradient-to: color-mix(in srgb, var(--theme-bg-light) 95%, transparent) !important;
 }
 
 /* 5. Strict RTL / LTR Direction & BiDi Harmony */

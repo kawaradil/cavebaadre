@@ -26,7 +26,7 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && (
         (request.auth.token != null && request.auth.token.role == 'super_admin') ||
-        (request.auth.token != null && request.auth.token.email in ['11kattak11@gmail.com', 'kawarbani@gmail.com']) ||
+        (request.auth.token != null && request.auth.token.email == '11kattak11@gmail.com') ||
         exists(/databases/$(database)/documents/super_admins/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
@@ -138,8 +138,10 @@ service cloud.firestore {
         )
       ) || (
         isAdmin()
-        && resource.data.role == 'citizen'
-        && (!('role' in request.resource.data) || request.resource.data.role == 'citizen')
+        // Admin can change role between citizen and admin, but NEVER grant super_admin or modify a super_admin
+        && (!('role' in resource.data) || resource.data.role in ['citizen', 'admin'])
+        && (!('role' in request.resource.data) || request.resource.data.role in ['citizen', 'admin'])
+        && !exists(/databases/$(database)/documents/super_admins/$(userId))
       ) || (
         isSuperAdmin()
         // Super Admin CANNOT change another Super Admin's role
@@ -155,19 +157,26 @@ service cloud.firestore {
     // =====================================================================
     // 4. Citizens Directory (/citizens/{citizenId}): Protected Citizen Data
     //    - Prevents reading other citizens' data or listing all citizens by non-admins.
-    //    - Prevents role escalation.
+    //    - Prevents role escalation to super_admin by non-super-admins.
     // =====================================================================
     match /citizens/{citizenId} {
       allow get: if isAdmin() || isOwner(citizenId);
       allow list: if isAdmin();
 
-      allow create: if isAdmin() || (
+      allow create: if (
+        isAdmin()
+        && (!('role' in request.resource.data) || request.resource.data.role in ['citizen', 'admin'] || isSuperAdmin())
+      ) || (
         isSignedIn()
         && (!('role' in request.resource.data) || request.resource.data.role == 'citizen' || isSuperAdmin())
         && !('password' in request.resource.data)
       );
 
-      allow update: if isAdmin() || (
+      allow update: if (
+        isAdmin()
+        && (!('role' in resource.data) || resource.data.role != 'super_admin' || isSuperAdmin())
+        && (!('role' in request.resource.data) || request.resource.data.role in ['citizen', 'admin'] || isSuperAdmin())
+      ) || (
         isSignedIn()
         && (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role || isSuperAdmin())
         && (!('isBlocked' in request.resource.data) || !('isBlocked' in resource.data) || request.resource.data.isBlocked == resource.data.isBlocked)
@@ -241,13 +250,16 @@ service cloud.firestore {
     // 8. Community Surveys (/surveys/{surveyId})
     // =====================================================================
     match /surveys/{surveyId} {
-      allow read: if isSignedIn();
+      allow get, list: if isAdmin() || (
+        isSignedIn() && resource.data.isPublishedToCitizens == true
+      );
 
       allow create, delete: if isAdmin();
 
       allow update: if isAdmin() || (
         isSignedIn()
-        && (resource.data.isPublishedToCitizens == true || ('status' in resource.data && resource.data.status in ['active', 'published']))
+        && resource.data.isPublishedToCitizens == true
+        && (!('status' in resource.data) || resource.data.status != 'closed')
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['id', 'totalResponses', 'questions'])
         && request.resource.data.totalResponses == resource.data.totalResponses + 1
       );
@@ -292,10 +304,21 @@ service cloud.firestore {
     match /admins/{adminId} {
       allow get: if isOwner(adminId) || isAdmin();
       allow list: if isAdmin();
-      allow create, update: if isSuperAdmin()
-        && !(exists(/databases/$(database)/documents/super_admins/$(adminId)) && request.auth.uid != adminId);
-      allow delete: if isSuperAdmin()
-        && !(exists(/databases/$(database)/documents/super_admins/$(adminId)) && request.auth.uid != adminId);
+      allow create, update: if (
+        isSuperAdmin()
+        && !(exists(/databases/$(database)/documents/super_admins/$(adminId)) && request.auth.uid != adminId)
+      ) || (
+        isAdmin()
+        && (!('role' in request.resource.data) || request.resource.data.role == 'admin')
+        && !exists(/databases/$(database)/documents/super_admins/$(adminId))
+      );
+      allow delete: if (
+        isSuperAdmin()
+        && !(exists(/databases/$(database)/documents/super_admins/$(adminId)) && request.auth.uid != adminId)
+      ) || (
+        isAdmin()
+        && !exists(/databases/$(database)/documents/super_admins/$(adminId))
+      );
     }
 
     match /super_admins/{superAdminId} {
