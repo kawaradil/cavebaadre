@@ -1,10 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import {
-  initializeFirestore,
   getFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   setLogLevel,
   doc,
   runTransaction,
@@ -34,29 +31,11 @@ export const app = initializeApp(firebaseConfig);
 export const FIREBASE_STORAGE_BUCKET = 'gs://baadre-smarteye.firebasestorage.app';
 export const MAX_UPLOAD_IMAGES = 10;
 
-/**
- * تهيئة Firestore مع التخزين المحلي الدائم (Persistent IndexedDB Cache) ودعم تعدد النوافذ
- * مما يجعل الاستعلامات فورية (0ms) ويمنع استهلاك قراءات إضافية للبيانات غير المتغيرة
- * مع تقليل التكلفة واستهلاك الموارد إلى الحد الأدنى.
- */
 function initOptimizedFirestore(): Firestore {
   try {
     setLogLevel('silent');
   } catch {}
-  try {
-    return initializeFirestore(
-      app,
-      {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager(),
-        }),
-        experimentalAutoDetectLongPolling: true,
-      },
-      firebaseConfig.firestoreDatabaseId
-    );
-  } catch {
-    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
-  }
+  return getFirestore(app, firebaseConfig.firestoreDatabaseId);
 }
 
 export const db: Firestore = initOptimizedFirestore();
