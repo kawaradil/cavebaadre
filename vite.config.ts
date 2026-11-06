@@ -14,8 +14,38 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
         react: path.resolve(__dirname, 'node_modules/react'),
         'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+        'firebase/app': path.resolve(__dirname, 'node_modules/@firebase/app'),
+        'firebase/auth': path.resolve(__dirname, 'node_modules/@firebase/auth'),
+        'firebase/firestore': path.resolve(__dirname, 'node_modules/@firebase/firestore'),
+        'firebase/storage': path.resolve(__dirname, 'node_modules/@firebase/storage'),
+        'firebase/messaging': path.resolve(__dirname, 'node_modules/@firebase/messaging'),
+        '@firebase/app': path.resolve(__dirname, 'node_modules/@firebase/app'),
+        '@firebase/component': path.resolve(__dirname, 'node_modules/@firebase/component'),
+        '@firebase/firestore': path.resolve(__dirname, 'node_modules/@firebase/firestore'),
+        '@firebase/auth': path.resolve(__dirname, 'node_modules/@firebase/auth'),
+        '@firebase/storage': path.resolve(__dirname, 'node_modules/@firebase/storage'),
+        '@firebase/messaging': path.resolve(__dirname, 'node_modules/@firebase/messaging'),
+        '@firebase/util': path.resolve(__dirname, 'node_modules/@firebase/util'),
+        '@firebase/logger': path.resolve(__dirname, 'node_modules/@firebase/logger'),
       },
-      dedupe: ['react', 'react-dom'],
+      dedupe: [
+        'react',
+        'react-dom',
+        'firebase',
+        'firebase/app',
+        'firebase/auth',
+        'firebase/firestore',
+        'firebase/storage',
+        'firebase/messaging',
+        '@firebase/app',
+        '@firebase/component',
+        '@firebase/firestore',
+        '@firebase/auth',
+        '@firebase/storage',
+        '@firebase/messaging',
+        '@firebase/util',
+        '@firebase/logger',
+      ],
     },
     optimizeDeps: {
       include: [
@@ -24,11 +54,16 @@ export default defineConfig(() => {
         'react-dom/client',
         'react/jsx-runtime',
         'react/jsx-dev-runtime',
+        'firebase/app',
+        'firebase/auth',
+        'firebase/firestore',
+        'firebase/storage',
+        'firebase/messaging',
         'lucide-react',
         'motion/react',
         'leaflet',
         'hash-wasm',
-        'zod'
+        'zod',
       ],
     },
     build: {
@@ -39,9 +74,10 @@ export default defineConfig(() => {
           drop_console: true,
           drop_debugger: true,
           pure_funcs: ['console.log', 'console.info', 'console.debug'],
+          side_effects: false,
         },
         mangle: {
-          toplevel: true,
+          toplevel: false,
           safari10: true,
         },
         format: {
@@ -49,11 +85,12 @@ export default defineConfig(() => {
         },
       },
       rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('AdminDashboard')) {
-              return 'admin-dashboard';
+        treeshake: {
+          moduleSideEffects: (id) => {
+            if (id.includes('firebase') || id.includes('@firebase')) {
+              return true;
             }
+            return true;
           },
         },
       },
@@ -67,3 +104,4 @@ export default defineConfig(() => {
     },
   };
 });
+

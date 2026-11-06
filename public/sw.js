@@ -1,7 +1,5 @@
-const CACHE_NAME = 'baadre-cave-pwa-v3';
+const CACHE_NAME = 'baadre-cave-pwa-v5';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/pwa-icon.svg',
   '/pwa-icon-192.png',
@@ -14,7 +12,7 @@ const ASSETS_TO_CACHE = [
   '/assets/aistudio/cave_baadre_logo.png'
 ];
 
-// Install event - Cache core app shell
+// Install event - Cache core static icons
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -38,7 +36,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - Robust Stale-while-revalidate for static assets & CDNs
+// Fetch event - Network-first for JS/CSS/HTML to prevent stale bundle mismatch, cache-first for static images/fonts
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
@@ -64,7 +62,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // STRICT BYPASS: Never intercept or cache Google, Firebase, or reCAPTCHA requests
+  // STRICT BYPASS: Never intercept or cache Google, Firebase, reCAPTCHA, or external CDN requests
   if (
     url.hostname.includes('google.com') ||
     url.hostname.includes('gstatic.com') ||
@@ -72,33 +70,54 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('googleapis.com') ||
     url.hostname.includes('firebaseio.com') ||
     url.hostname.includes('firebaseapp.com') ||
+    url.hostname.includes('unpkg.com') ||
     url.pathname.includes('/recaptcha/')
   ) {
     return;
   }
 
-  // Static assets or CDN resources (Google Fonts, Unpkg Leaflet, Web Fonts, Images)
+  // Network-first for JS and CSS bundles so new deployments never mix stale chunks
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (
+            networkResponse &&
+            networkResponse.status === 200 &&
+            networkResponse.type !== 'opaque'
+          ) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache).catch(() => {});
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Same-origin static images, icons, or fonts
   if (
-    url.pathname.endsWith('.js') ||
-    url.pathname.endsWith('.css') ||
-    url.pathname.endsWith('.png') ||
-    url.pathname.endsWith('.jpg') ||
-    url.pathname.endsWith('.webp') ||
-    url.pathname.endsWith('.svg') ||
-    url.pathname.endsWith('.woff') ||
-    url.pathname.endsWith('.woff2') ||
-    url.pathname.endsWith('.ttf') ||
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com') ||
-    url.hostname.includes('unpkg.com')
+    url.origin === self.location.origin &&
+    (url.pathname.endsWith('.png') ||
+      url.pathname.endsWith('.jpg') ||
+      url.pathname.endsWith('.webp') ||
+      url.pathname.endsWith('.svg') ||
+      url.pathname.endsWith('.woff') ||
+      url.pathname.endsWith('.woff2') ||
+      url.pathname.endsWith('.ttf'))
   ) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
-        // Network fetch promise with safe handling of CORS and opaque responses
         const networkFetch = fetch(event.request)
           .then((networkResponse) => {
-            // Check for valid response: status 200 or opaque (CORS no-cors third party resources)
-            if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
+            if (
+              networkResponse &&
+              networkResponse.status === 200 &&
+              networkResponse.type !== 'opaque'
+            ) {
               const responseToCache = networkResponse.clone();
               caches.open(CACHE_NAME).then((cache) => {
                 cache.put(event.request, responseToCache).catch(() => {});
@@ -107,12 +126,10 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           })
           .catch((fetchErr) => {
-            // If network fails and we had a cached version, silently return it
             if (cachedResponse) {
               return cachedResponse;
             }
-            // Otherwise propagate or return null to avoid crashing worker
-            return cachedResponse || Promise.reject(fetchErr);
+            return Promise.reject(fetchErr);
           });
 
         return cachedResponse || networkFetch;

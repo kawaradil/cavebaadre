@@ -1,4 +1,8 @@
-import { initializeApp } from 'firebase/app';
+import * as firebaseAppModule from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import 'firebase/auth';
+import 'firebase/firestore';
+import 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
@@ -27,7 +31,25 @@ import {
 } from '../types/baadre';
 import { sanitizeDatabasePayload } from './inputLimits';
 
-export const app = initializeApp(firebaseConfig);
+function ensureFirebaseAppWithComponents() {
+  const instance = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  try {
+    const internalComponents = (firebaseAppModule as any)._components;
+    const addOrOverwrite = (firebaseAppModule as any)._addOrOverwriteComponent;
+    if (
+      internalComponents &&
+      typeof internalComponents.values === 'function' &&
+      typeof addOrOverwrite === 'function'
+    ) {
+      for (const comp of internalComponents.values()) {
+        addOrOverwrite(instance, comp);
+      }
+    }
+  } catch {}
+  return instance;
+}
+
+export const app = ensureFirebaseAppWithComponents();
 export const FIREBASE_STORAGE_BUCKET = 'gs://baadre-smarteye.firebasestorage.app';
 export const MAX_UPLOAD_IMAGES = 10;
 
