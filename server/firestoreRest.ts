@@ -178,7 +178,9 @@ export function fromFirestoreDocument(docObj: any): { id: string; data: Record<s
   return { id, data };
 }
 
-function buildAuthHeaders(idToken?: string): Record<string, string> {
+let firestoreAppCheckEnforcedOnServer = false;
+
+function buildAuthHeaders(idToken?: string): { headers: Record<string, string>; hasAppCheck: boolean } {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -189,7 +191,17 @@ function buildAuthHeaders(idToken?: string): Record<string, string> {
   if (appCheckToken) {
     headers['X-Firebase-AppCheck'] = appCheckToken;
   }
-  return headers;
+  return { headers, hasAppCheck: Boolean(appCheckToken) };
+}
+
+function shouldSkipUnverifiedRestRequest(hasAppCheck: boolean): boolean {
+  return firestoreAppCheckEnforcedOnServer && !hasAppCheck;
+}
+
+function recordRestResponseStatus(status: number, hasAppCheck: boolean): void {
+  if ((status === 401 || status === 403) && !hasAppCheck) {
+    firestoreAppCheckEnforcedOnServer = true;
+  }
 }
 
 /**
@@ -201,12 +213,18 @@ export async function restGetDoc(
   idToken?: string
 ): Promise<Record<string, any> | null> {
   try {
+    const { headers, hasAppCheck } = buildAuthHeaders(idToken);
+    if (shouldSkipUnverifiedRestRequest(hasAppCheck)) return null;
+
     const url = `${BASE_URL}/${encodeURIComponent(collectionName)}/${encodeURIComponent(docId)}`;
     const res = await fetch(url, {
       method: 'GET',
-      headers: buildAuthHeaders(idToken),
+      headers,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      recordRestResponseStatus(res.status, hasAppCheck);
+      return null;
+    }
     const json = await res.json();
     const parsed = fromFirestoreDocument(json);
     return parsed ? parsed.data : null;
@@ -221,15 +239,21 @@ export async function restGetDoc(
 export async function restListDocs(
   collectionName: string,
   idToken?: string,
-  pageSize = 250
+  pageSize = 50
 ): Promise<Array<{ id: string; data: Record<string, any> }>> {
   try {
+    const { headers, hasAppCheck } = buildAuthHeaders(idToken);
+    if (shouldSkipUnverifiedRestRequest(hasAppCheck)) return [];
+
     const url = `${BASE_URL}/${encodeURIComponent(collectionName)}?pageSize=${pageSize}`;
     const res = await fetch(url, {
       method: 'GET',
-      headers: buildAuthHeaders(idToken),
+      headers,
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      recordRestResponseStatus(res.status, hasAppCheck);
+      return [];
+    }
     const json = await res.json();
     const docs = Array.isArray(json.documents) ? json.documents : [];
     return docs
@@ -251,6 +275,9 @@ export async function restSetDoc(
   merge = true
 ): Promise<boolean> {
   try {
+    const { headers, hasAppCheck } = buildAuthHeaders(idToken);
+    if (shouldSkipUnverifiedRestRequest(hasAppCheck)) return false;
+
     const fields: Record<string, any> = {};
     const fieldPaths: string[] = [];
     for (const [k, v] of Object.entries(data)) {
@@ -265,10 +292,14 @@ export async function restSetDoc(
 
     const res = await fetch(url, {
       method: 'PATCH',
-      headers: buildAuthHeaders(idToken),
+      headers,
       body: JSON.stringify({ fields }),
     });
-    return res.ok;
+    if (!res.ok) {
+      recordRestResponseStatus(res.status, hasAppCheck);
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }
@@ -283,12 +314,19 @@ export async function restDeleteDoc(
   idToken?: string
 ): Promise<boolean> {
   try {
+    const { headers, hasAppCheck } = buildAuthHeaders(idToken);
+    if (shouldSkipUnverifiedRestRequest(hasAppCheck)) return false;
+
     const url = `${BASE_URL}/${encodeURIComponent(collectionName)}/${encodeURIComponent(docId)}`;
     const res = await fetch(url, {
       method: 'DELETE',
-      headers: buildAuthHeaders(idToken),
+      headers,
     });
-    return res.ok;
+    if (!res.ok) {
+      recordRestResponseStatus(res.status, hasAppCheck);
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }

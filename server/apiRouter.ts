@@ -1177,11 +1177,6 @@ apiRouter.get('/admin/citizens', authenticateUser, async (req: Request, res: Res
 
   try {
     const store = readLocalStore();
-    const [remoteUsers, remoteCitizens, remoteReports] = await Promise.all([
-      restListDocs('users', caller.idToken),
-      restListDocs('citizens', caller.idToken),
-      restListDocs('reports', caller.idToken),
-    ]);
 
     const isTempRecord = (id: string, emailVal?: string) => {
       const cleanId = String(id || '').trim();
@@ -1189,54 +1184,27 @@ apiRouter.get('/admin/citizens', authenticateUser, async (req: Request, res: Res
       return /^[0-9]+$/.test(cleanId) || cleanId.startsWith('visitor_') || !cleanEmail.includes('@');
     };
 
-    // تنظيف وحذف بيانات المواطنين المؤقتين من LocalStore ومن Firestore
+    let storeDirty = false;
     for (const [uid, u] of Object.entries(store.users)) {
       if (isTempRecord(uid, u.email)) {
         delete store.users[uid];
+        storeDirty = true;
       }
     }
     for (const [id, c] of Object.entries(store.citizens)) {
       if (isTempRecord(id, c.email)) {
         delete store.citizens[id];
+        storeDirty = true;
       }
     }
-
-    const tempFirestoreDeletePromises: Promise<any>[] = [];
-    for (const { id, data: c } of remoteCitizens) {
-      if (isTempRecord(id, c.email)) {
-        delete store.citizens[id];
-        tempFirestoreDeletePromises.push(
-          restDeleteDoc('citizens', id, caller.idToken).catch(() => {})
-        );
-      }
+    if (storeDirty) {
+      writeLocalStore(store);
     }
-    if (tempFirestoreDeletePromises.length > 0) {
-      await Promise.all(tempFirestoreDeletePromises);
-    }
-
-    const submittedByUid: Record<string, number> = {};
-    const resolvedByUid: Record<string, number> = {};
-
-    remoteReports.forEach(({ data: r }) => {
-      const owner = String(r.ownerUid || r.citizenId || '').trim();
-      if (owner) {
-        submittedByUid[owner] = (submittedByUid[owner] || 0) + 1;
-        if (r.status === 'resolved' || r.status === 'completed') {
-          resolvedByUid[owner] = (resolvedByUid[owner] || 0) + 1;
-        }
-      }
-    });
 
     const mergedUsersMap = new Map<string, Record<string, any>>();
     for (const [uid, u] of Object.entries(store.users)) {
       if (!isTempRecord(uid, u.email)) {
         mergedUsersMap.set(uid, { ...u, uid });
-      }
-    }
-    for (const { id: uid, data: u } of remoteUsers) {
-      if (!isTempRecord(uid, u.email)) {
-        mergedUsersMap.set(uid, { ...(mergedUsersMap.get(uid) || {}), ...u, uid });
-        store.users[uid] = { ...(store.users[uid] || {}), ...u, uid };
       }
     }
 
@@ -1246,13 +1214,6 @@ apiRouter.get('/admin/citizens', authenticateUser, async (req: Request, res: Res
         citizensMap.set(id, { ...c, id });
       }
     }
-    for (const { id, data: c } of remoteCitizens) {
-      if (!isTempRecord(id, c.email)) {
-        citizensMap.set(id, { ...(citizensMap.get(id) || {}), ...c, id });
-        store.citizens[id] = { ...(store.citizens[id] || {}), ...c, id };
-      }
-    }
-    writeLocalStore(store);
 
     const dtoMap = new Map<string, AdminCitizenDTO>();
 
@@ -1276,13 +1237,11 @@ apiRouter.get('/admin/citizens', authenticateUser, async (req: Request, res: Res
         role,
         reportsSubmittedCount: Math.max(
           uData.reportsSubmittedCount || 0,
-          cExtra?.reportsSubmittedCount || 0,
-          submittedByUid[uid] || 0
+          cExtra?.reportsSubmittedCount || 0
         ),
         resolvedReportsCount: Math.max(
           uData.resolvedReportsCount || 0,
-          cExtra?.resolvedReportsCount || 0,
-          resolvedByUid[uid] || 0
+          cExtra?.resolvedReportsCount || 0
         ),
         isBlocked: Boolean(uData.isBlocked ?? cExtra?.isBlocked ?? false),
         createdAt: uData.createdAt || cExtra?.joinedAt || new Date().toISOString(),
@@ -1308,8 +1267,8 @@ apiRouter.get('/admin/citizens', authenticateUser, async (req: Request, res: Res
           birthDate: c.birthDate || '',
           role,
           neighborhood: c.neighborhood || 'ناحية باعدرى',
-          reportsSubmittedCount: Math.max(c.reportsSubmittedCount || 0, submittedByUid[uid] || 0),
-          resolvedReportsCount: Math.max(c.resolvedReportsCount || 0, resolvedByUid[uid] || 0),
+          reportsSubmittedCount: c.reportsSubmittedCount || 0,
+          resolvedReportsCount: c.resolvedReportsCount || 0,
           joinedAt: c.joinedAt || c.createdAt || new Date().toISOString(),
           isBlocked: Boolean(c.isBlocked),
           hasRecoveryCodeConfigured: role === 'admin' || role === 'super_admin',

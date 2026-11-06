@@ -15,8 +15,10 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
+  query,
+  limit,
 } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, getAppCheckTokenHeader } from '../lib/firebase';
 import {
   CitizenProfileDTO,
   AdminCitizenDTO,
@@ -24,6 +26,24 @@ import {
   toAdminCitizenDTO,
 } from '../types/dto';
 import { UserProfileDocument, UserRole } from '../types/auth';
+
+async function withAppCheckHeaders(
+  baseHeaders: Record<string, string> = {}
+): Promise<Record<string, string>> {
+  const appCheckHeader = await getAppCheckTokenHeader();
+  return {
+    ...baseHeaders,
+    ...appCheckHeader,
+  };
+}
+
+let cachedCitizensList: { timestamp: number; data: AdminCitizenDTO[] } | null = null;
+let inFlightCitizensPromise: Promise<AdminCitizenDTO[]> | null = null;
+const CITIZENS_CACHE_TTL_MS = 15_000;
+
+function invalidateCitizensCache(): void {
+  cachedCitizensList = null;
+}
 
 export interface RegisterCitizenInput {
   fullName: string;
@@ -198,7 +218,7 @@ export const authService = {
     try {
       const checkRes = await fetch('/api/auth/check-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await withAppCheckHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ email: normalizedEmail }),
       });
       if (checkRes.ok) {
@@ -304,10 +324,10 @@ export const authService = {
       const token = await user.getIdToken();
       const response = await fetch('/api/auth/register-citizen', {
         method: 'POST',
-        headers: {
+        headers: await withAppCheckHeaders({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-        },
+        }),
         body: JSON.stringify({
           uid: user.uid,
           fullName: effectiveFullName,
@@ -419,7 +439,7 @@ export const authService = {
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: await withAppCheckHeaders({ Authorization: `Bearer ${token}` }),
       });
 
       if (res.ok) {
@@ -561,10 +581,10 @@ export const authService = {
       const token = await user.getIdToken();
       const res = await fetch('/api/auth/update-account', {
         method: 'POST',
-        headers: {
+        headers: await withAppCheckHeaders({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-        },
+        }),
         body: JSON.stringify({
           fullName: cleanName,
           phone: cleanPhone,
@@ -590,10 +610,10 @@ export const authService = {
       const token = await user.getIdToken();
       await fetch('/api/auth/delete-account', {
         method: 'POST',
-        headers: {
+        headers: await withAppCheckHeaders({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-        },
+        }),
       });
     } catch {}
 
@@ -640,7 +660,7 @@ export const authService = {
     try {
       const res = await fetch('/api/auth/citizen-password-recovery', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await withAppCheckHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ email: cleanEmail, clientKey }),
       });
 
@@ -763,7 +783,7 @@ export const authService = {
     try {
       const res = await fetch('/api/auth/admin-verify-recovery', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await withAppCheckHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           email: cleanEmail,
           recoveryCode: cleanCode,
@@ -808,96 +828,114 @@ export const authService = {
    * 7. Admin: Fetch Citizens List (AdminCitizenDTO)
    */
   async fetchCitizensList(user: User): Promise<AdminCitizenDTO[]> {
-    const dtoMap = new Map<string, AdminCitizenDTO>();
+    const now = Date.now();
+    if (cachedCitizensList && now - cachedCitizensList.timestamp < CITIZENS_CACHE_TTL_MS) {
+      return cachedCitizensList.data;
+    }
+    if (inFlightCitizensPromise) {
+      return inFlightCitizensPromise;
+    }
 
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/admin/citizens', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const list: AdminCitizenDTO[] = data.citizens || [];
-        list.forEach((item) => {
-          if (item.uid) dtoMap.set(item.uid, item);
+    inFlightCitizensPromise = (async () => {
+      const dtoMap = new Map<string, AdminCitizenDTO>();
+
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/admin/citizens', {
+          headers: await withAppCheckHeaders({ Authorization: `Bearer ${token}` }),
         });
-      }
-    } catch {}
+        if (res.ok) {
+          const data = await res.json();
+          const list: AdminCitizenDTO[] = data.citizens || [];
+          list.forEach((item) => {
+            if (item.uid) dtoMap.set(item.uid, item);
+          });
+        }
+      } catch {}
 
-    try {
-      const [usersSnap, citizensSnap] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'citizens')),
-      ]);
+      try {
+        const [usersSnap, citizensSnap] = await Promise.all([
+          getDocs(query(collection(db, 'users'), limit(100))),
+          getDocs(query(collection(db, 'citizens'), limit(100))),
+        ]);
 
-      const citizensExtra = new Map<string, any>();
-      citizensSnap.forEach((cDoc) => {
-        citizensExtra.set(cDoc.id, { id: cDoc.id, ...cDoc.data() });
-      });
+        const citizensExtra = new Map<string, any>();
+        citizensSnap.forEach((cDoc) => {
+          citizensExtra.set(cDoc.id, { id: cDoc.id, ...cDoc.data() });
+        });
 
-      usersSnap.forEach((uDoc) => {
-        const u = uDoc.data() as UserProfileDocument;
-        const uid = uDoc.id;
-        const cExtra = citizensExtra.get(uid);
-        const isDesig = isDesignatedSuperAdminEmail(u.email);
-        const role: UserRole = isDesig ? 'super_admin' : u.role || 'citizen';
+        usersSnap.forEach((uDoc) => {
+          const u = uDoc.data() as UserProfileDocument;
+          const uid = uDoc.id;
+          const cExtra = citizensExtra.get(uid);
+          const isDesig = isDesignatedSuperAdminEmail(u.email);
+          const role: UserRole = isDesig ? 'super_admin' : u.role || 'citizen';
 
-        const mergedDoc: UserProfileDocument = {
-          ...u,
-          uid,
-          fullName: isDesig
-            ? DESIGNATED_SUPER_ADMIN_NAME
-            : u.fullName || cExtra?.name || 'مواطن مسجل',
-          email: u.email || cExtra?.email || '',
-          phone: u.phone || cExtra?.phone || '',
-          birthDate: u.birthDate || cExtra?.birthDate || '',
-          neighborhood: u.neighborhood || cExtra?.neighborhood || 'ناحية باعدرى',
-          role,
-          reportsSubmittedCount: Math.max(
-            u.reportsSubmittedCount || 0,
-            cExtra?.reportsSubmittedCount || 0
-          ),
-          resolvedReportsCount: Math.max(
-            u.resolvedReportsCount || 0,
-            cExtra?.resolvedReportsCount || 0
-          ),
-          isBlocked: Boolean(u.isBlocked ?? cExtra?.isBlocked ?? false),
-          createdAt: u.createdAt || cExtra?.joinedAt || new Date().toISOString(),
-          updatedAt: u.updatedAt || new Date().toISOString(),
-        };
-
-        dtoMap.set(uid, toAdminCitizenDTO(mergedDoc, role === 'admin' || role === 'super_admin'));
-      });
-
-      citizensSnap.forEach((cDoc) => {
-        if (!dtoMap.has(cDoc.id)) {
-          const c = cDoc.data() as any;
-          const uid = cDoc.id;
-          const isDesig = isDesignatedSuperAdminEmail(c.email);
-          const role: UserRole = isDesig ? 'super_admin' : (c.role as UserRole) || 'citizen';
-          dtoMap.set(uid, {
+          const mergedDoc: UserProfileDocument = {
+            ...u,
             uid,
             fullName: isDesig
               ? DESIGNATED_SUPER_ADMIN_NAME
-              : c.name || c.fullName || 'مواطن مسجل',
-            email: c.email || '',
-            phone: c.phone || '',
-            birthDate: c.birthDate || '',
+              : u.fullName || cExtra?.name || 'مواطن مسجل',
+            email: u.email || cExtra?.email || '',
+            phone: u.phone || cExtra?.phone || '',
+            birthDate: u.birthDate || cExtra?.birthDate || '',
+            neighborhood: u.neighborhood || cExtra?.neighborhood || 'ناحية باعدرى',
             role,
-            neighborhood: c.neighborhood || 'ناحية باعدرى',
-            reportsSubmittedCount: c.reportsSubmittedCount || 0,
-            resolvedReportsCount: c.resolvedReportsCount || 0,
-            joinedAt: c.joinedAt || c.createdAt || new Date().toISOString(),
-            isBlocked: Boolean(c.isBlocked),
-            hasRecoveryCodeConfigured: role === 'admin' || role === 'super_admin',
-          });
-        }
-      });
-    } catch {}
+            reportsSubmittedCount: Math.max(
+              u.reportsSubmittedCount || 0,
+              cExtra?.reportsSubmittedCount || 0
+            ),
+            resolvedReportsCount: Math.max(
+              u.resolvedReportsCount || 0,
+              cExtra?.resolvedReportsCount || 0
+            ),
+            isBlocked: Boolean(u.isBlocked ?? cExtra?.isBlocked ?? false),
+            createdAt: u.createdAt || cExtra?.joinedAt || new Date().toISOString(),
+            updatedAt: u.updatedAt || new Date().toISOString(),
+          };
 
-    return Array.from(dtoMap.values()).sort(
-      (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
-    );
+          dtoMap.set(uid, toAdminCitizenDTO(mergedDoc, role === 'admin' || role === 'super_admin'));
+        });
+
+        citizensSnap.forEach((cDoc) => {
+          if (!dtoMap.has(cDoc.id)) {
+            const c = cDoc.data() as any;
+            const uid = cDoc.id;
+            const isDesig = isDesignatedSuperAdminEmail(c.email);
+            const role: UserRole = isDesig ? 'super_admin' : (c.role as UserRole) || 'citizen';
+            dtoMap.set(uid, {
+              uid,
+              fullName: isDesig
+                ? DESIGNATED_SUPER_ADMIN_NAME
+                : c.name || c.fullName || 'مواطن مسجل',
+              email: c.email || '',
+              phone: c.phone || '',
+              birthDate: c.birthDate || '',
+              role,
+              neighborhood: c.neighborhood || 'ناحية باعدرى',
+              reportsSubmittedCount: c.reportsSubmittedCount || 0,
+              resolvedReportsCount: c.resolvedReportsCount || 0,
+              joinedAt: c.joinedAt || c.createdAt || new Date().toISOString(),
+              isBlocked: Boolean(c.isBlocked),
+              hasRecoveryCodeConfigured: role === 'admin' || role === 'super_admin',
+            });
+          }
+        });
+      } catch {}
+
+      const sorted = Array.from(dtoMap.values()).sort(
+        (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+      );
+      if (sorted.length > 0) {
+        cachedCitizensList = { timestamp: Date.now(), data: sorted };
+      }
+      return sorted;
+    })().finally(() => {
+      inFlightCitizensPromise = null;
+    });
+
+    return inFlightCitizensPromise;
   },
 
   /**
@@ -911,10 +949,10 @@ export const authService = {
     const token = await user.getIdToken();
     const res = await fetch('/api/admin/change-role', {
       method: 'POST',
-      headers: {
+      headers: await withAppCheckHeaders({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-      },
+      }),
       body: JSON.stringify({ targetUid, newRole }),
     });
 
@@ -922,6 +960,8 @@ export const authService = {
     if (!res.ok) {
       throw new Error(data.error || 'فشل تغيير الدور.');
     }
+
+    invalidateCitizensCache();
 
     try {
       const nowIso = new Date().toISOString();
@@ -964,10 +1004,10 @@ export const authService = {
     const token = await user.getIdToken();
     const res = await fetch('/api/admin/reveal-recovery-code', {
       method: 'POST',
-      headers: {
+      headers: await withAppCheckHeaders({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-      },
+      }),
       body: JSON.stringify({ targetAdminUid }),
     });
 
@@ -990,7 +1030,7 @@ export const authService = {
   }): Promise<{ success: boolean; message: string; oneTimeRecoveryCode: string }> {
     const res = await fetch('/api/admin/bootstrap-first-super-admin', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await withAppCheckHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         setupSecretKey: params.secretKey,
         adminEmail: params.adminEmail,
@@ -1004,6 +1044,7 @@ export const authService = {
     if (!res.ok) {
       throw new Error(data.error || 'حدث خطأ.');
     }
+    invalidateCitizensCache();
     return data;
   },
 
@@ -1018,10 +1059,10 @@ export const authService = {
     const token = await user.getIdToken();
     const res = await fetch('/api/admin/toggle-block', {
       method: 'POST',
-      headers: {
+      headers: await withAppCheckHeaders({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-      },
+      }),
       body: JSON.stringify({ targetUid, isBlocked }),
     });
 
@@ -1029,6 +1070,7 @@ export const authService = {
     if (!res.ok) {
       throw new Error(data.error || 'تعذر تحديث حالة الحظر.');
     }
+    invalidateCitizensCache();
     return data;
   },
 };

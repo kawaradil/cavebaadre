@@ -936,7 +936,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } catch {}
       };
 
-      const citizensQuery = query(collection(db, COLLECTIONS.CITIZENS), limit(200));
+      const citizensQuery = query(collection(db, COLLECTIONS.CITIZENS), limit(100));
       unsubCitizens = onSnapshot(
         citizensQuery,
         (snapshot) => {
@@ -967,7 +967,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         () => {}
       );
 
-      const usersQuery = query(collection(db, 'users'), limit(200));
+      const usersQuery = query(collection(db, 'users'), limit(100));
       unsubUsers = onSnapshot(
         usersQuery,
         (snapshot) => {
@@ -989,7 +989,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const responsesQuery = query(
         collection(db, COLLECTIONS.SURVEY_RESPONSES),
         orderBy('createdAt', 'desc'),
-        limit(200)
+        limit(100)
       );
       unsubResponses = onSnapshot(
         responsesQuery,

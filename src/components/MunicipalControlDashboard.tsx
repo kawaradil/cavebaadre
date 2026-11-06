@@ -35,7 +35,7 @@ import {
   UserPlus,
   ChevronDown,
 } from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useBaadre } from '../context/BaadreContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -713,7 +713,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
       .catch(() => {});
 
     const unsubUsers = onSnapshot(
-      collection(db, 'users'),
+      query(collection(db, 'users'), limit(100)),
       (snap) => {
         const liveUsers: AdminCitizenDTO[] = [];
         snap.forEach((docSnap) => {
@@ -746,7 +746,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
     return () => {
       unsubUsers();
     };
-  }, [currentUser, isAdmin, isSuperAdmin]);
+  }, [currentUser?.uid, isAdmin, isSuperAdmin]);
 
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
