@@ -4,12 +4,7 @@ import {
   Bell,
   CheckCircle2,
   X,
-  BarChart3,
-  Building2,
-  ClipboardList,
-  Briefcase,
   Plus,
-  QrCode,
   Eye,
   MapPin,
   Clock,
@@ -48,17 +43,11 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
   const { language, isRTL } = useLanguage();
   const {
     activeRole,
-    citizenTab,
-    setCitizenTab,
-    adminTab,
-    setAdminTab,
-    setIsSurveysViewOpen,
-    isStartScreenActive,
     reports,
     myReports,
     setSelectedReport,
   } = useBaadre();
-  const { currentUser, isSuperAdmin, isAdmin, isLoggedIn, openAuthModal } = useAuth();
+  const { isLoggedIn, openAuthModal } = useAuth();
 
   const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
   const notifMenuRef = useRef<HTMLDivElement>(null);
@@ -129,38 +118,6 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
     };
   }, [isNotifMenuOpen]);
 
-  // Admin order: 1. الإحصاءات, 2. البلاغات, 3. الأعمال المنجزة, 4. الدوائر والمواطنين
-  const adminSections: { id: AdminSectionTab; ar: string; ku: string; en: string; icon: React.FC<{ className?: string }> }[] = [
-    {
-      id: 'analytics',
-      ar: 'الإحصاءات والمؤشرات',
-      ku: 'ئامار و نیشاندەرەکان',
-      en: 'Analytics & KPIs',
-      icon: BarChart3,
-    },
-    {
-      id: 'active_reports',
-      ar: 'البلاغات النشطة',
-      ku: 'سکاڵا چالاکەکان',
-      en: 'Active Reports',
-      icon: ClipboardList,
-    },
-    {
-      id: 'projects',
-      ar: 'الأعمال المنجزة',
-      ku: 'کارە تەواوکراوەکان',
-      en: 'Completed Works',
-      icon: Briefcase,
-    },
-    {
-      id: 'directory',
-      ar: 'الدوائر والمواطنين',
-      ku: 'فەرمانگە و هاووڵاتیان',
-      en: 'Departments & Citizens',
-      icon: Building2,
-    },
-  ];
-
   return (
     <header
       id="main-top-navbar"
@@ -194,82 +151,6 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
               <Menu className="w-6 h-6 stroke-[2.2]" />
             </button>
           </div>
-
-          {/* Center Desktop Navigation Tabs (Admin & Citizen) */}
-          {activeRole === 'admin' && Boolean(currentUser && (isAdmin || isSuperAdmin)) ? (
-            <nav className="hidden lg:flex items-center gap-1 bg-white/50 backdrop-blur-xs p-1 rounded-2xl border-0">
-              {adminSections.map((sec) => {
-                const IconComp = sec.icon;
-                const isActive = !isStartScreenActive && adminTab === sec.id;
-                return (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => {
-                      setIsSurveysViewOpen(false);
-                      setAdminTab(sec.id);
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 border-0 ${
-                      isActive
-                        ? 'bg-[#467586] text-white font-black shadow-2xs'
-                        : 'text-[#0E3544] hover:bg-white/75'
-                    }`}
-                  >
-                    <IconComp className="w-3.5 h-3.5 shrink-0" />
-                    <span>{language === 'ku' ? sec.ku : language === 'en' ? sec.en : sec.ar}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          ) : (
-            <nav className="hidden lg:flex items-center gap-1 bg-white/50 backdrop-blur-xs p-1 rounded-2xl border-0">
-              <button
-                type="button"
-                onClick={() => {
-                  playClickSound();
-                  setIsSurveysViewOpen(false);
-                  setCitizenTab('works');
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 border-0 ${
-                  !isStartScreenActive && (citizenTab === 'works' || citizenTab === 'projects')
-                    ? 'bg-[#467586] text-white font-black shadow-2xs'
-                    : 'text-[#0E3544] hover:bg-white/75'
-                }`}
-              >
-                <Briefcase className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  {language === 'ku'
-                    ? 'کارە تەواوکراوەکان'
-                    : language === 'en'
-                    ? 'Completed Works'
-                    : 'الأعمال المنجزة'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  playClickSound();
-                  setIsSurveysViewOpen(false);
-                  setCitizenTab('track');
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 border-0 ${
-                  !isStartScreenActive && (citizenTab === 'track' || citizenTab === 'home')
-                    ? 'bg-[#467586] text-white font-black shadow-2xs'
-                    : 'text-[#0E3544] hover:bg-white/75'
-                }`}
-              >
-                <QrCode className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  {language === 'ku'
-                    ? 'سکاڵاکانم'
-                    : language === 'en'
-                    ? 'My Reports'
-                    : 'تتبع بلاغاتي'}
-                </span>
-              </button>
-            </nav>
-          )}
 
           {/* Right Controls: Add Report Button & Notifications Bell */}
           <div className="flex items-center gap-2 shrink-0">
