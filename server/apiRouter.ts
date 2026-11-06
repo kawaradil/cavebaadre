@@ -16,6 +16,8 @@ import {
   restListDocs,
   restSetDoc,
   restDeleteDoc,
+  appCheckContext,
+  getActiveAppCheckToken,
 } from './firestoreRest';
 import {
   CitizenProfileDTO,
@@ -35,6 +37,16 @@ const configPath = path.resolve(__dirname, '../firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
 export const apiRouter = Router();
+
+// Propagate client X-Firebase-AppCheck token across async operations in this request
+apiRouter.use((req, _res, next) => {
+  const rawHeader = req.headers['x-firebase-appcheck'];
+  const appCheckToken = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  appCheckContext.run(
+    { appCheckToken: typeof appCheckToken === 'string' ? appCheckToken.trim() : undefined },
+    () => next()
+  );
+});
 
 export const DESIGNATED_SUPER_ADMIN_EMAIL = '11kattak11@gmail.com';
 export const DESIGNATED_SUPER_ADMIN_NAME = 'كاوار عادل طاهر';
@@ -57,6 +69,15 @@ function appendAuditLog(entry: Record<string, any>, idToken?: string): void {
   }
 }
 
+function buildIdentityToolkitHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const appCheckToken = getActiveAppCheckToken();
+  if (appCheckToken) {
+    headers['X-Firebase-AppCheck'] = appCheckToken;
+  }
+  return headers;
+}
+
 /**
  * Helper to verify Firebase ID token using Google Identity Toolkit REST API
  */
@@ -70,7 +91,7 @@ async function verifyFirebaseIdToken(
       `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildIdentityToolkitHeaders(),
         body: JSON.stringify({ idToken }),
       }
     );
@@ -377,7 +398,7 @@ async function isEmailRegisteredOnPlatform(cleanEmail: string, excludeUid?: stri
       `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${firebaseConfig.apiKey}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildIdentityToolkitHeaders(),
         body: JSON.stringify({
           identifier: cleanEmail,
           continueUri: 'http://localhost',
@@ -927,7 +948,7 @@ apiRouter.post('/auth/citizen-password-recovery', async (req: Request, res: Resp
       `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseConfig.apiKey}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildIdentityToolkitHeaders(),
         body: JSON.stringify({
           requestType: 'PASSWORD_RESET',
           email: cleanEmail,
@@ -1114,7 +1135,7 @@ apiRouter.post('/auth/admin-verify-recovery', async (req: Request, res: Response
       `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseConfig.apiKey}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildIdentityToolkitHeaders(),
         body: JSON.stringify({
           requestType: 'PASSWORD_RESET',
           email: cleanEmail,

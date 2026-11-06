@@ -1,6 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { AsyncLocalStorage } from 'async_hooks';
+
+export const appCheckContext = new AsyncLocalStorage<{ appCheckToken?: string }>();
+
+export function getActiveAppCheckToken(): string | undefined {
+  return appCheckContext.getStore()?.appCheckToken;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -177,6 +184,10 @@ function buildAuthHeaders(idToken?: string): Record<string, string> {
   };
   if (idToken) {
     headers.Authorization = `Bearer ${idToken}`;
+  }
+  const appCheckToken = getActiveAppCheckToken();
+  if (appCheckToken) {
+    headers['X-Firebase-AppCheck'] = appCheckToken;
   }
   return headers;
 }

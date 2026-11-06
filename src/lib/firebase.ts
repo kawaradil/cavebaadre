@@ -1,8 +1,16 @@
 import * as firebaseAppModule from 'firebase/app';
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import 'firebase/app-check';
 import 'firebase/auth';
 import 'firebase/firestore';
 import 'firebase/storage';
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  ReCaptchaEnterpriseProvider,
+  getToken as getAppCheckToken,
+  AppCheck,
+} from 'firebase/app-check';
 import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
@@ -50,6 +58,83 @@ function ensureFirebaseAppWithComponents() {
 }
 
 export const app = ensureFirebaseAppWithComponents();
+
+function isAllowedAppCheckHost(hostname: string, hasDebugToken: boolean): boolean {
+  if (hasDebugToken) return true;
+  const h = hostname.toLowerCase();
+  // Skip App Check initialization on AI Studio preview (.run.app) and localhost unless a debug token is set,
+  // because the production reCAPTCHA Enterprise key only allowlists cavebaadre.com and baadre-smarteye domains.
+  if (
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h.endsWith('.run.app') ||
+    h.includes('aistudio.google.com')
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function initFirebaseAppCheck(): AppCheck | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const envMeta = (import.meta as any).env || {};
+    const debugToken =
+      envMeta.VITE_APP_CHECK_DEBUG_TOKEN ||
+      window.localStorage?.getItem('baadre_appcheck_debug_token');
+    const hasDebugToken = Boolean(debugToken);
+
+    if (hasDebugToken) {
+      (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN =
+        debugToken === 'true' ? true : String(debugToken).trim();
+    }
+
+    if (!isAllowedAppCheckHost(window.location.hostname, hasDebugToken)) {
+      return null;
+    }
+
+    const siteKey = String(
+      envMeta.VITE_RECAPTCHA_SITE_KEY ||
+        envMeta.VITE_APP_CHECK_SITE_KEY ||
+        (firebaseConfig as { recaptchaSiteKey?: string }).recaptchaSiteKey ||
+        '6LftUxMuAAAAAL07jpIGG--LOMwIAiwkD17bTV81'
+    ).trim();
+
+    if (!siteKey) {
+      return null;
+    }
+
+    const useV3 =
+      envMeta.VITE_RECAPTCHA_ENTERPRISE === 'false' ||
+      (firebaseConfig as { recaptchaProvider?: string }).recaptchaProvider === 'v3';
+
+    const provider = useV3
+      ? new ReCaptchaV3Provider(siteKey)
+      : new ReCaptchaEnterpriseProvider(siteKey);
+
+    return initializeAppCheck(app, {
+      provider,
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch {
+    return null;
+  }
+}
+
+export const appCheck: AppCheck | null = initFirebaseAppCheck();
+
+export async function getAppCheckTokenHeader(): Promise<Record<string, string>> {
+  if (!appCheck) return {};
+  try {
+    const tokenRes = await getAppCheckToken(appCheck, false);
+    if (tokenRes?.token) {
+      return { 'X-Firebase-AppCheck': tokenRes.token };
+    }
+  } catch {}
+  return {};
+}
+
 export const FIREBASE_STORAGE_BUCKET = 'gs://baadre-smarteye.firebasestorage.app';
 export const MAX_UPLOAD_IMAGES = 10;
 
