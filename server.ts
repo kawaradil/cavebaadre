@@ -37,13 +37,16 @@ app.use((_req, res, next) => {
   // Flexible Content Security Policy ensuring smooth Firebase, Maps, and AI Studio iframe operation
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com https://*.gstatic.com https://www.google.com https://www.recaptcha.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https: http:",
-    "connect-src 'self' https://* wss://* http://localhost:* ws://localhost:*",
-    "frame-src 'self' https://*.firebaseapp.com https://*.google.com",
-    "frame-ancestors 'self' https://aistudio.google.com https://*.google.com https://*.run.app",
+    "media-src 'self' data: blob: https:",
+    "connect-src 'self' https: wss: http://localhost:* ws://localhost:*",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "frame-src 'self' https://*.firebaseapp.com https://*.google.com https://www.recaptcha.net",
+    "frame-ancestors 'self' https://aistudio.google.com https://*.google.com https://*.aistudio.google.com https://*.run.app",
     "object-src 'none'",
     "base-uri 'self'",
   ].join('; ');
