@@ -1376,11 +1376,15 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const resolvedOwnerUid = auth.currentUser.uid;
 
       if (!isAdmin && !isSuperAdmin) {
-        const currentCitizenReportsCount = reports.filter(
-          (r) => r.ownerUid === resolvedOwnerUid || r.citizenId === resolvedOwnerUid
-        ).length;
-        if (currentCitizenReportsCount >= 5) {
-          throw new Error('الحد الأقصى 5 بلاغات لكل مواطن.');
+        const todayStr = new Date().toDateString();
+        const todayCitizenReportsCount = reports.filter((r) => {
+          if (r.ownerUid !== resolvedOwnerUid && r.citizenId !== resolvedOwnerUid) return false;
+          if (!r.createdAt) return false;
+          const reportDate = new Date(r.createdAt);
+          return !Number.isNaN(reportDate.getTime()) && reportDate.toDateString() === todayStr;
+        }).length;
+        if (todayCitizenReportsCount >= 3) {
+          throw new Error('الحد الأقصى اليومي 3 بلاغات لكل مواطن.');
         }
       }
 

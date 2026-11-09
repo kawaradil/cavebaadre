@@ -344,13 +344,6 @@ export const AuthModal: React.FC = () => {
                   ? tr('تسجيل حساب مواطن جديد', 'تۆمارکردنی هەژماری نوێ', 'Register Citizen Account')
                   : tr('استرداد كلمة المرور', 'گەڕاندنەوەی وشەی تێپەڕ', 'Password Recovery')}
               </h3>
-              <p className="text-[11px] font-bold text-[#46674D]">
-                {tr(
-                  'منظومة ÇAVÊ BAADRÊ • منظمة RABA',
-                  'سیستەمی ÇAVÊ BAADRÊ • ڕێکخراوی RABA',
-                  'ÇAVÊ BAADRÊ Platform • RABA Organization'
-                )}
-              </p>
             </div>
           </div>
 

@@ -911,7 +911,14 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
         }
         setCreatedReport(reportToDispatch);
       } catch (err: any) {
-        setValidationError(err?.message || tr('الحد الأقصى 5 بلاغات لكل مواطن.', 'زۆرترین سنوور ٥ سکاڵایە بۆ هەر هاووڵاتییەک.', 'Max 5 reports per citizen.'));
+        setValidationError(
+          err?.message ||
+            tr(
+              'الحد الأقصى اليومي 3 بلاغات لكل مواطن.',
+              'زۆرترین سنووری ڕۆژانە ٣ سکاڵایە بۆ هەر هاووڵاتییەک.',
+              'Maximum daily limit is 3 reports per citizen.'
+            )
+        );
         return;
       }
     }
@@ -1108,8 +1115,15 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       ? SECTOR_META[sector].en
       : SECTOR_META[sector].labelAr;
 
+  const todayStr = new Date().toDateString();
+  const todayCitizenReportsCount = myReports.filter((r) => {
+    if (!r.createdAt) return false;
+    const reportDate = new Date(r.createdAt);
+    return !Number.isNaN(reportDate.getTime()) && reportDate.toDateString() === todayStr;
+  }).length;
+
   const isCitizenAtMaxLimit =
-    !editingReport && !createdReport && !isAdmin && !isSuperAdmin && myReports.length >= 5;
+    !editingReport && !createdReport && !isAdmin && !isSuperAdmin && todayCitizenReportsCount >= 3;
 
   if (isCitizenAtMaxLimit) {
     return (
@@ -1137,16 +1151,16 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
             <div className="space-y-1.5">
               <h3 className="text-base font-black text-[#1E3725]">
                 {tr(
-                  'تم الوصول للحد الأقصى للبلاغات',
-                  'گەیشتیتە زۆرترین سنووری سکاڵاکان',
-                  'Maximum Report Limit Reached'
+                  'تم الوصول للحد الأقصى اليومي للبلاغات',
+                  'گەیشتیتە زۆرترین سنووری ڕۆژانەی سکاڵاکان',
+                  'Daily Report Limit Reached'
                 )}
               </h3>
               <p className="text-xs font-bold text-[#46674D] leading-relaxed">
                 {tr(
-                  'يُسمح لكل مواطن مسجل بإضافة 5 بلاغات كحد أقصى.',
-                  'هەر هاووڵاتییەکی تۆمارکراو دەتوانێت تا ٥ سکاڵا زیاد بکات.',
-                  'Each registered citizen can submit up to 5 reports.'
+                  'يُسمح لكل مواطن مسجل بإضافة 3 بلاغات يومياً كحد أقصى.',
+                  'هەر هاووڵاتییەکی تۆمارکراو دەتوانێت ڕۆژانە تا ٣ سکاڵا زیاد بکات.',
+                  'Each registered citizen can submit up to 3 reports per day.'
                 )}
               </p>
             </div>
