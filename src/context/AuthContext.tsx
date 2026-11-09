@@ -126,7 +126,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await refreshProfile();
       closeAuthModal();
     } catch (err: any) {
-      setError(err?.message === 'تم حظر هذا الحساب.' ? 'تم حظر هذا الحساب.' : 'بيانات الدخول غير صحيحة.');
+      const raw = String(err?.code || err?.message || '').toLowerCase();
+      if (err?.message === 'تم حظر هذا الحساب.') {
+        setError('تم حظر هذا الحساب.');
+      } else if (raw.includes('app-check') || raw.includes('appcheck')) {
+        setError('فشل التحقق الأمني من نطاق الموقع (App Check Token). يرجى التأكد من إضافة النطاق إلى مفتاح reCAPTCHA في Google Cloud Console.');
+      } else {
+        setError('بيانات الدخول غير صحيحة.');
+      }
       throw err;
     } finally {
       setIsLoading(false);
@@ -163,6 +170,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await authService.updateUserAccount(auth.currentUser, input);
       setProfile(res.profile);
       setRole(res.role);
+      if (auth.currentUser) {
+        setCurrentUser({ ...auth.currentUser, displayName: input.fullName.trim() } as User);
+      }
     },
     []
   );

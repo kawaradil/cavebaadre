@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ClipboardList,
   BarChart3,
@@ -34,6 +35,9 @@ import {
   Calendar,
   UserPlus,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Edit2,
 } from 'lucide-react';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -55,6 +59,7 @@ import {
   MunicipalDepartment,
   isReportUrgencyConfirmed,
   isReportOpened,
+  isReportSentToDepartment,
 } from '../types/baadre';
 import { OrganizationProjectsView } from './OrganizationProjectsView';
 import { SmartAdaptiveImage } from './SmartAdaptiveImage';
@@ -86,6 +91,7 @@ interface CitizenAccordionCardProps {
   onRevertCitizenDirect: (cit: AdminCitizenDTO) => void;
   onSelectForRecovery: (cit: AdminCitizenDTO) => void;
   onToggleBlock: (citId: string) => void;
+  onDeleteCitizen: (cit: AdminCitizenDTO) => void;
 }
 
 const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = ({
@@ -100,6 +106,7 @@ const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = ({
   onRevertCitizenDirect,
   onSelectForRecovery,
   onToggleBlock,
+  onDeleteCitizen,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -433,6 +440,23 @@ const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = ({
                       )}
                     </button>
                   )}
+
+                {!isProtectedSuperAdmin &&
+                  cit.role !== 'super_admin' &&
+                  currentUser?.uid !== citId &&
+                  (isSuperAdmin || cit.role === 'citizen') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        onDeleteCitizen(cit);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-[11px] font-black flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{tr('حذف المواطن', 'سڕینەوەی هاووڵاتی', 'Delete Citizen')}</span>
+                    </button>
+                  )}
               </div>
             </div>
           )}
@@ -450,6 +474,7 @@ interface DepartmentAccordionCardProps {
   displayName: string;
   formatWaNumber: (num: string) => string;
   onDeleteDept: (dept: MunicipalDepartment) => void;
+  onEditDept?: (dept: MunicipalDepartment) => void;
 }
 
 const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = ({
@@ -460,16 +485,30 @@ const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = ({
   displayName,
   formatWaNumber,
   onDeleteDept,
+  onEditDept,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const engPhone = dept.engineerPhone || dept.phone || '07504738358';
-  const engName = dept.engineerName || dept.headName || tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer');
 
-  const depName = dept.deputyName || tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director');
-  const depPhone = dept.deputyPhone || dept.phone || '07504738358';
+  // رقم دائرة 1 مع اسم صاحب الرقم 1
+  const phone1 = dept.phone1 || dept.engineerPhone || dept.phone || '07504738358';
+  const owner1 =
+    dept.phone1Owner ||
+    dept.engineerName ||
+    dept.headName ||
+    tr('مسؤول التواصل', 'بەرپرسی پەیوەندی', 'Contact Official');
 
-  const mgrName = dept.managerName || dept.headName || tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director');
-  const mgrPhone = dept.managerPhone || dept.emergencyPhone || '07504738358';
+  // رقم دائرة 2 مع اسم صاحب الرقم 2
+  const phone2 =
+    dept.phone2 ||
+    dept.managerPhone ||
+    dept.emergencyPhone ||
+    dept.deputyPhone ||
+    '07504738358';
+  const owner2 =
+    dept.phone2Owner ||
+    dept.managerName ||
+    dept.deputyName ||
+    tr('مسؤول إضافي', 'بەرپرسی تر', 'Secondary Official');
 
   return (
     <div
@@ -520,110 +559,90 @@ const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = ({
         </div>
       </button>
 
-      {/* 2. تفاصيل الدائرة تظهر عند فتح الأكورديون فقط */}
+      {/* 2. تفاصيل الدائرة (رقم دائرة 1 + رقم دائرة 2 مع أسماء أصحاب الأرقام) */}
       {isOpen && (
         <div className="p-4 pt-2 border-t border-[#E8F4EA] space-y-3 bg-white">
-          {/* المهندس المختص */}
+          {/* مسؤول التواصل وهاتف الدائرة */}
           <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
             <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
               <span className="text-[10px] font-black text-[#46674D] block">
-                {tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer')}
+                {tr('المسؤول', 'بەرپرس', 'Officer')}
               </span>
               <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
-                <bdi>{engName}</bdi>
+                <bdi>{owner1}</bdi>
               </p>
               <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
-                {engPhone}
+                {phone1}
               </bdi>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <a
-                href={`tel:${engPhone}`}
+                href={`tel:${phone1}`}
                 className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
-                title={tr('اتصال بالمهندس', 'پەیوەندیکردن بە ئەندازیار', 'Call Engineer')}
+                title={tr('اتصال هاتفي', 'پەیوەندی تەلەفۆنی', 'Call')}
               >
                 <Phone className="w-4 h-4" />
               </a>
               <a
-                href={`https://wa.me/${formatWaNumber(engPhone)}`}
+                href={`https://wa.me/${formatWaNumber(phone1)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
-                title={tr('واتساب المهندس', 'واتسئەپی ئەندازیار', 'WhatsApp Engineer')}
+                title={tr('واتساب', 'واتسئەپ', 'WhatsApp')}
               >
                 <MessageCircle className="w-4 h-4" />
               </a>
             </div>
           </div>
 
-          {/* معاون المدير */}
-          <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-              <span className="text-[10px] font-black text-[#46674D] block">
-                {tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director')}
-              </span>
-              <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
-                <bdi>{depName}</bdi>
-              </p>
-              <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
-                {depPhone}
-              </bdi>
+          {/* رقم إضافي إن وجد */}
+          {phone2 && (
+            <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
+              <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
+                <span className="text-[10px] font-black text-[#46674D] block">
+                  {tr('رقم إضافي', 'ژمارەی تر', 'Secondary Number')}
+                </span>
+                <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
+                  <bdi>{owner2}</bdi>
+                </p>
+                <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
+                  {phone2}
+                </bdi>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <a
+                  href={`tel:${phone2}`}
+                  className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
+                  title={tr('اتصال هاتفي', 'پەیوەندی تەلەفۆنی', 'Call')}
+                >
+                  <Phone className="w-4 h-4" />
+                </a>
+                <a
+                  href={`https://wa.me/${formatWaNumber(phone2)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
+                  title={tr('واتساب', 'واتسئەپ', 'WhatsApp')}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </a>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <a
-                href={`tel:${depPhone}`}
-                className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
-                title={tr('اتصال بالمعاون', 'پەیوەندیکردن بە یاریدەدەر', 'Call Deputy')}
-              >
-                <Phone className="w-4 h-4" />
-              </a>
-              <a
-                href={`https://wa.me/${formatWaNumber(depPhone)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
-                title={tr('واتساب المعاون', 'واتسئەپی یاریدەدەر', 'WhatsApp Deputy')}
-              >
-                <MessageCircle className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
+          )}
 
-          {/* مدير الدائرة */}
-          <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
-            <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-              <span className="text-[10px] font-black text-[#46674D] block">
-                {tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director')}
-              </span>
-              <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
-                <bdi>{mgrName}</bdi>
-              </p>
-              <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
-                {mgrPhone}
-              </bdi>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <a
-                href={`tel:${mgrPhone}`}
-                className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
-                title={tr('اتصال بالمدير', 'پەیوەندیکردن بە بەڕێوەبەر', 'Call Director')}
+          {/* أزرار الإجراءات: تعديل الدائرة وحذف الدائرة */}
+          <div className="flex items-center justify-between pt-1 gap-2">
+            {onEditDept ? (
+              <button
+                type="button"
+                onClick={() => onEditDept(dept)}
+                className="px-3.5 py-1.5 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#2D4833] text-xs font-black inline-flex items-center gap-1.5 transition-colors cursor-pointer border-0"
               >
-                <Phone className="w-4 h-4" />
-              </a>
-              <a
-                href={`https://wa.me/${formatWaNumber(mgrPhone)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
-                title={tr('واتساب المدير', 'واتسئەپی بەڕێوەبەر', 'WhatsApp Director')}
-              >
-                <MessageCircle className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>{tr('تعديل الدائرة', 'دەستکاریکردنی فەرمانگە', 'Edit Department')}</span>
+              </button>
+            ) : <div />}
 
-          {/* زر حذف الدائرة */}
-          <div className="flex items-center justify-end pt-1">
             <button
               type="button"
               onClick={() => onDeleteDept(dept)}
@@ -662,8 +681,11 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
     updateReportStatus,
     deleteReport,
     addDepartment,
+    updateDepartment,
     deleteDepartment,
     toggleBlockCitizen,
+    deleteCitizen,
+    setEditingCitizenReport,
     setIsAddProjectOpen,
     loadMoreReports,
     hasMoreReports,
@@ -674,6 +696,10 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
 
   const [reportToDelete, setReportToDelete] = useState<CivicReport | null>(null);
   const [deptToDelete, setDeptToDelete] = useState<MunicipalDepartment | null>(null);
+  const [citizenToDelete, setCitizenToDelete] = useState<AdminCitizenDTO | null>(null);
+  const [cardPhotoIdxByReportId, setCardPhotoIdxByReportId] = useState<Record<string, number>>({});
+  const cardSwipeStartRef = React.useRef<number | null>(null);
+  const cardDidSwipeRef = React.useRef<boolean>(false);
   const [selectedCitizenForRole, setSelectedCitizenForRole] = useState<AdminCitizenDTO | null>(null);
   const [directRoleTarget, setDirectRoleTarget] = useState<{
     cit: AdminCitizenDTO;
@@ -733,12 +759,10 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
             )
           );
         });
-        if (liveUsers.length > 0) {
-          setRegisteredUsersList(liveUsers);
-          try {
-            localStorage.setItem('cave_baadre_persisted_registered_users_v1', JSON.stringify(liveUsers.slice(0, 100)));
-          } catch {}
-        }
+        setRegisteredUsersList(liveUsers);
+        try {
+          localStorage.setItem('cave_baadre_persisted_registered_users_v1', JSON.stringify(liveUsers.slice(0, 100)));
+        } catch {}
       },
       () => {}
     );
@@ -776,16 +800,33 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
   const [citizenSearch, setCitizenSearch] = useState('');
   const [directoryChip, setDirectoryChip] = useState<'departments' | 'citizens'>('departments');
 
-  // Add Department Form State
+  // Add Department Form State (2 numbers only + owner names)
   const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptSector, setNewDeptSector] = useState<ReportSector>('roads');
-  const [newManagerName, setNewManagerName] = useState('');
-  const [newManagerPhone, setNewManagerPhone] = useState('');
-  const [newDeputyName, setNewDeputyName] = useState('');
-  const [newDeputyPhone, setNewDeputyPhone] = useState('');
-  const [newEngineerName, setNewEngineerName] = useState('');
-  const [newEngineerPhone, setNewEngineerPhone] = useState('');
+  const [newPhone1, setNewPhone1] = useState('');
+  const [newPhone1Owner, setNewPhone1Owner] = useState('');
+  const [newPhone2, setNewPhone2] = useState('');
+  const [newPhone2Owner, setNewPhone2Owner] = useState('');
+
+  // Edit Department Form State
+  const [editingDept, setEditingDept] = useState<MunicipalDepartment | null>(null);
+  const [editDeptName, setEditDeptName] = useState('');
+  const [editDeptSector, setEditDeptSector] = useState<ReportSector>('roads');
+  const [editPhone1, setEditPhone1] = useState('');
+  const [editPhone1Owner, setEditPhone1Owner] = useState('');
+  const [editPhone2, setEditPhone2] = useState('');
+  const [editPhone2Owner, setEditPhone2Owner] = useState('');
+
+  const openEditDeptModal = (dept: MunicipalDepartment) => {
+    setEditingDept(dept);
+    setEditDeptName(dept.nameAr || dept.name || '');
+    setEditDeptSector(dept.sector || 'roads');
+    setEditPhone1(dept.phone1 || dept.engineerPhone || dept.phone || '');
+    setEditPhone1Owner(dept.phone1Owner || dept.engineerName || dept.headName || '');
+    setEditPhone2(dept.phone2 || dept.managerPhone || dept.deputyPhone || '');
+    setEditPhone2Owner(dept.phone2Owner || dept.managerName || dept.deputyName || '');
+  };
 
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [tempStatus, setTempStatus] = useState<ReportStatus>('in_progress');
@@ -793,7 +834,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
   const [tempNote, setTempNote] = useState('');
   const [savedBannerId, setSavedBannerId] = useState<string | null>(null);
   const [adminVisibleReportsCount, setAdminVisibleReportsCount] = useState<number>(12);
-  const [adminVisibleCitizensCount, setAdminVisibleCitizensCount] = useState<number>(12);
+  const [adminVisibleCitizensCount, setAdminVisibleCitizensCount] = useState<number>(5);
 
   const activeIncomingReports = React.useMemo(() => {
     return reports.filter((r) => {
@@ -968,9 +1009,39 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
       }
     });
 
-    const list = Array.from(mergedMap.values()).sort(
-      (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
-    );
+    const allMerged = Array.from(mergedMap.values()).filter((c) => {
+      // إخفاء حسابات سوبر أدمن عن غير السوبر أدمن (عن الأدمن والمواطنين والآخرين)
+      const isSuper =
+        c.role === 'super_admin' ||
+        c.email?.trim().toLowerCase() === '11kattak11@gmail.com';
+      if (!isSuperAdmin && isSuper) return false;
+      return true;
+    });
+
+    // تثبيت الأدمن والسوبر أدمن دائماً في أعلى قائمة المواطنين (Pinned)
+    const pinnedAdmins = allMerged
+      .filter(
+        (c) =>
+          c.role === 'admin' ||
+          c.role === 'super_admin'
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+      );
+
+    const regularCitizens = allMerged
+      .filter(
+        (c) =>
+          c.role !== 'admin' &&
+          c.role !== 'super_admin'
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+      );
+
+    const list = [...pinnedAdmins, ...regularCitizens];
 
     if (!citizenSearch.trim()) return list;
     const q = citizenSearch.trim().toLowerCase();
@@ -981,7 +1052,27 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
         c.neighborhood.toLowerCase().includes(q) ||
         (c.email && c.email.toLowerCase().includes(q))
     );
-  }, [citizens, registeredUsersList, reports, citizenSearch]);
+  }, [citizens, registeredUsersList, reports, citizenSearch, isSuperAdmin]);
+
+  const regularCitizensList = React.useMemo(() => {
+    return filteredCitizens.filter(
+      (c) =>
+        c.role !== 'admin' &&
+        c.role !== 'super_admin'
+    );
+  }, [filteredCitizens]);
+
+  const displayedCitizens = React.useMemo(() => {
+    const pinnedAdminsList = filteredCitizens.filter(
+      (c) =>
+        c.role === 'admin' ||
+        c.role === 'super_admin'
+    );
+    return [
+      ...pinnedAdminsList,
+      ...regularCitizensList.slice(0, adminVisibleCitizensCount),
+    ];
+  }, [filteredCitizens, regularCitizensList, adminVisibleCitizensCount]);
 
   const formatWaNumber = (phoneStr?: string) => {
     if (!phoneStr) return '9647504738358';
@@ -995,30 +1086,24 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
     e.preventDefault();
     if (!newDeptName.trim()) return;
     playSuccessSound();
-    const engPhone = newEngineerPhone.trim() || '07504738358';
-    const waNum = formatWaNumber(engPhone);
+    const p1 = newPhone1.trim() || '07504738358';
+    const waNum = formatWaNumber(p1);
 
     addDepartment({
       nameAr: newDeptName.trim(),
       nameKu: newDeptName.trim(),
       nameEn: newDeptName.trim(),
       sector: newDeptSector,
-      managerName:
-        newManagerName.trim() || tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director'),
-      managerPhone: newManagerPhone.trim() || engPhone,
-      deputyName:
-        newDeputyName.trim() || tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director'),
-      deputyPhone: newDeputyPhone.trim() || engPhone,
-      engineerName:
-        newEngineerName.trim() || tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer'),
-      engineerPhone: engPhone,
-      headName:
-        newEngineerName.trim() ||
-        newManagerName.trim() ||
-        tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer'),
+      phone1: p1,
+      phone1Owner:
+        newPhone1Owner.trim() || tr('مسؤول التواصل', 'بەرپرسی پەیوەندی', 'Contact Official'),
+      phone2: newPhone2.trim(),
+      phone2Owner:
+        newPhone2Owner.trim() || (newPhone2.trim() ? tr('مسؤول إضافي', 'بەرپرسی تر', 'Secondary Official') : ''),
+      headName: newPhone1Owner.trim() || tr('مسؤول الدائرة', 'بەرپرسی فەرمانگە', 'Department Official'),
       fieldTeamName: `${tr('فرقة', 'تیمی', 'Team')} ${newDeptName.trim()}`,
-      phone: engPhone,
-      emergencyPhone: engPhone,
+      phone: p1,
+      emergencyPhone: newPhone2.trim() || p1,
       whatsapp: waNum,
       whatsappPhone: waNum,
       availability: 'available',
@@ -1029,13 +1114,35 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
     });
 
     setNewDeptName('');
-    setNewManagerName('');
-    setNewManagerPhone('');
-    setNewDeputyName('');
-    setNewDeputyPhone('');
-    setNewEngineerName('');
-    setNewEngineerPhone('');
+    setNewPhone1('');
+    setNewPhone1Owner('');
+    setNewPhone2('');
+    setNewPhone2Owner('');
     setIsAddDeptOpen(false);
+  };
+
+  const handleUpdateDepartment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDept || !editDeptName.trim()) return;
+    playSuccessSound();
+    const p1 = editPhone1.trim() || '07504738358';
+    const waNum = formatWaNumber(p1);
+
+    updateDepartment(editingDept.id, {
+      nameAr: editDeptName.trim(),
+      nameKu: editDeptName.trim(),
+      nameEn: editDeptName.trim(),
+      sector: editDeptSector,
+      phone1: p1,
+      phone1Owner: editPhone1Owner.trim() || tr('مسؤول التواصل', 'بەرپرسی پەیوەندی', 'Contact Official'),
+      phone2: editPhone2.trim(),
+      phone2Owner: editPhone2Owner.trim(),
+      phone: p1,
+      whatsapp: waNum,
+      whatsappPhone: waNum,
+    });
+
+    setEditingDept(null);
   };
 
   const sectorDistribution = React.useMemo(() => {
@@ -1623,6 +1730,40 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
               };
 
               const statusStep = getStatusStepInfo();
+              const isReportCreator = Boolean(
+                currentUser &&
+                  (rep.ownerUid === currentUser.uid || rep.citizenId === currentUser.uid)
+              );
+              const canCreatorEditReport =
+                isReportCreator && rep.status === 'pending' && !isReportSentToDepartment(rep);
+
+              // عند تمت الإنجاز: جمع صور القبل والبعد لتمكين التمرير إلى الأطراف داخل صورة الكارت
+              const resolvedCardPhotos =
+                rep.status === 'resolved'
+                  ? Array.from(
+                      new Set([
+                        ...(rep.resolvedImages || []),
+                        ...(rep.images || []),
+                      ].filter(Boolean))
+                    )
+                  : rep.images || [];
+              const activeCardPhotoIdx =
+                resolvedCardPhotos.length > 0
+                  ? (cardPhotoIdxByReportId[rep.id] || 0) % resolvedCardPhotos.length
+                  : 0;
+              const activeCardPhotoSrc =
+                resolvedCardPhotos[activeCardPhotoIdx] || rep.images[0];
+
+              const stepCardPhoto = (delta: number) => {
+                if (resolvedCardPhotos.length <= 1) return;
+                playClickSound();
+                setCardPhotoIdxByReportId((prev) => {
+                  const curr = prev[rep.id] || 0;
+                  const next =
+                    (curr + delta + resolvedCardPhotos.length) % resolvedCardPhotos.length;
+                  return { ...prev, [rep.id]: next };
+                });
+              };
 
               return (
                 <div
@@ -1633,13 +1774,88 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                   }}
                   className="group rounded-3xl bg-white transition-all duration-300 overflow-hidden flex flex-col justify-between border-0 shadow-[0_4px_24px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_16px_36px_rgba(0,0,0,0.10)] cursor-pointer"
                 >
-                  {/* Top Image Header: 16:9 Fit or 9:16 Centered */}
-                  <div className="relative aspect-video w-full overflow-hidden bg-[#1E3725]">
+                  {/* Top Image Header: 16:9 Fit or 9:16 Centered (Swipeable for Before/After when resolved) */}
+                  <div
+                    className="relative aspect-video w-full overflow-hidden bg-[#1E3725] select-none touch-pan-y"
+                    onTouchStart={(e) => {
+                      if (rep.status !== 'resolved' || resolvedCardPhotos.length <= 1) return;
+                      cardSwipeStartRef.current = e.touches[0].clientX;
+                      cardDidSwipeRef.current = false;
+                    }}
+                    onTouchEnd={(e) => {
+                      if (
+                        rep.status !== 'resolved' ||
+                        cardSwipeStartRef.current === null ||
+                        resolvedCardPhotos.length <= 1
+                      )
+                        return;
+                      const deltaX = e.changedTouches[0].clientX - cardSwipeStartRef.current;
+                      cardSwipeStartRef.current = null;
+                      if (Math.abs(deltaX) > 30) {
+                        cardDidSwipeRef.current = true;
+                        stepCardPhoto(deltaX > 0 ? (isRTL ? 1 : -1) : isRTL ? -1 : 1);
+                      }
+                    }}
+                    onMouseDown={(e) => {
+                      if (rep.status !== 'resolved' || resolvedCardPhotos.length <= 1) return;
+                      cardSwipeStartRef.current = e.clientX;
+                      cardDidSwipeRef.current = false;
+                    }}
+                    onMouseUp={(e) => {
+                      if (
+                        rep.status !== 'resolved' ||
+                        cardSwipeStartRef.current === null ||
+                        resolvedCardPhotos.length <= 1
+                      )
+                        return;
+                      const deltaX = e.clientX - cardSwipeStartRef.current;
+                      cardSwipeStartRef.current = null;
+                      if (Math.abs(deltaX) > 35) {
+                        cardDidSwipeRef.current = true;
+                        stepCardPhoto(deltaX > 0 ? (isRTL ? 1 : -1) : isRTL ? -1 : 1);
+                      }
+                    }}
+                    onClickCapture={(e) => {
+                      if (cardDidSwipeRef.current) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        cardDidSwipeRef.current = false;
+                      }
+                    }}
+                  >
                     <SmartAdaptiveImage
-                      src={rep.images[0]}
+                      src={activeCardPhotoSrc}
                       alt={rep.title}
                       disableLightbox
                     />
+
+                    {/* عند تمت الإنجاز: أزرار تمرير صور القبل والبعد على أطراف صورة الكارت */}
+                    {rep.status === 'resolved' && resolvedCardPhotos.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            stepCardPhoto(isRTL ? 1 : -1);
+                          }}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-black/45 hover:bg-black/70 text-white flex items-center justify-center transition-all cursor-pointer shadow-md"
+                          aria-label={tr('الصورة السابقة', 'وێنەی پێشوو', 'Previous Photo')}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            stepCardPhoto(isRTL ? -1 : 1);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-black/45 hover:bg-black/70 text-white flex items-center justify-center transition-all cursor-pointer shadow-md"
+                          aria-label={tr('الصورة التالية', 'وێنەی دواتر', 'Next Photo')}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
 
                     {/* نص البلاغ الجديد باللون الأحمر وينبض (نص فقط بدون خلفية) مع نقطة تضيء وتنطفئ على الصورة، ويختفي نهائياً بعد فتح البلاغ */}
                     {!isReportOpened(rep) && rep.status === 'pending' && (
@@ -1748,11 +1964,24 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                         </p>
                       </div>
 
-                      {/* زر حذف البلاغ في نهاية الكارت على شكل نص أحمر خفيف يفتح تنبيه على الشاشة */}
+                      {/* زر تعديل البلاغ (لصاحب البلاغ فقط قبل الإرسال) وزر حذف البلاغ للإدارة */}
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="pt-2 border-t border-[#E8F4EA] flex items-center justify-end"
+                        className="pt-2 border-t border-[#E8F4EA] flex items-center justify-end gap-4"
                       >
+                        {canCreatorEditReport && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playClickSound();
+                              setEditingCitizenReport(rep);
+                            }}
+                            className="text-[11px] font-bold text-[#46674D] hover:text-[#1E3725] transition-colors cursor-pointer"
+                          >
+                            {tr('تعديل البلاغ', 'دەستکاری سکاڵا', 'Edit Report')}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1979,9 +2208,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                         </h4>
                         <p className="text-[11px] text-[#46674D] font-bold">
                           {tr(
-                            'مسؤولو التواصل: المهندس المختص • معاون المدير • مدير الدائرة (في حالة الضرورة)',
-                            'بەرپرسانی پەیوەندی: ئەندازیاری تایبەتمەند • یاریدەدەری بەڕێوەبەر • بەڕێوەبەری فەرمانگە',
-                            'Contacts: Specialist Engineer • Deputy Director • Department Director'
+                            'أرقام التواصل: رقم دائرة 1 ورقم دائرة 2 مع أسماء أصحاب الأرقام للإحالة المباشرة',
+                            'ژمارەی پەیوەندی: ژمارەی فەرمانگە ١ و ژمارەی فەرمانگە ٢ لەگەڵ ناوی خاوەنەکان',
+                            'Contact Numbers: Department 1 and Department 2 with owner names'
                           )}
                         </p>
                       </div>
@@ -2042,22 +2271,18 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                     </div>
                   </div>
 
-                  {/* Hierarchy Contacts: Engineer, Deputy, Manager */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                    {/* المهندس */}
-                    <div className="p-4 rounded-2xl bg-[#F4F9F5] border-2 border-[#BBDDC6] space-y-2.5">
-                      <div className="flex items-center justify-between pb-1.5 border-b border-[#BBDDC6]/70">
-                        <span className="text-xs font-black text-[#1E3725]">
-                          {tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer')}
-                        </span>
-                      </div>
+                  {/* 2 Contact Numbers only: رقم 1 ورقم 2 مع أصحاب الأرقام */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* رقم 1 */}
+                    {/* بيانات المسؤول وهاتف الدائرة (رقم واحد فقط للدائرة) */}
+                    <div className="p-4 rounded-2xl bg-[#F4F9F5] border-2 border-[#BBDDC6] space-y-3">
                       <div>
                         <div className="flex items-center justify-between gap-1 mb-1">
                           <label className="block text-[11px] font-bold text-[#46674D]">
-                            {tr('اسم المهندس *', 'ناوی ئەندازیار *', 'Engineer Name *')}
+                            {tr('الاسم / مسؤول التواصل *', 'ناو / بەرپرسی پەیوەندی *', 'Name / Contact Official *')}
                           </label>
                           <FieldLimitBadge
-                            value={newEngineerName}
+                            value={newPhone1Owner}
                             maxWords={FIELD_LIMITS.NAME.maxWords}
                             maxChars={FIELD_LIMITS.NAME.maxChars}
                           />
@@ -2066,9 +2291,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                           type="text"
                           required
                           maxLength={FIELD_LIMITS.NAME.maxChars}
-                          value={newEngineerName}
+                          value={newPhone1Owner}
                           onChange={(e) =>
-                            setNewEngineerName(
+                            setNewPhone1Owner(
                               enforceInputLimit(
                                 e.target.value,
                                 FIELD_LIMITS.NAME.maxWords,
@@ -2076,82 +2301,18 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                               )
                             )
                           }
-                          placeholder={tr('اسم المهندس...', 'ناوی ئەندازیار...', 'Engineer name...')}
+                          placeholder={tr('مثال: المهندس أحمد / مسؤول الدائرة', 'نموونە: ئەندازیار ئەحمەد', 'e.g. Eng. Ahmed')}
                           className="w-full bg-white border border-[#88B793] focus:border-[#46674D] rounded-xl px-3.5 py-2 text-xs font-bold text-[#1E3725] focus:outline-none transition-colors"
                         />
                       </div>
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <label className="block text-[11px] font-bold text-[#46674D]">
-                            {tr('رقم هاتف المهندس *', 'ژمارەی مۆبایلی ئەندازیار *', 'Engineer Phone *')}
-                          </label>
-                          <FieldLimitBadge
-                            value={newEngineerPhone}
-                            maxWords={FIELD_LIMITS.PHONE.maxWords}
-                            maxChars={FIELD_LIMITS.PHONE.maxChars}
-                            isPhone
-                          />
-                        </div>
-                        <input
-                          type="tel"
-                          required
-                          dir="ltr"
-                          maxLength={FIELD_LIMITS.PHONE.maxChars}
-                          value={newEngineerPhone}
-                          onChange={(e) =>
-                            setNewEngineerPhone(
-                              enforcePhoneLimit(e.target.value, FIELD_LIMITS.PHONE.maxChars)
-                            )
-                          }
-                          placeholder="0750XXXXXXX"
-                          className="w-full bg-white border border-[#88B793] focus:border-[#46674D] rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-[#1E3725] text-right focus:outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
 
-                    {/* المعاون */}
-                    <div className="p-4 rounded-2xl bg-[#F4F9F5] border-2 border-[#BBDDC6] space-y-2.5">
-                      <div className="flex items-center justify-between pb-1.5 border-b border-[#BBDDC6]/70">
-                        <span className="text-xs font-black text-[#1E3725]">
-                          {tr('معاون المدير', 'یاریدەدەری بەڕێوەبەر', 'Deputy Director')}
-                        </span>
-                      </div>
                       <div>
                         <div className="flex items-center justify-between gap-1 mb-1">
                           <label className="block text-[11px] font-bold text-[#46674D]">
-                            {tr('اسم المعاون *', 'ناوی یاریدەدەر *', 'Deputy Name *')}
+                            {tr('رقم الهاتف / الواتساب *', 'ژمارەی تەلەفۆن / واتسئەپ *', 'Phone / WhatsApp *')}
                           </label>
                           <FieldLimitBadge
-                            value={newDeputyName}
-                            maxWords={FIELD_LIMITS.NAME.maxWords}
-                            maxChars={FIELD_LIMITS.NAME.maxChars}
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          required
-                          maxLength={FIELD_LIMITS.NAME.maxChars}
-                          value={newDeputyName}
-                          onChange={(e) =>
-                            setNewDeputyName(
-                              enforceInputLimit(
-                                e.target.value,
-                                FIELD_LIMITS.NAME.maxWords,
-                                FIELD_LIMITS.NAME.maxChars
-                              )
-                            )
-                          }
-                          placeholder={tr('اسم المعاون...', 'ناوی یاریدەدەر...', 'Deputy name...')}
-                          className="w-full bg-white border border-[#88B793] focus:border-[#46674D] rounded-xl px-3.5 py-2 text-xs font-bold text-[#1E3725] focus:outline-none transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <label className="block text-[11px] font-bold text-[#46674D]">
-                            {tr('رقم هاتف المعاون *', 'ژمارەی مۆبایلی یاریدەدەر *', 'Deputy Phone *')}
-                          </label>
-                          <FieldLimitBadge
-                            value={newDeputyPhone}
+                            value={newPhone1}
                             maxWords={FIELD_LIMITS.PHONE.maxWords}
                             maxChars={FIELD_LIMITS.PHONE.maxChars}
                             isPhone
@@ -2162,77 +2323,9 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                           required
                           dir="ltr"
                           maxLength={FIELD_LIMITS.PHONE.maxChars}
-                          value={newDeputyPhone}
+                          value={newPhone1}
                           onChange={(e) =>
-                            setNewDeputyPhone(
-                              enforcePhoneLimit(e.target.value, FIELD_LIMITS.PHONE.maxChars)
-                            )
-                          }
-                          placeholder="0750XXXXXXX"
-                          className="w-full bg-white border border-[#88B793] focus:border-[#46674D] rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-[#1E3725] text-right focus:outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
-
-                    {/* المدير */}
-                    <div className="p-4 rounded-2xl bg-[#F4F9F5] border-2 border-[#BBDDC6] space-y-2.5">
-                      <div className="flex items-center justify-between pb-1.5 border-b border-[#BBDDC6]/70">
-                        <span className="text-xs font-black text-[#1E3725]">
-                          {tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director')}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#E8F4EA] border border-[#88B793] text-[#1E3725] text-[10px] font-black">
-                          {tr('عند الضرورة', 'لەکاتی پێویست', 'Emergency')}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <label className="block text-[11px] font-bold text-[#46674D]">
-                            {tr('اسم المدير *', 'ناوی بەڕێوەبەر *', 'Director Name *')}
-                          </label>
-                          <FieldLimitBadge
-                            value={newManagerName}
-                            maxWords={FIELD_LIMITS.NAME.maxWords}
-                            maxChars={FIELD_LIMITS.NAME.maxChars}
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          required
-                          maxLength={FIELD_LIMITS.NAME.maxChars}
-                          value={newManagerName}
-                          onChange={(e) =>
-                            setNewManagerName(
-                              enforceInputLimit(
-                                e.target.value,
-                                FIELD_LIMITS.NAME.maxWords,
-                                FIELD_LIMITS.NAME.maxChars
-                              )
-                            )
-                          }
-                          placeholder={tr('اسم المدير...', 'ناوی بەڕێوەبەر...', 'Director name...')}
-                          className="w-full bg-white border border-[#88B793] focus:border-[#46674D] rounded-xl px-3.5 py-2 text-xs font-bold text-[#1E3725] focus:outline-none transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <label className="block text-[11px] font-bold text-[#46674D]">
-                            {tr('رقم هاتف المدير *', 'ژمارەی مۆبایلی بەڕێوەبەر *', 'Director Phone *')}
-                          </label>
-                          <FieldLimitBadge
-                            value={newManagerPhone}
-                            maxWords={FIELD_LIMITS.PHONE.maxWords}
-                            maxChars={FIELD_LIMITS.PHONE.maxChars}
-                            isPhone
-                          />
-                        </div>
-                        <input
-                          type="tel"
-                          required
-                          dir="ltr"
-                          maxLength={FIELD_LIMITS.PHONE.maxChars}
-                          value={newManagerPhone}
-                          onChange={(e) =>
-                            setNewManagerPhone(
+                            setNewPhone1(
                               enforcePhoneLimit(e.target.value, FIELD_LIMITS.PHONE.maxChars)
                             )
                           }
@@ -2264,6 +2357,126 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                 </form>
               )}
 
+              {/* نافذة تعديل بيانات الدائرة */}
+              {editingDept &&
+                createPortal(
+                  <div
+                    dir={isRTL ? 'rtl' : 'ltr'}
+                    className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 pb-28 sm:pb-6 overflow-y-auto"
+                    onClick={() => setEditingDept(null)}
+                  >
+                    <form
+                      onSubmit={handleUpdateDepartment}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full max-w-lg max-h-[82vh] flex flex-col rounded-3xl bg-white border-2 border-[#88B793] shadow-2xl overflow-hidden text-start my-auto"
+                    >
+                      <div className="p-4 sm:p-5 flex items-center justify-between pb-3 border-b border-[#BBDDC6] shrink-0 bg-white">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-2xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center">
+                            <Building2 className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-base font-black text-[#1E3725]">
+                              {tr('تعديل بيانات الدائرة', 'دەستکاری زانیاری فەرمانگە', 'Edit Department')}
+                            </h4>
+                            <p className="text-[11px] font-bold text-[#46674D]">
+                              {tr('تحديث اسم الدائرة وأرقام التواصل وأصحابها بدقة', 'نوێکردنەوەی ژمارەکان و خاوەنەکانیان', 'Update department and contacts accurately')}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEditingDept(null)}
+                          className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="p-4 sm:p-5 overflow-y-auto space-y-4 custom-scrollbar flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-black text-[#1E3725] mb-1">
+                              {tr('اسم الدائرة *', 'ناوی فەرمانگە *', 'Department Name *')}
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={editDeptName}
+                              onChange={(e) => setEditDeptName(e.target.value)}
+                              className="w-full bg-[#F4F9F5] border border-[#BBDDC6] rounded-xl px-3 py-2 text-xs font-bold text-[#1E3725] focus:outline-none focus:border-[#46674D]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-black text-[#1E3725] mb-1">
+                              {tr('القطاع الخدمي', 'کەرتی خزمەتگوزاری', 'Sector')}
+                            </label>
+                            <select
+                              value={editDeptSector}
+                              onChange={(e) => setEditDeptSector(e.target.value as ReportSector)}
+                              className="w-full bg-[#F4F9F5] border border-[#BBDDC6] rounded-xl px-3 py-2 text-xs font-bold text-[#1E3725] focus:outline-none focus:border-[#46674D]"
+                            >
+                              {Object.values(SECTOR_META).map((sec) => (
+                                <option key={sec.key} value={sec.key}>
+                                  {sec.badgeEmoji} {getSectorLabel(sec.key)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* بيانات مسؤول التواصل وهاتف الدائرة (رقم واحد فقط للدائرة) */}
+                        <div className="p-3.5 rounded-2xl bg-[#F4F9F5] border border-[#BBDDC6] space-y-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#46674D] mb-1">
+                              {tr('الاسم / مسؤول التواصل *', 'ناو / بەرپرسی پەیوەندی *', 'Name / Contact Official *')}
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={editPhone1Owner}
+                              onChange={(e) => setEditPhone1Owner(e.target.value)}
+                              className="w-full bg-white border border-[#88B793] rounded-lg px-3 py-2 text-xs font-bold text-[#1E3725] focus:outline-none focus:border-[#46674D]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#46674D] mb-1">
+                              {tr('رقم الهاتف / الواتساب *', 'ژمارەی تەلەفۆن / واتسئەپ *', 'Phone / WhatsApp *')}
+                            </label>
+                            <input
+                              type="tel"
+                              required
+                              dir="ltr"
+                              value={editPhone1}
+                              onChange={(e) => setEditPhone1(enforcePhoneLimit(e.target.value, 15))}
+                              className="w-full bg-white border border-[#88B793] rounded-lg px-3 py-2 text-xs font-mono font-bold text-[#1E3725] text-right focus:outline-none focus:border-[#46674D]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3 sm:p-4 flex items-center justify-end gap-2 border-t border-[#BBDDC6] shrink-0 bg-[#F4F9F5]">
+                        <button
+                          type="button"
+                          onClick={() => setEditingDept(null)}
+                          className="px-4 py-2 rounded-xl bg-white border border-[#BBDDC6] text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                        >
+                          {tr('إلغاء', 'پاشگەزبوونەوە', 'Cancel')}
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-5 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>{tr('حفظ التعديلات', 'پاشەکەوتکردن', 'Save Changes')}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>,
+                  document.body
+                )}
+
               {/* كروت الدوائر على شكل أكورديون تفاعلي مثل كروت المواطنين المسجلين */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
@@ -2282,63 +2495,66 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                       displayName={getDeptDisplayName(dept)}
                       formatWaNumber={formatWaNumber}
                       onDeleteDept={(d) => setDeptToDelete(d)}
+                      onEditDept={openEditDeptModal}
                     />
                   );
                 })}
               </div>
 
               {/* نافذة تأكيد حذف الدائرة */}
-              {deptToDelete && (
-                <div
-                  dir={isRTL ? 'rtl' : 'ltr'}
-                  onClick={() => setDeptToDelete(null)}
-                  className="fixed inset-0 z-[170] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
-                >
+              {deptToDelete &&
+                createPortal(
                   <div
-                    onClick={(e) => e.stopPropagation()}
-                    className={`w-full max-w-sm rounded-3xl bg-white border border-rose-200 shadow-2xl p-6 text-center space-y-4`}
+                    dir={isRTL ? 'rtl' : 'ltr'}
+                    onClick={() => setDeptToDelete(null)}
+                    className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 pb-20 sm:pb-4"
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
-                      <AlertTriangle className="w-6 h-6" />
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className={`w-full max-w-sm rounded-3xl bg-white border border-rose-200 shadow-2xl p-6 text-center space-y-4`}
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
+                        <AlertTriangle className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <h4 className="text-base font-black text-[#1E3725]">
+                          {tr('تأكيد حذف الدائرة', 'پشتڕاستکردنەوەی سڕینەوەی فەرمانگە', 'Confirm Delete Department')}
+                        </h4>
+                        <p className="text-xs font-bold text-[#46674D] leading-relaxed">
+                          {tr(
+                            'هل أنت متأكد من حذف هذه الدائرة الخدمية من الدليل؟',
+                            'ئایا دڵنیایت لە سڕینەوەی ئەم فەرمانگەیە؟',
+                            'Are you sure you want to delete this department?'
+                          )}
+                        </p>
+                        <p className="text-xs font-black text-rose-700">
+                          {getDeptDisplayName(deptToDelete)}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            deleteDepartment(deptToDelete.id);
+                            setDeptToDelete(null);
+                          }}
+                          className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer transition-colors shadow-xs"
+                        >
+                          {tr('نعم، حذف الدائرة', 'بەڵێ، سڕینەوە', 'Yes, Delete')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeptToDelete(null)}
+                          className="flex-1 py-2.5 px-4 rounded-xl bg-[#F4F9F5] hover:bg-[#E8F4EA] text-[#2D4833] font-bold text-xs cursor-pointer transition-colors"
+                        >
+                          {tr('إلغاء', 'پاشگەزبوونەوە', 'Cancel')}
+                        </button>
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <h4 className="text-base font-black text-[#1E3725]">
-                        {tr('تأكيد حذف الدائرة', 'پشتڕاستکردنەوەی سڕینەوەی فەرمانگە', 'Confirm Delete Department')}
-                      </h4>
-                      <p className="text-xs font-bold text-[#46674D] leading-relaxed">
-                        {tr(
-                          'هل أنت متأكد من حذف هذه الدائرة الخدمية من الدليل؟',
-                          'ئایا دڵنیایت لە سڕینەوەی ئەم فەرمانگەیە؟',
-                          'Are you sure you want to delete this department?'
-                        )}
-                      </p>
-                      <p className="text-xs font-black text-rose-700">
-                        {getDeptDisplayName(deptToDelete)}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center gap-2.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playClickSound();
-                          deleteDepartment(deptToDelete.id);
-                          setDeptToDelete(null);
-                        }}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer transition-colors shadow-xs"
-                      >
-                        {tr('نعم، حذف الدائرة', 'بەڵێ، سڕینەوە', 'Yes, Delete')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeptToDelete(null)}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-[#F4F9F5] hover:bg-[#E8F4EA] text-[#2D4833] font-bold text-xs cursor-pointer transition-colors"
-                      >
-                        {tr('إلغاء', 'پاشگەزبوونەوە', 'Cancel')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+                  </div>,
+                  document.body
+                )}
             </div>
           )}
 
@@ -2360,7 +2576,7 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                     dir={isRTL ? 'rtl' : 'ltr'}
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                 >
-                  {filteredCitizens.slice(0, adminVisibleCitizensCount).map((cit) => (
+                  {displayedCitizens.map((cit) => (
                     <CitizenAccordionCard
                       key={cit.uid || (cit as any).id}
                       cit={cit}
@@ -2387,25 +2603,28 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
                       onToggleBlock={(citId) => {
                         toggleBlockCitizen(citId);
                       }}
+                      onDeleteCitizen={(targetCit) => {
+                        setCitizenToDelete(targetCit);
+                      }}
                     />
                   ))}
                 </div>
 
-                {filteredCitizens.length > adminVisibleCitizensCount && (
+                {regularCitizensList.length > adminVisibleCitizensCount && (
                   <div className="flex items-center justify-center pt-3">
                     <button
                       type="button"
                       onClick={() => {
                         playClickSound();
-                        setAdminVisibleCitizensCount((prev) => prev + 12);
+                        setAdminVisibleCitizensCount((prev) => prev + 5);
                       }}
                       className="px-6 py-2.5 rounded-2xl bg-[#46674D] text-white font-black text-xs inline-flex items-center gap-2 hover:bg-[#33553C] transition-all cursor-pointer shadow-sm border-0"
                     >
                       <span>
                         {tr(
-                          `عرض المزيد من المواطنين (${Math.min(adminVisibleCitizensCount, filteredCitizens.length)} من ${filteredCitizens.length})`,
-                          `پیشاندانی هاووڵاتی زیاتر (${Math.min(adminVisibleCitizensCount, filteredCitizens.length)} لە ${filteredCitizens.length})`,
-                          `Show More Citizens (${Math.min(adminVisibleCitizensCount, filteredCitizens.length)} of ${filteredCitizens.length})`
+                          `عرض المزيد من المواطنين (+5 مواطنين) — تم عرض ${Math.min(adminVisibleCitizensCount, regularCitizensList.length)} من ${regularCitizensList.length}`,
+                          `پیشاندانی هاووڵاتی زیاتر (+٥)`,
+                          `Show More Citizens (+5)`
                         )}
                       </span>
                     </button>
@@ -2464,6 +2683,88 @@ export const MunicipalControlDashboard: React.FC<MunicipalControlDashboardProps>
               <button
                 type="button"
                 onClick={() => setReportToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
+              >
+                {tr('إلغاء', 'پاشگەزبوونەوە', 'Cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* نافذة تأكيد حذف المواطن (المستخدم) من أساس التطبيق */}
+      {citizenToDelete && (
+        <div
+          dir={isRTL ? 'rtl' : 'ltr'}
+          onClick={() => setCitizenToDelete(null)}
+          className="fixed inset-0 z-[175] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl bg-white border border-rose-200 shadow-2xl p-6 text-center space-y-4"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h4 className="text-base font-black text-[#1E3725]">
+                {tr(
+                  'تأكيد حذف المواطن من التطبيق',
+                  'پشتڕاستکردنەوەی سڕینەوەی هاووڵاتی لە ئەپڵیکەیشن',
+                  'Confirm Delete Citizen from Application'
+                )}
+              </h4>
+              <p className="text-xs font-bold text-[#46674D] leading-relaxed">
+                {tr(
+                  'هل أنت متأكد من حذف هذا المواطن (المستخدم) نهائياً من أساس التطبيق؟ لا يمكن التراجع عن هذا الإجراء.',
+                  'ئایا دڵنیایت لە سڕینەوەی ئەم هاووڵاتییە (بەکارهێنەرە) بە تەواوی لە بنەمای ئەپڵیکەیشنەکە؟',
+                  'Are you sure you want to permanently delete this citizen (user) from the core application?'
+                )}
+              </p>
+              <p className="text-xs font-black text-rose-700">
+                {citizenToDelete.fullName || (citizenToDelete as any).name}
+              </p>
+              {citizenToDelete.email && (
+                <p className="text-[11px] font-mono font-bold text-slate-600" dir="ltr">
+                  {citizenToDelete.email}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  playClickSound();
+                  const targetId = citizenToDelete.uid || (citizenToDelete as any).id;
+                  const targetMail = String(citizenToDelete.email || '').trim().toLowerCase();
+                  setCitizenToDelete(null);
+                  if (targetId) {
+                    setRegisteredUsersList((prev) => {
+                      const next = prev.filter(
+                        (u) =>
+                          u.uid !== targetId &&
+                          (!targetMail || String(u.email || '').trim().toLowerCase() !== targetMail)
+                      );
+                      try {
+                        localStorage.setItem(
+                          'cave_baadre_persisted_registered_users_v1',
+                          JSON.stringify(next.slice(0, 100))
+                        );
+                      } catch {}
+                      return next;
+                    });
+                    await deleteCitizen(targetId);
+                  }
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer transition-colors shadow-xs"
+              >
+                {tr('نعم، حذف المواطن', 'بەڵێ، سڕینەوەی هاووڵاتی', 'Yes, Delete Citizen')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCitizenToDelete(null)}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
               >
                 {tr('إلغاء', 'پاشگەزبوونەوە', 'Cancel')}

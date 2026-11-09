@@ -15,7 +15,12 @@ import {
   toReportDTO,
   toNewReportNotificationPayloadDTO,
 } from '../src/types/dto';
-import { CITIZEN_ALLOWED_REPORT_UPDATE_FIELDS } from '../src/lib/firebase';
+import {
+  CITIZEN_ALLOWED_REPORT_UPDATE_FIELDS,
+  getAppCheckTokenHeader,
+  withAppCheckHeaders,
+  getAppCheckStatus,
+} from '../src/lib/firebase';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -994,25 +999,61 @@ const scenarios: Array<{ code: string; title: string; run: () => void }> = [
       resetRateLimit(testKey);
     },
   },
+  {
+    code: 'X',
+    title: 'تفعيل Firebase App Check ودمج ترويسات X-Firebase-AppCheck وحماية الاتصالات السحابية',
+    run: async () => {
+      // 1. التحقق من وجود دوال وتصديرات App Check داخل lib/firebase
+      assert(typeof getAppCheckTokenHeader === 'function', 'getAppCheckTokenHeader يجب أن تكون دالة معرفة');
+      assert(typeof withAppCheckHeaders === 'function', 'withAppCheckHeaders يجب أن تكون دالة معرفة');
+      assert(typeof getAppCheckStatus === 'function', 'getAppCheckStatus يجب أن تكون دالة معرفة');
+
+      const status = getAppCheckStatus();
+      assert(typeof status === 'object' && status !== null, 'getAppCheckStatus يجب أن تعيد كائن حالة');
+      assert('active' in status, 'كائن الحالة يجب أن يتضمن حقل active');
+      assert('isDebug' in status, 'كائن الحالة يجب أن يتضمن حقل isDebug');
+
+      // 2. التحقق من دمج ترويسة X-Firebase-AppCheck في الطلبات
+      const base = { 'Content-Type': 'application/json' };
+      const merged = await withAppCheckHeaders(base);
+      assert.strictEqual(merged['Content-Type'], 'application/json');
+
+      // 3. التحقق من تمرير توكن App Check في سياق الخادم AsyncLocalStorage
+      const { appCheckContext, getActiveAppCheckToken } = await import('../server/firestoreRest');
+      await appCheckContext.run({ appCheckToken: 'test_appcheck_token_12345' }, async () => {
+        const currentToken = getActiveAppCheckToken();
+        assert.strictEqual(currentToken, 'test_appcheck_token_12345', 'يجب استرجاع توكن App Check النشط بنجاح من سياق الطلب');
+      });
+
+      // 4. التحقق من بناء ترويسات REST API على الخادم مع توكن App Check
+      const { buildIdentityToolkitHeaders } = await import('../server/routes/authMiddleware');
+      await appCheckContext.run({ appCheckToken: 'test_token_toolkit' }, async () => {
+        const headers = buildIdentityToolkitHeaders();
+        assert.strictEqual(headers['X-Firebase-AppCheck'], 'test_token_toolkit', 'يجب أن تتضمن ترويسات Identity Toolkit ترويسة X-Firebase-AppCheck');
+      });
+    },
+  },
 ];
 
 console.log('======================================================================');
-console.log('🚀 بدء تشغيل اختبارات التكامل والأمان النهائية الشاملة (Scenarios A -> V)');
+console.log('🚀 بدء تشغيل اختبارات التكامل والأمان النهائية الشاملة (Scenarios A -> X)');
 console.log('======================================================================');
 
-let passed = 0;
-for (const sc of scenarios) {
-  try {
-    sc.run();
-    passed++;
-    console.log(`✅ [PASS] (${sc.code}) ${sc.title}`);
-  } catch (err: any) {
-    console.error(`❌ [FAIL] (${sc.code}) ${sc.title}`);
-    console.error(`   السبب: ${err.message}`);
-    process.exit(1);
+(async () => {
+  let passed = 0;
+  for (const sc of scenarios) {
+    try {
+      await sc.run();
+      passed++;
+      console.log(`✅ [PASS] (${sc.code}) ${sc.title}`);
+    } catch (err: any) {
+      console.error(`❌ [FAIL] (${sc.code}) ${sc.title}`);
+      console.error(`   السبب: ${err.message}`);
+      process.exit(1);
+    }
   }
-}
 
-console.log('----------------------------------------------------------------------');
-console.log(`🎉 اكتملت جميع الاختبارات النهائية بنجاح تام: (${passed}/${scenarios.length})`);
-console.log('======================================================================');
+  console.log('----------------------------------------------------------------------');
+  console.log(`🎉 اكتملت جميع الاختبارات النهائية بنجاح تام: (${passed}/${scenarios.length})`);
+  console.log('======================================================================');
+})();

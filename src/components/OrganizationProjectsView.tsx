@@ -49,6 +49,8 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
 }) => {
   const [activeGroup, setActiveGroup] = useState<'after' | 'before'>('after');
   const [activePhotoIdx, setActivePhotoIdx] = useState<number>(0);
+  const swipeStartXRef = React.useRef<number | null>(null);
+  const didSwipeRef = React.useRef<boolean>(false);
 
   const sec = SECTOR_META[work.sector] || SECTOR_META.other;
   const secLabel = language === 'ku' ? sec.ku : language === 'en' ? sec.en : sec.ar;
@@ -80,9 +82,45 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
     return Array.from(new Set(rawBefore.filter(Boolean)));
   }, [work.beforeImages, work.beforeImage, linkedReport?.images, fallbackImg]);
 
+  // دمج جميع صور (بعد الإنجاز + قبل الإنجاز) لدعم التمرير المستمر إلى الأطراف داخل صورة الكارت
+  const combinedSlides = React.useMemo(() => {
+    const afterSlides = afterImagesList.map((url, idx) => ({
+      url,
+      group: 'after' as const,
+      groupIdx: idx,
+      badge: tr('بعد الإنجاز', 'دوای ئەنجامدان', 'After'),
+    }));
+    const beforeSlides = beforeImagesList.map((url, idx) => ({
+      url,
+      group: 'before' as const,
+      groupIdx: idx,
+      badge: tr('قبل الإنجاز', 'پێش ئەنجامدان', 'Before'),
+    }));
+    return [...afterSlides, ...beforeSlides];
+  }, [afterImagesList, beforeImagesList, language]);
+
   const currentList = activeGroup === 'after' ? afterImagesList : beforeImagesList;
   const safePhotoIdx = activePhotoIdx < currentList.length ? activePhotoIdx : 0;
   const currentPhotoUrl = currentList[safePhotoIdx] || fallbackImg;
+
+  const currentCombinedIdx = React.useMemo(() => {
+    if (activeGroup === 'after') {
+      return Math.min(safePhotoIdx, Math.max(0, afterImagesList.length - 1));
+    }
+    return afterImagesList.length + Math.min(safePhotoIdx, Math.max(0, beforeImagesList.length - 1));
+  }, [activeGroup, safePhotoIdx, afterImagesList.length, beforeImagesList.length]);
+
+  const navigateSlideByStep = (delta: number) => {
+    if (combinedSlides.length <= 1) return;
+    playClickSound();
+    const nextCombinedIdx =
+      (currentCombinedIdx + delta + combinedSlides.length) % combinedSlides.length;
+    const targetSlide = combinedSlides[nextCombinedIdx];
+    if (targetSlide) {
+      setActiveGroup(targetSlide.group);
+      setActivePhotoIdx(targetSlide.groupIdx);
+    }
+  };
 
   const deptName =
     work.completedDepartment ||
@@ -177,8 +215,8 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
   };
 
   const galleryItems: GallerySlideItem[] = React.useMemo(
-    () => currentList.map((url) => ({ url })),
-    [currentList]
+    () => combinedSlides.map((s) => ({ url: s.url, badge: s.badge })),
+    [combinedSlides]
   );
 
   return (
@@ -188,8 +226,51 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
         isRTL ? 'text-right' : 'text-left'
       }`}
     >
-      {/* 1. صورة الكارت: نظيفة تماماً بدون أي نصوص أو شارات مطبوعة فوق الصورة */}
-      <div className="relative aspect-[16/10] w-full bg-[#1E3725] overflow-hidden">
+      {/* 1. صورة الكارت: قابلة للتمرير بين صور القبل والبعد بالتمرير أو السحب إلى الأطراف */}
+      <div
+        className="relative aspect-[16/10] w-full bg-[#1E3725] overflow-hidden select-none touch-pan-y"
+        onTouchStart={(e) => {
+          swipeStartXRef.current = e.touches[0].clientX;
+          didSwipeRef.current = false;
+        }}
+        onTouchEnd={(e) => {
+          if (swipeStartXRef.current === null || combinedSlides.length <= 1) return;
+          const deltaX = e.changedTouches[0].clientX - swipeStartXRef.current;
+          swipeStartXRef.current = null;
+          if (Math.abs(deltaX) > 30) {
+            didSwipeRef.current = true;
+            if (deltaX > 0) {
+              navigateSlideByStep(isRTL ? 1 : -1);
+            } else {
+              navigateSlideByStep(isRTL ? -1 : 1);
+            }
+          }
+        }}
+        onMouseDown={(e) => {
+          swipeStartXRef.current = e.clientX;
+          didSwipeRef.current = false;
+        }}
+        onMouseUp={(e) => {
+          if (swipeStartXRef.current === null || combinedSlides.length <= 1) return;
+          const deltaX = e.clientX - swipeStartXRef.current;
+          swipeStartXRef.current = null;
+          if (Math.abs(deltaX) > 35) {
+            didSwipeRef.current = true;
+            if (deltaX > 0) {
+              navigateSlideByStep(isRTL ? 1 : -1);
+            } else {
+              navigateSlideByStep(isRTL ? -1 : 1);
+            }
+          }
+        }}
+        onClickCapture={(e) => {
+          if (didSwipeRef.current) {
+            e.stopPropagation();
+            e.preventDefault();
+            didSwipeRef.current = false;
+          }
+        }}
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={`${activeGroup}-${safePhotoIdx}-${currentPhotoUrl}`}
@@ -203,10 +284,39 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
               src={currentPhotoUrl}
               alt={work.title}
               gallery={galleryItems}
-              initialIndex={safePhotoIdx}
+              initialIndex={currentCombinedIdx}
             />
           </motion.div>
         </AnimatePresence>
+
+        {/* أزرار التمرير على أطراف صورة الكارت للتنقل بين صور القبل والبعد */}
+        {combinedSlides.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigateSlideByStep(isRTL ? 1 : -1);
+              }}
+              aria-label={tr('الصورة السابقة', 'وێنەی پێشوو', 'Previous Photo')}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/65 text-white/95 backdrop-blur-xs flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-90"
+            >
+              <ChevronLeft className="w-4.5 h-4.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigateSlideByStep(isRTL ? -1 : 1);
+              }}
+              aria-label={tr('الصورة التالية', 'وێنەی دواتر', 'Next Photo')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/65 text-white/95 backdrop-blur-xs flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-90"
+            >
+              <ChevronRight className="w-4.5 h-4.5" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* 2. أسفل الصورة: زرّا (بعد) و (قبل) مع إمكانية التبديل بين صور القبل والبعد */}
@@ -245,24 +355,25 @@ const CompletedWorkCard: React.FC<CompletedWorkCardProps> = ({
           </button>
         </div>
 
-        {/* مؤشرات تصفح الصور في حال وجود أكثر من صورة داخل المجموعة الحالية */}
-        {currentList.length > 1 && (
+        {/* مؤشرات تصفح جميع صور القبل والبعد */}
+        {combinedSlides.length > 1 && (
           <div className="flex items-center justify-center gap-1.5 pt-2">
-            {currentList.map((_, idx) => (
+            {combinedSlides.map((slide, idx) => (
               <button
                 key={`photo-dot-${idx}`}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   playClickSound();
-                  setActivePhotoIdx(idx);
+                  setActiveGroup(slide.group);
+                  setActivePhotoIdx(slide.groupIdx);
                 }}
                 className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                  idx === safePhotoIdx
+                  idx === currentCombinedIdx
                     ? 'w-6 bg-[#1E3725]'
                     : 'w-2 bg-[#BBDDC6] hover:bg-[#46674D]'
                 }`}
-                aria-label={`Photo ${idx + 1}`}
+                aria-label={`${slide.badge} ${slide.groupIdx + 1}`}
               />
             ))}
           </div>

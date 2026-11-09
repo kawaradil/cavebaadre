@@ -22,14 +22,9 @@ const BASE_URL = `https://firestore.googleapis.com/v1/projects/${encodeURICompon
 )}/databases/${encodeURIComponent(DATABASE_ID)}/documents`;
 
 /**
- * Local server-only security store for data that must be accessible to the backend
- * even when no client ID token is present (e.g., checking whether an email belongs to
- * a Super Admin or Admin before sending a password reset link, or verifying encrypted
- * recovery codes in admin_recovery_vault).
+ * Ephemeral in-memory runtime cache (NO local disk JSON file).
+ * Firestore is the Single Source of Truth across all cloud instances.
  */
-const DATA_DIR = path.resolve(__dirname, '.data');
-const STORE_FILE = path.join(DATA_DIR, 'security_store.json');
-
 export interface LocalSecurityStore {
   users: Record<string, Record<string, any>>;
   citizens: Record<string, Record<string, any>>;
@@ -47,59 +42,26 @@ export interface LocalSecurityStore {
   >;
 }
 
-function getDefaultStore(): LocalSecurityStore {
-  return {
-    users: {},
-    citizens: {},
-    admins: {},
-    super_admins: {},
-    admin_recovery_vault: {},
-    system_config: {},
-    audit_logs: [],
-    notification_dispatch_locks: {},
-    user_fcm_tokens: {},
-    password_reset_limits: {},
-    password_reset_wrong_attempts: {},
-  };
-}
+const memoryStore: LocalSecurityStore = {
+  users: {},
+  citizens: {},
+  admins: {},
+  super_admins: {},
+  admin_recovery_vault: {},
+  system_config: {},
+  audit_logs: [],
+  notification_dispatch_locks: {},
+  user_fcm_tokens: {},
+  password_reset_limits: {},
+  password_reset_wrong_attempts: {},
+};
 
 export function readLocalStore(): LocalSecurityStore {
-  try {
-    if (fs.existsSync(STORE_FILE)) {
-      const raw = fs.readFileSync(STORE_FILE, 'utf8');
-      const parsed = JSON.parse(raw);
-      const store: LocalSecurityStore = { ...getDefaultStore(), ...parsed };
-      let modified = false;
-      for (const [id, c] of Object.entries(store.citizens || {})) {
-        const cleanEmail = String(c?.email || '').trim();
-        if (/^[0-9]+$/.test(id) || id.startsWith('visitor_') || !cleanEmail.includes('@')) {
-          delete store.citizens[id];
-          modified = true;
-        }
-      }
-      for (const [uid, u] of Object.entries(store.users || {})) {
-        const cleanEmail = String(u?.email || '').trim();
-        if (/^[0-9]+$/.test(uid) || uid.startsWith('visitor_') || !cleanEmail.includes('@')) {
-          delete store.users[uid];
-          modified = true;
-        }
-      }
-      if (modified) {
-        writeLocalStore(store);
-      }
-      return store;
-    }
-  } catch {}
-  return getDefaultStore();
+  return memoryStore;
 }
 
 export function writeLocalStore(store: LocalSecurityStore): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8');
-  } catch {}
+  Object.assign(memoryStore, store);
 }
 
 /**
@@ -255,17 +217,18 @@ export async function restListDocs(
       return [];
     }
     const json = await res.json();
-    const docs = Array.isArray(json.documents) ? json.documents : [];
+    const docs = json.documents;
+    if (!Array.isArray(docs)) return [];
     return docs
-      .map((d: any) => fromFirestoreDocument(d))
-      .filter((d: any): d is { id: string; data: Record<string, any> } => d !== null);
+      .map(fromFirestoreDocument)
+      .filter((d): d is { id: string; data: Record<string, any> } => d !== null);
   } catch {
     return [];
   }
 }
 
 /**
- * Creates or updates (patches) a document via Firestore REST API (no gRPC connection)
+ * Creates or updates (merges) a document via Firestore REST API
  */
 export async function restSetDoc(
   collectionName: string,
@@ -279,16 +242,16 @@ export async function restSetDoc(
     if (shouldSkipUnverifiedRestRequest(hasAppCheck)) return false;
 
     const fields: Record<string, any> = {};
-    const fieldPaths: string[] = [];
+    const updateMaskParams: string[] = [];
     for (const [k, v] of Object.entries(data)) {
       if (v !== undefined) {
         fields[k] = toFirestoreValue(v);
-        fieldPaths.push(`updateMask.fieldPaths=${encodeURIComponent(k)}`);
+        updateMaskParams.push(`updateMask.fieldPaths=${encodeURIComponent(k)}`);
       }
     }
 
-    const queryString = merge && fieldPaths.length > 0 ? `?${fieldPaths.join('&')}` : '';
-    const url = `${BASE_URL}/${encodeURIComponent(collectionName)}/${encodeURIComponent(docId)}${queryString}`;
+    const queryStr = merge && updateMaskParams.length > 0 ? `?${updateMaskParams.join('&')}` : '';
+    const url = `${BASE_URL}/${encodeURIComponent(collectionName)}/${encodeURIComponent(docId)}${queryStr}`;
 
     const res = await fetch(url, {
       method: 'PATCH',
@@ -297,16 +260,15 @@ export async function restSetDoc(
     });
     if (!res.ok) {
       recordRestResponseStatus(res.status, hasAppCheck);
-      return false;
     }
-    return true;
+    return res.ok;
   } catch {
     return false;
   }
 }
 
 /**
- * Deletes a document via Firestore REST API (no gRPC connection)
+ * Deletes a document via Firestore REST API
  */
 export async function restDeleteDoc(
   collectionName: string,
@@ -324,9 +286,8 @@ export async function restDeleteDoc(
     });
     if (!res.ok) {
       recordRestResponseStatus(res.status, hasAppCheck);
-      return false;
     }
-    return true;
+    return res.ok;
   } catch {
     return false;
   }

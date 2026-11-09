@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import {
-  MapPin,
   PlusCircle,
-  Camera,
-  User,
   Hash,
-  Layers,
-  Compass,
-  Clock,
   AlertTriangle,
   LogIn,
-  ChevronDown,
+  Eye,
+  X,
+  MapPin,
+  Calendar,
 } from 'lucide-react';
 import { useBaadre } from '../context/BaadreContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,11 +15,10 @@ import { useLanguage } from '../context/LanguageContext';
 import {
   CivicReport,
   SECTOR_META,
+  isReportSentToDepartment,
   isReportUrgencyConfirmed,
-  isReportOpened,
 } from '../types/baadre';
 import { OrganizationProjectsView } from './OrganizationProjectsView';
-import { SmartAdaptiveImage } from './SmartAdaptiveImage';
 import { playClickSound } from '../lib/sound';
 
 interface CitizenTrackingViewProps {
@@ -36,37 +32,17 @@ const toEnglishDigits = (val: string | number): string =>
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776));
 
 export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
-  onSelectReport,
   onOpenSubmitReport,
 }) => {
   const { myReports, citizenTab, deleteReport, setEditingCitizenReport } = useBaadre();
-  const { isLoggedIn, openAuthModal } = useAuth();
+  const { isLoggedIn, openAuthModal, currentUser, isAdmin, isSuperAdmin } = useAuth();
   const { language, dir, isRTL } = useLanguage();
   const [reportToDelete, setReportToDelete] = useState<CivicReport | null>(null);
+  const [previewReport, setPreviewReport] = useState<CivicReport | null>(null);
   const [visibleCount, setVisibleCount] = useState<number>(12);
-  const [openedReportCardId, setOpenedReportCardId] = useState<string | null>(null);
 
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
-
-  const formatDateAndTime = (dateString: string) => {
-    try {
-      const d = new Date(dateString);
-      const datePart = d.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      const timePart = d.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      });
-      return toEnglishDigits(`${datePart} • ${timePart}`);
-    } catch {
-      return '';
-    }
-  };
 
   if (citizenTab === 'works' || citizenTab === 'projects') {
     return <OrganizationProjectsView />;
@@ -194,6 +170,94 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
         </div>
       )}
 
+      {/* نافذة معاينة البلاغ (تفتح عبر زر العين بعد تحديد الحالة) */}
+      {previewReport && (
+        <div
+          className="fixed inset-0 z-[150] bg-[#1E3725]/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setPreviewReport(null)}
+        >
+          <div
+            dir={dir}
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-md rounded-3xl bg-white border border-[#BBDDC6] shadow-[0_24px_60px_rgba(30,55,37,0.28)] p-5 space-y-4 max-h-[85vh] overflow-y-auto ${
+              isRTL ? 'text-right' : 'text-left'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8F4EA]">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-[#E8F4EA] text-[#46674D] flex items-center justify-center shrink-0">
+                  <Eye className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-[#1E3725]">
+                    {tr('معاينة البلاغ', 'بینینی سکاڵا', 'Report Preview')}
+                  </h3>
+                  <p className="text-[11px] font-mono font-bold text-[#46674D]" dir="ltr">
+                    #{toEnglishDigits(previewReport.trackingCode)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewReport(null)}
+                className="p-1.5 rounded-full bg-[#F4F9F5] text-[#2D4833] hover:bg-[#E8F4EA] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* صور البلاغ الميداني */}
+            {previewReport.images && previewReport.images.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {previewReport.images.map((img, i) => (
+                  <img
+                    key={i}
+                    src={img}
+                    alt={previewReport.title}
+                    className="w-full h-28 object-cover rounded-2xl border border-[#BBDDC6]"
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2.5 bg-[#F4F9F5] p-3.5 rounded-2xl border border-[#BBDDC6]/60">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-[#46674D]">
+                  {language === 'ku'
+                    ? SECTOR_META[previewReport.sector]?.ku
+                    : language === 'en'
+                    ? SECTOR_META[previewReport.sector]?.en
+                    : SECTOR_META[previewReport.sector]?.ar}
+                </span>
+                <span className="text-[11px] font-mono text-slate-500 inline-flex items-center gap-1" dir="ltr">
+                  <Calendar className="w-3 h-3" />
+                  {new Date(previewReport.createdAt).toLocaleDateString('en-GB')}
+                </span>
+              </div>
+              <h4 className="text-sm font-black text-[#1E3725]">{previewReport.title}</h4>
+              <p className="text-xs font-medium text-[#2D4833] leading-relaxed">
+                {previewReport.description}
+              </p>
+              <div className="pt-2 border-t border-[#E8F4EA] flex items-center gap-1.5 text-[11px] font-bold text-[#46674D]">
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {previewReport.neighborhood}
+                  {previewReport.landmark ? ` • ${previewReport.landmark}` : ''}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPreviewReport(null)}
+              className="w-full py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white text-xs font-black transition-colors cursor-pointer"
+            >
+              {tr('إغلاق المعاينة', 'داخستن', 'Close Preview')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Clean Header Box */}
       <div
         className={`p-5 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-2xl border border-[#BBDDC6] shadow-[0_12px_36px_rgba(70,103,77,0.1)] space-y-1.5 ${
@@ -215,28 +279,21 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
         </h2>
       </div>
 
-      {/* قائمة بلاغات المواطن على شكل ملاحظات تحت بعض (رقم البلاغ + حالة البلاغ فقط) وعند النقر يفتح كارت البلاغ */}
+      {/* كروت تتبع بلاغاتي: صغيرة فقط (كود البلاغ + حالة البلاغ + تعديل/حذف قبل تحديد الحالة أو زر عين للمعاينة بعد تحديد الحالة) */}
       {myReports.length > 0 ? (
         <div className="space-y-4">
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {myReports.slice(0, visibleCount).map((report) => {
-              const sectorMeta = SECTOR_META[report.sector] || SECTOR_META.other;
-              const sectorLabel =
-                language === 'ku'
-                  ? sectorMeta.ku
-                  : language === 'en'
-                  ? sectorMeta.en
-                  : sectorMeta.ar;
-
+              const isSentToDept = isReportSentToDepartment(report);
               const isUrgencySet = isReportUrgencyConfirmed(report);
-              const isSentToDept =
-                Boolean(report.statusTimestamps?.in_progress) ||
-                Boolean(report.statusNotes?.in_progress) ||
-                report.status === 'in_progress' ||
-                report.status === 'resolved';
+              // هل تم تحديد حالة أو أولوية البلاغ من قِبل الإدارة؟
+              const isStatusDetermined =
+                report.status !== 'pending' || isSentToDept || isUrgencySet;
 
-              const imageCount =
-                (report.images?.length || 1) + (report.resolvedImages?.length || 0);
+              const isReportCreator = Boolean(
+                currentUser &&
+                  (report.ownerUid === currentUser.uid || report.citizenId === currentUser.uid)
+              );
 
               const getStatusDisplay = () => {
                 if (report.status === 'resolved') {
@@ -263,262 +320,107 @@ export const CitizenTrackingView: React.FC<CitizenTrackingViewProps> = ({
                     dotClass: 'bg-blue-600',
                   };
                 }
+                if (isUrgencySet) {
+                  return {
+                    text: tr('تم تحديد الحالة (قيد المتابعة)', 'دۆخ دیاریکرا', 'Status Determined'),
+                    colorClass: 'text-amber-600',
+                    dotClass: 'bg-amber-500',
+                  };
+                }
                 return {
-                  text: tr('تم الإرسال (غير مرسل بعد)', 'نەنێردراوە', 'Not Sent Yet'),
+                  text: tr('بانتظار تحديد الحالة', 'لە چاوەڕوانی دیاریکردنی دۆخ', 'Awaiting Status'),
                   colorClass: 'text-slate-400',
                   dotClass: 'bg-slate-300',
                 };
               };
 
               const statusDisplay = getStatusDisplay();
-              const isCardOpened = openedReportCardId === report.id;
+              // المواطن يستطيع التعديل والحذف فقط قبل تحديد الحالة
+              const canCitizenEditAndDelete = isReportCreator && !isStatusDetermined;
+              // عند تحديد الحالة يستطيع المواطن فقط معاينة البلاغ عبر زر عين
+              const showCitizenPreviewEye = isReportCreator && isStatusDetermined;
+              // الأدمن والسوبر أدمن يستطيعون حذف البلاغ
+              const canAdminDelete = isAdmin || isSuperAdmin;
 
               return (
                 <div
                   key={report.id}
                   dir={dir}
-                  className="rounded-2xl bg-white/95 border border-[#BBDDC6] shadow-[0_4px_18px_rgba(70,103,77,0.08)] overflow-hidden transition-all"
+                  className="rounded-2xl bg-white/95 border border-[#BBDDC6] shadow-[0_4px_14px_rgba(70,103,77,0.06)] px-4 py-3 flex flex-wrap items-center justify-between gap-3 transition-all select-none"
                 >
-                  {/* شريط الملاحظة: يوضح رقم البلاغ وحالة البلاغ فقط، وعند النقر عليه يفتح كارت البلاغ */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playClickSound();
-                      setOpenedReportCardId((prev) => (prev === report.id ? null : report.id));
-                    }}
-                    className={`w-full px-4 py-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                      isCardOpened ? 'bg-[#F4F9F5]' : 'bg-white hover:bg-[#F4F9F5]/70'
-                    }`}
-                  >
-                    {/* رقم البلاغ */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs font-bold text-[#46674D]">
-                        {tr('رقم البلاغ:', 'ژمارەی سکاڵا:', 'Report #:')}
-                      </span>
-                      <bdi
-                        dir="ltr"
-                        className="inline-flex items-center gap-0.5 font-mono text-sm sm:text-base font-black text-[#1E3725] tabular-nums"
-                      >
-                        <Hash className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                        <span>{toEnglishDigits(report.trackingCode)}</span>
-                      </bdi>
-                    </div>
+                  {/* كود البلاغ */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-bold text-[#46674D]">
+                      {tr('كود البلاغ:', 'کۆدی سکاڵا:', 'Report Code:')}
+                    </span>
+                    <bdi
+                      dir="ltr"
+                      className="inline-flex items-center gap-0.5 font-mono text-sm sm:text-base font-black text-[#1E3725] tabular-nums"
+                    >
+                      <Hash className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
+                      <span>{toEnglishDigits(report.trackingCode)}</span>
+                    </bdi>
+                  </div>
 
-                    {/* حالة البلاغ + سهم الفتح */}
-                    <div className="flex items-center gap-2.5 min-w-0">
+                  {/* حالة البلاغ + أزرار التحكم */}
+                  <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                    <span
+                      className={`text-xs sm:text-sm font-black inline-flex items-center gap-1.5 truncate ${statusDisplay.colorClass}`}
+                    >
                       <span
-                        className={`text-xs sm:text-sm font-black inline-flex items-center gap-1.5 truncate ${statusDisplay.colorClass}`}
-                      >
-                        <span
-                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDisplay.dotClass}`}
-                        />
-                        <span className="truncate">{statusDisplay.text}</span>
-                      </span>
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDisplay.dotClass}`}
+                      />
+                      <span className="truncate">{statusDisplay.text}</span>
+                    </span>
 
-                      <div
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 ${
-                          isCardOpened
-                            ? 'bg-[#46674D] text-white rotate-180'
-                            : 'bg-[#F4F9F5] text-[#46674D]'
-                        }`}
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* كارت البلاغ الكامل يظهر عند النقر على الملاحظة (بدون فتح التفاصيل عند النقر على الكارت، مع إتاحة فتح الصور) */}
-                  {isCardOpened && (
-                    <div className="p-3 sm:p-4 border-t border-[#E8F4EA] bg-[#F4F9F5]/60">
-                      <div className="group relative rounded-[24px] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 ease-out flex flex-col select-none overflow-hidden border border-[#E8F4EA]">
-                        {/* Top Framed Image Section: 16:9 Fit (فتح الصور مفعل عند النقر) */}
-                        <div className="relative w-full aspect-video rounded-t-[24px] rounded-b-none overflow-hidden bg-slate-900">
-                          <SmartAdaptiveImage
-                            src={report.images?.[0]}
-                            alt={report.title}
-                            gallery={
-                              report.images && report.images.length > 0
-                                ? report.images
-                                : undefined
-                            }
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 pointer-events-none z-20" />
-
-                          {/* Top Right Badge */}
-                          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
-                            <span className="px-3.5 py-1 rounded-full text-xs font-black bg-[#46674D] text-white shadow-sm backdrop-blur-md">
-                              {sectorLabel}
-                            </span>
-                          </div>
-
-                          {/* Top Left Circular Icon */}
-                          <div className="absolute top-3 left-3 z-10">
-                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/95 text-[#1E3725] shadow-md flex items-center justify-center backdrop-blur-md border border-white/40 text-base">
-                              {sectorMeta.badgeEmoji}
-                            </div>
-                          </div>
-
-                          {/* Bottom Left Image Counter Pill */}
-                          <div
-                            className="absolute bottom-3 left-3 z-10 flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/15 shadow-sm"
-                            dir="ltr"
-                          >
-                            <span className="text-[11px] font-mono font-bold text-white/95 flex items-center gap-1.5">
-                              <span>1/{toEnglishDigits(imageCount)}</span>
-                              <Camera className="w-3.5 h-3.5 text-[#E8F4EA]" />
-                            </span>
-                            <span className="w-2 h-2 rounded-full bg-[#46674D]" />
-                          </div>
-
-                          {/* نص البلاغ الجديد باللون الأحمر وينبض */}
-                          {!isReportOpened(report) && report.status === 'pending' && (
-                            <div
-                              dir={isRTL ? 'rtl' : 'ltr'}
-                              className="absolute bottom-3 right-4 z-20 flex items-center gap-2 pointer-events-none select-none"
-                            >
-                              <span className="relative flex h-3 w-3 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-90" />
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600 animate-pulse shadow-[0_0_10px_rgba(239,68,68,1)]" />
-                              </span>
-                              <span className="text-red-500 text-sm sm:text-base font-black animate-pulse drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">
-                                {tr('بلاغ جديد', 'سکاڵای نوێ', 'New Report')}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Card Details Body */}
-                        <div
-                          dir={dir}
-                          className={`p-4 sm:p-5 flex-1 flex flex-col justify-between bg-white ${
-                            isRTL ? 'text-right' : 'text-left'
-                          }`}
+                    <div className="flex items-center gap-2.5 ps-2 border-s border-[#E8F4EA]">
+                      {/* قبل تحديد الحالة: المواطن يستطيع تعديل وحذف البلاغ */}
+                      {canCitizenEditAndDelete && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playClickSound();
+                            setEditingCitizenReport(report);
+                          }}
+                          className="text-[11px] font-bold text-[#46674D] hover:text-[#1E3725] transition-colors cursor-pointer"
                         >
-                          <div>
-                            {/* Title */}
-                            <h3
-                              className="text-base sm:text-[17px] font-black text-[#1E3725] group-hover:text-[#46674D] transition-colors line-clamp-2 leading-snug"
-                              title={report.title}
-                            >
-                              <bdi>{report.title}</bdi>
-                            </h3>
+                          {tr('تعديل', 'دەستکاری', 'Edit')}
+                        </button>
+                      )}
 
-                            {/* Location */}
-                            <div className="flex items-center justify-start gap-1.5 text-xs sm:text-[13px] text-[#46674D] font-bold mt-2">
-                              <MapPin className="w-4 h-4 text-[#46674D] shrink-0" />
-                              <span className="truncate">
-                                {tr('باعدرى', 'باعەدرێ', 'Baadre')} • {report.neighborhood}
-                                {report.street ? ` • ${report.street}` : ''}
-                              </span>
-                            </div>
+                      {(canCitizenEditAndDelete || canAdminDelete) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playClickSound();
+                            setReportToDelete(report);
+                          }}
+                          className="text-[11px] font-bold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
+                        >
+                          {tr('حذف', 'سڕینەوە', 'Delete')}
+                        </button>
+                      )}
 
-                            {/* Date and Time Row */}
-                            <div className="flex items-center justify-start gap-1.5 text-xs text-[#46674D] font-bold mt-1.5">
-                              <Clock className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                              <bdi dir="ltr" className="font-mono tabular-nums text-[#1E3725]">
-                                {formatDateAndTime(report.createdAt)}
-                              </bdi>
-                            </div>
-
-                            {/* Specs Row */}
-                            <div className="mt-3 pt-2.5 border-t border-[#E8F4EA] flex items-center justify-start gap-2 flex-wrap text-xs sm:text-[13px] text-[#2D4833] font-bold">
-                              <bdi
-                                className="inline-flex items-center gap-1 font-mono font-black text-[#1E3725] tabular-nums"
-                                dir="ltr"
-                              >
-                                <Hash className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                                <span>{toEnglishDigits(report.trackingCode)}</span>
-                              </bdi>
-
-                              <span className="text-[#BBDDC6]">•</span>
-
-                              <span className="inline-flex items-center gap-1 font-bold text-[#1E3725]">
-                                <Layers className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                                <span>{sectorLabel}</span>
-                              </span>
-
-                              <span className="text-[#BBDDC6]">•</span>
-
-                              <span
-                                className={`inline-flex items-center gap-1 font-black ${
-                                  isUrgencySet ? 'text-[#46674D]' : 'text-[#46674D]/70'
-                                }`}
-                              >
-                                <Compass className="w-3.5 h-3.5 shrink-0" />
-                                <span>
-                                  {isUrgencySet
-                                    ? tr(
-                                        'تم فتح البلاغ وتحديد الأولوية',
-                                        'سکاڵا کرایەوە و گرنگی دیاریکرا',
-                                        'Opened & Priority Set'
-                                      )
-                                    : tr(
-                                        'تحديد الأولوية (غير محددة)',
-                                        'دیاریکردنی گرنگی (دیاری نەکراوە)',
-                                        'Priority Not Set Yet'
-                                      )}
-                                </span>
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Bottom Status & Citizen Row */}
-                          <div className="mt-3 pt-2.5 border-t border-[#E8F4EA] space-y-2.5">
-                            <div className="flex items-end justify-between gap-2">
-                              <div className="flex flex-col min-w-0">
-                                <span
-                                  className={`text-base sm:text-lg font-black tracking-tight leading-snug flex items-center gap-1.5 ${statusDisplay.colorClass}`}
-                                >
-                                  <span
-                                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDisplay.dotClass}`}
-                                  />
-                                  <span className="truncate">{statusDisplay.text}</span>
-                                </span>
-                                <div className="flex items-center gap-1 text-xs text-[#46674D] font-bold mt-1 truncate">
-                                  <User className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
-                                  <span className="truncate">
-                                    <bdi>{report.citizenName}</bdi>
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* زر تعديل البلاغ أمام زر حذف البلاغ للمواطن */}
-                            {!isSentToDept && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="pt-2 border-t border-[#E8F4EA] flex items-center justify-end gap-4"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    playClickSound();
-                                    setEditingCitizenReport(report);
-                                  }}
-                                  className="text-[11px] font-bold text-[#46674D] hover:text-[#1E3725] transition-colors cursor-pointer"
-                                >
-                                  {tr('تعديل البلاغ', 'دەستکاری سکاڵا', 'Edit Report')}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    playClickSound();
-                                    setReportToDelete(report);
-                                  }}
-                                  className="text-[11px] font-bold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
-                                >
-                                  {tr('حذف البلاغ', 'سڕینەوەی سکاڵا', 'Delete Report')}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                      {/* بعد تحديد الحالة: يستطيع المواطن فقط معاينة البلاغ عبر زر عين */}
+                      {showCitizenPreviewEye && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playClickSound();
+                            setPreviewReport(report);
+                          }}
+                          title={tr('معاينة البلاغ', 'بینینی سکاڵا', 'Preview Report')}
+                          aria-label={tr('معاينة البلاغ', 'بینینی سکاڵا', 'Preview Report')}
+                          className="w-8 h-8 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#2D4833] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <Eye className="w-4 h-4 stroke-[2.2]" />
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}

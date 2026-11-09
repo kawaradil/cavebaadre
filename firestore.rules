@@ -63,6 +63,7 @@ service cloud.firestore {
 
     function isReportCurrentlyNew(reportData) {
       return isNewStatus(reportData.status) &&
+        !('isUrgencySet' in reportData && reportData.isUrgencySet == true) &&
         !('statusTimestamps' in reportData && 'in_progress' in reportData.statusTimestamps && reportData.statusTimestamps.in_progress != '') &&
         !('statusTimestamps' in reportData && 'sent' in reportData.statusTimestamps && reportData.statusTimestamps.sent != '');
     }
@@ -81,6 +82,7 @@ service cloud.firestore {
         'status',
         'ownerUid',
         'citizenId',
+        'creatorRole',
         'title',
         'description',
         'sector',
@@ -96,6 +98,34 @@ service cloud.firestore {
         'citizenPhone',
         'citizenWhatsapp',
         'updatedAt'
+      ]);
+    }
+
+    function hasOnlyAllowedAdminWorkflowFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'id',
+        'status',
+        'urgency',
+        'isUrgencySet',
+        'urgencySetAt',
+        'isOpened',
+        'openedAt',
+        'assignedTeam',
+        'assignedDepartmentId',
+        'assignedRecipient',
+        'assignedRecipients',
+        'officialNote',
+        'adminNotes',
+        'statusNotes',
+        'statusTimestamps',
+        'resolvedAt',
+        'responseTimeHours',
+        'completedWorkId',
+        'resolvedImages',
+        'updatedAt',
+        'upvotes',
+        'upvotesCount',
+        'viewsCount'
       ]);
     }
 
@@ -150,7 +180,11 @@ service cloud.firestore {
 
       allow delete: if isOwner(userId) || (
         isSuperAdmin()
-        && !(resource.data.role == 'super_admin' && request.auth.uid != userId)
+        && !(resource != null && 'role' in resource.data && resource.data.role == 'super_admin' && request.auth.uid != userId)
+      ) || (
+        isAdmin()
+        && (resource == null || !('role' in resource.data) || resource.data.role != 'super_admin')
+        && !exists(/databases/$(database)/documents/super_admins/$(userId))
       );
     }
 
@@ -205,7 +239,9 @@ service cloud.firestore {
         )
       );
 
-      allow update: if isAdmin() || (
+      allow update: if (
+        isAdmin() && hasOnlyAllowedAdminWorkflowFields()
+      ) || (
         isSignedIn()
         && isReportOwner(resource.data)
         && isReportCurrentlyNew(resource.data)

@@ -62,11 +62,33 @@ export function decryptRecoveryCode(entry: EncryptedVaultEntry): string {
 }
 
 /**
+ * Deterministic recovery code generator based on HMAC-SHA256 with the system secret key.
+ * Format: RC-XXXX-XXXX-XXXX-XXXX
+ * Guaranteed to generate the exact same code for the user across container restarts,
+ * enabling stateless verification even when the user is logged out and Firestore
+ * cannot be accessed unauthenticated.
+ */
+export function generateDeterministicRecoveryCode(identifier: string): string {
+  const clean = identifier.trim().toLowerCase();
+  const hmac = crypto.createHmac('sha256', ENCRYPTION_KEY).update(clean).digest('hex').toUpperCase();
+  const chunks = [
+    hmac.slice(0, 4),
+    hmac.slice(4, 8),
+    hmac.slice(8, 12),
+    hmac.slice(12, 16),
+  ];
+  return `RC-${chunks.join('-')}`;
+}
+
+/**
  * Constant-time safe string comparison to prevent timing attacks
  */
 export function timingSafeMatch(a: string, b: string): boolean {
-  const bufA = Buffer.from(a.trim().toUpperCase());
-  const bufB = Buffer.from(b.trim().toUpperCase());
-  if (bufA.length !== bufB.length) return false;
+  const normA = a.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const normB = b.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!normA || !normB || normA.length !== normB.length) return false;
+  const bufA = Buffer.from(normA);
+  const bufB = Buffer.from(normB);
   return crypto.timingSafeEqual(bufA, bufB);
 }
+

@@ -48,11 +48,18 @@ export interface CivicReport {
   lng?: number;
   images: string[];
   resolvedImages?: string[]; // صور العمل المنجز
+  videoUrl?: string; // مقطع فيديو ميداني للبلاغ (اختياري)
+  videoThumbnail?: string; // صورة مصغرة للفيديو مع علامة تشغيل
+  videoDurationSeconds?: number; // مدة الفيديو بالثواني (الحد الأقصى 15 ثانية)
+  resolvedVideoUrl?: string; // مقطع فيديو العمل المنجز (اختياري)
+  resolvedVideoThumbnail?: string; // صورة مصغرة لفيديو الإنجاز مع علامة تشغيل
+  resolvedVideoDurationSeconds?: number; // مدة فيديو الإنجاز بالثواني
   citizenName: string;
   citizenPhone: string;
   citizenWhatsapp?: string;
   citizenId?: string;
   ownerUid?: string;
+  creatorRole?: 'citizen' | 'admin' | 'super_admin';
   createdAt: string;       // ISO string
   updatedAt: string;       // ISO string
   resolvedAt?: string;     // ISO string
@@ -131,9 +138,15 @@ export interface OrganizationProject {
   budgetOrFunding?: string;
   progressPercentage: number;
   startDate: string;
-  expectedCompletionDate: string;
   images: string[];
   beneficiariesCount?: string;
+  expectedCompletionDate?: string;
+  videoUrl?: string;
+  videoThumbnail?: string;
+  videoDurationSeconds?: number;
+  resolvedVideoUrl?: string;
+  resolvedVideoThumbnail?: string;
+  resolvedVideoDurationSeconds?: number;
 }
 
 export interface MunicipalDepartment {
@@ -143,26 +156,31 @@ export interface MunicipalDepartment {
   nameKu: string;
   nameEn: string;
   sector: ReportSector;
+  // أرقام التواصل للدائرة (رقم دائرة 1 ورقم دائرة 2 مع أسماء أصحاب الأرقام)
+  phone1?: string;
+  phone1Owner?: string;
+  phone2?: string;
+  phone2Owner?: string;
   specialty?: string;
   specialtyAr?: string;
   specialtyKu?: string;
   specialtyEn?: string;
-  headName: string;
+  headName?: string;
   managerName?: string;
   managerPhone?: string;
   deputyName?: string;
   deputyPhone?: string;
   engineerName?: string;
   engineerPhone?: string;
-  fieldTeamName: string;
+  fieldTeamName?: string;
   phone: string;
-  emergencyPhone: string;
-  whatsapp: string;
-  whatsappPhone: string;
-  availability: 'available' | 'on_mission' | 'standby';
-  vehiclesCount: number;
-  activeTeamsCount: number;
-  workingHours: string;
+  emergencyPhone?: string;
+  whatsapp?: string;
+  whatsappPhone?: string;
+  availability?: 'available' | 'on_mission' | 'standby';
+  vehiclesCount?: number;
+  activeTeamsCount?: number;
+  workingHours?: string;
   location?: string;
   locationAr?: string;
 }
@@ -205,28 +223,28 @@ export interface SectorMetaItem {
 export const SECTOR_META: Record<ReportSector, SectorMetaItem> = {
   roads: {
     key: 'roads',
-    ar: 'الشوارع والطرق',
-    ku: 'شەقام و ڕێگاوبان',
-    en: 'Streets & Roads',
-    labelAr: 'الشوارع والطرق',
-    descAr: 'حفر الشوارع، التعبيد، الأرصفة، والمطبات',
-    descriptionAr: 'حفر الشوارع، التعبيد، الأرصفة، والمطبات',
-    descKu: 'چاڵی شەقام، قیرتاوکردن و شۆستەکان',
-    descEn: 'Potholes, paving, sidewalks & road safety',
+    ar: 'الشوارع والأرصفة',
+    ku: 'شەقام و شۆستەکان',
+    en: 'Streets & Sidewalks',
+    labelAr: 'الشوارع والأرصفة',
+    descAr: 'صيانة الشوارع، الحفر، والأرصفة',
+    descriptionAr: 'صيانة الشوارع، الحفر، والأرصفة',
+    descKu: 'چاککردنی شەقام، چاڵ و شۆستەکان',
+    descEn: 'Street maintenance, potholes & sidewalks',
     badgeBg: 'bg-[#46674D] text-white',
     badgeEmoji: '🛣️',
     accentColor: '#46674D',
   },
   sewage: {
     key: 'sewage',
-    ar: 'الشبكات والمجاري',
-    ku: 'تۆڕەکان و ئاوەڕۆ',
-    en: 'Sewage & Drainage',
-    labelAr: 'الشبكات والمجاري',
-    descAr: 'انسداد المجاري، أغطية المنهولات، وتصريف الأمطار',
-    descriptionAr: 'انسداد المجاري، أغطية المنهولات، وتصريف الأمطار',
-    descKu: 'گیرانی ئاوەڕۆ، سەری مەنهۆڵ و ئاوی باران',
-    descEn: 'Drainage blockages, manhole covers & storm water',
+    ar: 'المجاري',
+    ku: 'ئاوەڕۆ',
+    en: 'Sewage',
+    labelAr: 'المجاري',
+    descAr: 'انسداد المجاري، المنهولات، وتصريف المياه',
+    descriptionAr: 'انسداد المجاري، المنهولات، وتصريف المياه',
+    descKu: 'گیرانی ئاوەڕۆ و سەری مەنهۆڵ',
+    descEn: 'Sewage blockages, manholes & drainage',
     badgeBg: 'bg-[#36593F] text-white',
     badgeEmoji: '🚰',
     accentColor: '#0284C7',
@@ -234,55 +252,55 @@ export const SECTOR_META: Record<ReportSector, SectorMetaItem> = {
   sanitation: {
     key: 'sanitation',
     ar: 'الحدائق والنظافة',
-    ku: 'باخچەکان و پاکوخاوێنی',
+    ku: 'باخچە و پاکوخاوێنی',
     en: 'Parks & Sanitation',
     labelAr: 'الحدائق والنظافة',
-    descAr: 'رفع النفايات، الحاويات، التشجير والحدائق العامة',
-    descriptionAr: 'رفع النفايات، الحاويات، التشجير والحدائق العامة',
-    descKu: 'لادانی خاشاک، سەبەتەی زبڵ و سەوزایی',
-    descEn: 'Waste collection, bins, landscaping & public parks',
+    descAr: 'رفع النفايات، الحاويات، والحدائق',
+    descriptionAr: 'رفع النفايات، الحاويات، والحدائق',
+    descKu: 'لادانی زبڵ و سەوزایی و باخچەکان',
+    descEn: 'Waste collection, bins & public parks',
     badgeBg: 'bg-emerald-600 text-white',
     badgeEmoji: '🌳',
     accentColor: '#10B981',
   },
   lighting: {
     key: 'lighting',
-    ar: 'الإنارة والأعمدة',
-    ku: 'ڕووناکی و ستوونەکان',
-    en: 'Lighting & Poles',
-    labelAr: 'الإنارة والأعمدة',
-    descAr: 'أعطال مصابيح الشوارع، الأعمدة، والأسلاك العامة',
-    descriptionAr: 'أعطال مصابيح الشوارع، الأعمدة، والأسلاك العامة',
-    descKu: 'تێکچوونی گلۆپی شەقام و ستوونەکانی کارەبا',
-    descEn: 'Streetlight outages, utility poles & public wiring',
+    ar: 'الكهرباء والأعمدة',
+    ku: 'کارەبا و ستوونەکان',
+    en: 'Electricity & Poles',
+    labelAr: 'الكهرباء والأعمدة',
+    descAr: 'الإنارة، الأعمدة، والأسلاك الكهربائية',
+    descriptionAr: 'الإنارة، الأعمدة، والأسلاك الكهربائية',
+    descKu: 'ڕووناکی، ستوون و هێڵی کارەبا',
+    descEn: 'Street lighting, poles & electric wires',
     badgeBg: 'bg-amber-500 text-white',
     badgeEmoji: '💡',
     accentColor: '#D97706',
   },
   water: {
     key: 'water',
-    ar: 'شبكات المياه',
-    ku: 'تۆڕەکانی ئاو',
-    en: 'Water Networks',
-    labelAr: 'شبكات المياه',
-    descAr: 'كسر أنابيب المياه، التسربات، وضعف الضخ',
-    descriptionAr: 'كسر أنابيب المياه، التسربات، وضعف الضخ',
-    descKu: 'شکانی بۆری ئاو، دزەکردن و لاوازی ئاو',
-    descEn: 'Water pipe leaks, bursts & pressure issues',
+    ar: 'شبكة المياه',
+    ku: 'تۆڕی ئاو',
+    en: 'Water Network',
+    labelAr: 'شبكة المياه',
+    descAr: 'كسر الأنابيب، التسربات، وضخ المياه',
+    descriptionAr: 'كسر الأنابيب، التسربات، وضخ المياه',
+    descKu: 'شکانی بۆری و دزەکردنی ئاو',
+    descEn: 'Pipe leaks, bursts & water supply',
     badgeBg: 'bg-sky-600 text-white',
     badgeEmoji: '💧',
     accentColor: '#0284C7',
   },
   other: {
     key: 'other',
-    ar: 'خدمات بلدية أخرى',
-    ku: 'خزمەتگوزارییەکانی تر',
-    en: 'Other Municipal Services',
-    labelAr: 'خدمات بلدية أخرى',
-    descAr: 'التجاوزات، اللوحات الإرشادية، والطوارئ العامة',
-    descriptionAr: 'التجاوزات، اللوحات الإرشادية، والطوارئ العامة',
-    descKu: 'زێدەڕۆیی، هێماکانی هاتووچۆ و فریاکەوتن',
-    descEn: 'Public signage, encroachments & general emergencies',
+    ar: 'خدمات أخرى',
+    ku: 'خزمەتگوزاری تر',
+    en: 'Other Services',
+    labelAr: 'خدمات أخرى',
+    descAr: 'التجاوزات، اللوحات، والخدمات العامة',
+    descriptionAr: 'التجاوزات، اللوحات، والخدمات العامة',
+    descKu: 'زێدەڕۆیی، هێماکان و خزمەتگوزاری گشتی',
+    descEn: 'Encroachments, signs & general services',
     badgeBg: 'bg-[#2D4833] text-white',
     badgeEmoji: '🏛️',
     accentColor: '#46674D',
@@ -588,8 +606,6 @@ export const SECTOR_ILLUSTRATIONS: Record<ReportSector, string> = {
 export function formatWhatsAppReportMessage(report: CivicReport): string {
   const sectorAr = SECTOR_META[report.sector]?.ar || 'خدمات عامة';
   const sectorKu = SECTOR_META[report.sector]?.ku || 'خزمەتگوزاری گشتی';
-  const urgencyAr = URGENCY_META[report.urgency]?.ar || 'اعتيادي';
-  const urgencyKu = URGENCY_META[report.urgency]?.ku || 'ئاسایی';
   const statusAr = STATUS_META[report.status]?.ar || 'قيد المراجعة';
   const statusKu = STATUS_META[report.status]?.ku || 'سکاڵای نوێ';
   const lat = report.latitude ?? report.lat;
@@ -602,20 +618,18 @@ export function formatWhatsAppReportMessage(report: CivicReport): string {
     `🔖 *رمز البلاغ:* ${report.trackingCode}`,
     `📌 *عنوان البلاغ:* ${report.title}`,
     `🛠️ *القطاع الخدمي:* ${sectorAr}`,
-    `🚨 *الأولوية:* ${urgencyAr}`,
     `📊 *الحالة:* ${statusAr}`,
     `📍 *الموقع:* ناحية باعذرة - ${report.neighborhood} (${report.street})`,
-    report.landmark ? `🧭 *نقطة دالة:* ${report.landmark}` : '',
+    report.landmark ? `🧭 *أقرب نقطة:* ${report.landmark}` : '',
     `📝 *التفاصيل:* ${report.description}`,
     `━━━━━━━━━━━━━━━━━━`,
     `☀️ *کوردی:*`,
     `🔖 *کۆدی سکاڵا:* ${report.trackingCode}`,
     `📌 *ناونیشانی سکاڵا:* ${report.title}`,
     `🛠️ *کەرتی خزمەتگوزاری:* ${sectorKu}`,
-    `🚨 *گرنگی:* ${urgencyKu}`,
     `📊 *دۆخ:* ${statusKu}`,
     `📍 *شوێن:* ناحیەی باعەدرێ - ${report.neighborhood} (${report.street})`,
-    report.landmark ? `🧭 *نیشانەی نزیک:* ${report.landmark}` : '',
+    report.landmark ? `🧭 *نزیکترین خاڵ:* ${report.landmark}` : '',
     `📝 *وردەکاری:* ${report.description}`,
     `━━━━━━━━━━━━━━━━━━`,
     `🌐 *GPS:* https://www.google.com/maps?q=${lat},${lng}`,

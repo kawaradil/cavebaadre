@@ -132,6 +132,17 @@ export const AuthModal: React.FC = () => {
         'Rate limit exceeded (3 per hour).'
       );
     }
+    if (
+      raw.includes('app-check') ||
+      raw.includes('appcheck') ||
+      raw.includes('app check')
+    ) {
+      return tr(
+        'فشل التحقق الأمني من الخدمة (App Check). يرجى التأكد من اتصال الإنترنت.',
+        'پشکنینی ئەمنیی (App Check) سەرکەوتوو نەبوو. تکایە دڵنیابە لە هێڵی ئینتەرنێت.',
+        'Security verification (App Check) failed. Please check internet connection.'
+      );
+    }
     if (raw.includes('network')) {
       return tr('خطأ في الاتصال.', 'هەڵەی پەیوەندی.', 'Connection error.');
     }
@@ -526,11 +537,11 @@ export const AuthModal: React.FC = () => {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder={tr(
-                      'مثال: أحمد محمد علي',
-                      'نموونە: ئەحمەد محەمەد عەلی',
-                      'e.g. John David Smith'
+                      'بێوار یونس جمیل',
+                      'بێوار یونس جمیل',
+                      'بێوار یونس جمیل'
                     )}
-                    className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:outline-none transition-colors pr-9"
+                    className="w-full bg-[#F4F9F5] border border-[#BBDDC6] focus:border-[#46674D] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] placeholder:text-[#46674D]/35 placeholder:font-normal focus:outline-none transition-colors pr-9"
                   />
                   <UserIcon className="w-4 h-4 text-[#46674D] absolute right-3 top-3 pointer-events-none" />
                 </div>

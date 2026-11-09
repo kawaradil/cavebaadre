@@ -47,7 +47,8 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
     myReports,
     setSelectedReport,
   } = useBaadre();
-  const { isLoggedIn, openAuthModal } = useAuth();
+  const { isLoggedIn, openAuthModal, isAdmin, isSuperAdmin } = useAuth();
+  const isStaff = isAdmin || isSuperAdmin || activeRole === 'admin';
 
   const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
   const notifMenuRef = useRef<HTMLDivElement>(null);
@@ -175,8 +176,9 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
               </button>
             )}
 
-            {/* أيقونة الجرس للتنبيهات - بدون إطار */}
-            <div className="static sm:relative" ref={notifMenuRef}>
+            {/* أيقونة الجرس للتنبيهات - تظهر للإدارة فقط وتُحذف من حساب المواطنين */}
+            {isStaff && (
+              <div className="static sm:relative" ref={notifMenuRef}>
               <button
                 type="button"
                 onClick={() => {
@@ -389,6 +391,7 @@ export const NavbarHeader: React.FC<NavbarHeaderProps> = ({
                 )}
               </AnimatePresence>
             </div>
+            )}
           </div>
         </div>
       </div>

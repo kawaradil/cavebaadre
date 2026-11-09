@@ -85,12 +85,14 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
     lng: longitude || BAADRE_CENTER_COORDS.lng,
   });
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
-    lat: latitude || BAADRE_CENTER_COORDS.lat,
-    lng: longitude || BAADRE_CENTER_COORDS.lng,
+    lat: BAADRE_CENTER_COORDS.lat,
+    lng: BAADRE_CENTER_COORDS.lng,
   });
   // Default mode: Satellite / Hybrid (mt0-mt3.google.com/vt/lyrs=y)
   const [isSatellite, setIsSatellite] = useState<boolean>(true);
   const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locationMode, setLocationMode] = useState<'baadre' | 'current' | 'custom'>('baadre');
+  const [showGreenPin, setShowGreenPin] = useState<boolean>(false);
   const [statusToast, setStatusToast] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -100,14 +102,16 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
     }, 2600);
   }, []);
 
-  // Initialize Leaflet Map when full-screen modal opens
+  // Initialize Leaflet Map when full-screen modal opens — opens directly on Baadre
   useEffect(() => {
     if (!isOpen || !mapContainerRef.current) return;
 
-    const initialLat = latitude || BAADRE_CENTER_COORDS.lat;
-    const initialLng = longitude || BAADRE_CENTER_COORDS.lng;
+    const initialLat = BAADRE_CENTER_COORDS.lat;
+    const initialLng = BAADRE_CENTER_COORDS.lng;
     setSelectedCoords({ lat: initialLat, lng: initialLng });
     setMapCenter({ lat: initialLat, lng: initialLng });
+    setLocationMode('baadre');
+    setShowGreenPin(false);
 
     // Clean up any existing map instance
     if (mapInstanceRef.current) {
@@ -138,6 +142,7 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
     const marker = L.marker([initialLat, initialLng], {
       draggable: true,
       icon: createCustomPinIcon(initialLat, initialLng, true),
+      opacity: 0,
     }).addTo(map);
 
     marker.on('dragend', () => {
@@ -147,6 +152,9 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
         lng: Number(pos.lng.toFixed(5)),
       };
       marker.setIcon(createCustomPinIcon(updated.lat, updated.lng, true));
+      marker.setOpacity(1);
+      setShowGreenPin(true);
+      setLocationMode('custom');
       setSelectedCoords(updated);
       onSelectLocation(updated.lat, updated.lng);
     });
@@ -159,6 +167,9 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
       };
       marker.setLatLng([clicked.lat, clicked.lng]);
       marker.setIcon(createCustomPinIcon(clicked.lat, clicked.lng, true));
+      marker.setOpacity(1);
+      setShowGreenPin(true);
+      setLocationMode('custom');
       setSelectedCoords(clicked);
       onSelectLocation(clicked.lat, clicked.lng);
     });
@@ -174,32 +185,8 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
     mapInstanceRef.current = map;
     markerRef.current = marker;
 
-    // Ensure Leaflet recalculates container dimensions after modal animation and auto-locate user
     const timer = setTimeout(() => {
       map.invalidateSize();
-      if ('geolocation' in navigator) {
-        setIsLocating(true);
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const newCoords = {
-              lat: Number(pos.coords.latitude.toFixed(5)),
-              lng: Number(pos.coords.longitude.toFixed(5)),
-            };
-            setSelectedCoords(newCoords);
-            setIsLocating(false);
-            onSelectLocation(newCoords.lat, newCoords.lng);
-            if (mapInstanceRef.current) {
-              mapInstanceRef.current.flyTo([newCoords.lat, newCoords.lng], 17, {
-                duration: 1.1,
-              });
-            }
-          },
-          () => {
-            setIsLocating(false);
-          },
-          { enableHighAccuracy: true, timeout: 6500 }
-        );
-      }
     }, 150);
 
     return () => {
@@ -234,14 +221,15 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
     tileLayerRef.current = nextLayer;
   }, [isSatellite]);
 
-  // Keep marker synced if coordinates change from outside
+  // Keep marker synced if coordinates or visibility change
   useEffect(() => {
     if (!markerRef.current) return;
     markerRef.current.setLatLng([selectedCoords.lat, selectedCoords.lng]);
     markerRef.current.setIcon(
       createCustomPinIcon(selectedCoords.lat, selectedCoords.lng, true)
     );
-  }, [selectedCoords]);
+    markerRef.current.setOpacity(showGreenPin ? 1 : 0);
+  }, [selectedCoords, showGreenPin]);
 
   const handleToggleSatellite = () => {
     playClickSound();
@@ -250,14 +238,14 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
       showToast(
         next
           ? tr(
-              'وضع القمر الصناعي الهجين (Google Hybrid Tiles)',
+              'وضع القمر الصناعي الهجين (Google Hybrid)',
               'دۆخی مانگی دەستکرد (Google Hybrid)',
               'Google Hybrid Satellite View enabled'
             )
           : tr(
-              'وضع الخريطة العادية / الشوارع (OpenStreetMap)',
-              'نەخشەی شەقامەکان (OpenStreetMap)',
-              'OpenStreetMap Street View enabled'
+              'وضع الخريطة العادية / الشوارع',
+              'نەخشەی شەقامەکان',
+              'Street View enabled'
             )
       );
       return next;
@@ -266,6 +254,8 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
 
   const handleLocateMe = () => {
     playClickSound();
+    setLocationMode('current');
+    setShowGreenPin(true);
     setIsLocating(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -279,14 +269,14 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
           onSelectLocation(newCoords.lat, newCoords.lng);
           if (mapInstanceRef.current) {
             mapInstanceRef.current.flyTo([newCoords.lat, newCoords.lng], 17, {
-              duration: 1.2,
+              duration: 1.1,
             });
           }
           showToast(
             tr(
-              'تم تحديد موقعك الحالي بدقة على الخريطة',
-              'شوێنی ئێستات بە وردی لەسەر نەخشە دیاریکرا',
-              'Your current location has been pinpointed'
+              'تم تحديد موقعك الحالي بنجاح',
+              'شوێنی ئێستات بە سەرکەوتوویی دیاریکرا',
+              'Current location selected'
             )
           );
         },
@@ -305,9 +295,9 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
           }
           showToast(
             tr(
-              'تم التوجيه إلى مركز ناحية باعدرى',
-              'ئاڕاستەکرا بۆ سەنتەری ناحیەی باعەدرێ',
-              'Centered on Baadre district center'
+              'تم التوجيه إلى مركز باعذرة',
+              'ئاڕاستەکرا بۆ سەنتەری باعەدرێ',
+              'Centered on Baadre'
             )
           );
         },
@@ -316,6 +306,28 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
     } else {
       setIsLocating(false);
     }
+  };
+
+  const handleActivateCustomPin = () => {
+    playClickSound();
+    setLocationMode('custom');
+    setShowGreenPin(true);
+    const center = mapInstanceRef.current
+      ? mapInstanceRef.current.getCenter()
+      : BAADRE_CENTER_COORDS;
+    const nextCoords = {
+      lat: Number(center.lat.toFixed(5)),
+      lng: Number(center.lng.toFixed(5)),
+    };
+    setSelectedCoords(nextCoords);
+    onSelectLocation(nextCoords.lat, nextCoords.lng);
+    showToast(
+      tr(
+        'اسحب الرمز الأخضر أو انقر على الخريطة لنقله إلى مكان آخر',
+        'نیشانە سەوزەکە ڕابکێشە یان کلیک لەسەر نەخشە بکە بۆ گۆڕینی شوێن',
+        'Drag the green pin or tap on the map to move it'
+      )
+    );
   };
 
   const handleZoom = (delta: number) => {
@@ -351,8 +363,37 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
           {/* Leaflet Map Container */}
           <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-          {/* Top Floating Close Button (Icon-Only without text) */}
-          <div className="absolute top-3 sm:top-5 inset-x-3 sm:inset-x-6 z-30 flex items-center justify-end pointer-events-none">
+          {/* Top Bar: Nice gentle buttons ("موقعي الحالي" & "موقع آخر") + Close Button */}
+          <div className="absolute top-3 sm:top-5 inset-x-3 sm:inset-x-6 z-30 flex items-center justify-between gap-2 pointer-events-none">
+            <div className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-md p-1.5 rounded-2xl border border-[#BBDDC6] shadow-[0_10px_28px_rgba(30,55,37,0.18)]">
+              <button
+                type="button"
+                onClick={handleLocateMe}
+                disabled={isLocating}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                  locationMode === 'current'
+                    ? 'bg-[#46674D] text-white shadow-xs'
+                    : 'bg-[#F4F9F5] hover:bg-[#E8F4EA] text-[#1E3725]'
+                }`}
+              >
+                <LocateFixed className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
+                <span>{tr('موقعي الحالي', 'شوێنی ئێستام', 'My Current Location')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleActivateCustomPin}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                  locationMode === 'custom'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-[#F4F9F5] hover:bg-[#E8F4EA] text-[#1E3725]'
+                }`}
+              >
+                <MapPin className="w-4 h-4 text-emerald-500 fill-emerald-500/20" />
+                <span>{tr('موقع آخر', 'شوێنێکی تر', 'Another Location')}</span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -384,13 +425,13 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
             )}
           </AnimatePresence>
 
-          {/* Side Harmonious Control Toolbar (Icon-only buttons without text) */}
+          {/* Side Harmonious Control Toolbar */}
           <div
             className={`absolute top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2.5 ${
               isRTL ? 'right-3 sm:right-5' : 'left-3 sm:left-5'
             }`}
           >
-            {/* 1. Satellite Toggle Button (أيقونة ستلايت بدون نصوص) */}
+            {/* Satellite Toggle Button */}
             <button
               type="button"
               onClick={handleToggleSatellite}
@@ -407,20 +448,6 @@ export const FullScreenGoogleMapPickerModal: React.FC<FullScreenGoogleMapPickerM
               ) : (
                 <MapIcon className="w-5 h-5 stroke-[2.2]" />
               )}
-            </button>
-
-            {/* 2. Locate Me Button (تحديد موقعي بدون نصوص) */}
-            <button
-              type="button"
-              onClick={handleLocateMe}
-              disabled={isLocating}
-              aria-label={tr('تحديد موقعي', 'شوێنی من', 'Locate Me')}
-              title={tr('تحديد موقعي', 'شوێنی من', 'Locate Me')}
-              className="w-11 h-11 rounded-2xl bg-white/95 hover:bg-[#E8F4EA] text-[#46674D] border border-[#BBDDC6] shadow-[0_8px_24px_rgba(30,55,37,0.2)] flex items-center justify-center transition-all active:scale-90 cursor-pointer disabled:opacity-70"
-            >
-              <LocateFixed
-                className={`w-5 h-5 stroke-[2.2] ${isLocating ? 'animate-spin' : ''}`}
-              />
             </button>
           </div>
 
@@ -510,6 +537,8 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
   // Default mode: Satellite / Hybrid (mt0-mt3.google.com/vt/lyrs=y)
   const [isSatellite, setIsSatellite] = useState<boolean>(true);
   const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [showGreenPin, setShowGreenPin] = useState<boolean>(false);
+  const [activeBtn, setActiveBtn] = useState<'baadre' | 'current' | 'custom'>('baadre');
 
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const previewMapRef = useRef<L.Map | null>(null);
@@ -519,7 +548,7 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
   const tr = (ar: string, ku: string, en: string) =>
     language === 'ku' ? ku : language === 'en' ? en : ar;
 
-  // Initialize embedded Leaflet preview map
+  // Initialize embedded Leaflet preview map directly on Baadre
   useEffect(() => {
     if (!previewContainerRef.current) return;
 
@@ -528,8 +557,11 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
       previewMapRef.current = null;
     }
 
+    const startLat = BAADRE_CENTER_COORDS.lat;
+    const startLng = BAADRE_CENTER_COORDS.lng;
+
     const map = L.map(previewContainerRef.current, {
-      center: [latitude, longitude],
+      center: [startLat, startLng],
       zoom: 15,
       zoomControl: false,
       attributionControl: false,
@@ -548,13 +580,33 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
     layer.addTo(map);
     previewTileLayerRef.current = layer;
 
-    const marker = L.marker([latitude, longitude], {
-      icon: createCustomPinIcon(latitude, longitude, false),
+    const marker = L.marker([startLat, startLng], {
+      draggable: true,
+      icon: createCustomPinIcon(startLat, startLng, false),
+      opacity: 0,
     }).addTo(map);
 
-    map.on('click', () => {
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      const nextLat = Number(pos.lat.toFixed(5));
+      const nextLng = Number(pos.lng.toFixed(5));
+      marker.setIcon(createCustomPinIcon(nextLat, nextLng, false));
+      marker.setOpacity(1);
+      setShowGreenPin(true);
+      setActiveBtn('custom');
+      onSelectLocation(nextLat, nextLng);
+    });
+
+    map.on('click', (e: L.LeafletMouseEvent) => {
       playClickSound();
-      onOpenFullScreen();
+      const nextLat = Number(e.latlng.lat.toFixed(5));
+      const nextLng = Number(e.latlng.lng.toFixed(5));
+      marker.setLatLng([nextLat, nextLng]);
+      marker.setIcon(createCustomPinIcon(nextLat, nextLng, false));
+      marker.setOpacity(1);
+      setShowGreenPin(true);
+      setActiveBtn('custom');
+      onSelectLocation(nextLat, nextLng);
     });
 
     previewMapRef.current = map;
@@ -596,35 +648,39 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
     previewTileLayerRef.current = nextLayer;
   }, [isSatellite]);
 
-  // Sync marker & center when latitude/longitude props change
+  // Sync marker & center when latitude/longitude or pin visibility change
   useEffect(() => {
     if (previewMarkerRef.current) {
       previewMarkerRef.current.setLatLng([latitude, longitude]);
       previewMarkerRef.current.setIcon(createCustomPinIcon(latitude, longitude, false));
+      previewMarkerRef.current.setOpacity(showGreenPin ? 1 : 0);
     }
-    if (previewMapRef.current) {
-      previewMapRef.current.setView([latitude, longitude], previewMapRef.current.getZoom());
-    }
-  }, [latitude, longitude]);
+  }, [latitude, longitude, showGreenPin]);
 
   const handleQuickLocate = (e: React.MouseEvent) => {
     e.stopPropagation();
     playClickSound();
+    setActiveBtn('current');
+    setShowGreenPin(true);
     setIsLocating(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          onSelectLocation(
-            Number(pos.coords.latitude.toFixed(5)),
-            Number(pos.coords.longitude.toFixed(5))
-          );
+          const nextLat = Number(pos.coords.latitude.toFixed(5));
+          const nextLng = Number(pos.coords.longitude.toFixed(5));
+          onSelectLocation(nextLat, nextLng);
+          if (previewMapRef.current) {
+            previewMapRef.current.flyTo([nextLat, nextLng], 16, { duration: 1.0 });
+          }
           setIsLocating(false);
         },
         () => {
-          onSelectLocation(
-            Number(BAADRE_CENTER_COORDS.lat.toFixed(5)),
-            Number(BAADRE_CENTER_COORDS.lng.toFixed(5))
-          );
+          const nextLat = Number(BAADRE_CENTER_COORDS.lat.toFixed(5));
+          const nextLng = Number(BAADRE_CENTER_COORDS.lng.toFixed(5));
+          onSelectLocation(nextLat, nextLng);
+          if (previewMapRef.current) {
+            previewMapRef.current.flyTo([nextLat, nextLng], 15, { duration: 1.0 });
+          }
           setIsLocating(false);
         },
         { enableHighAccuracy: true, timeout: 6000 }
@@ -634,11 +690,59 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
     }
   };
 
+  const handleOtherLocationClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    playClickSound();
+    setActiveBtn('custom');
+    setShowGreenPin(true);
+    const center = previewMapRef.current
+      ? previewMapRef.current.getCenter()
+      : BAADRE_CENTER_COORDS;
+    const nextLat = Number(center.lat.toFixed(5));
+    const nextLng = Number(center.lng.toFixed(5));
+    onSelectLocation(nextLat, nextLng);
+    if (previewMarkerRef.current) {
+      previewMarkerRef.current.setLatLng([nextLat, nextLng]);
+      previewMarkerRef.current.setOpacity(1);
+    }
+  };
+
   return (
     <div className="p-3.5 rounded-2xl bg-[#F4F9F5] border border-[#BBDDC6] space-y-3 shadow-2xs">
-      {/* Header Row */}
+      {/* Header Row: Nice Gentle Buttons (موقعي الحالي + موقع آخر + فتح الخريطة) */}
       <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleQuickLocate}
+            disabled={isLocating}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-2xs border ${
+              activeBtn === 'current'
+                ? 'bg-[#46674D] text-white border-[#46674D]'
+                : 'bg-white hover:bg-[#E8F4EA] text-[#1E3725] border-[#BBDDC6]'
+            }`}
+          >
+            <LocateFixed className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+            <span>{tr('موقعي الحالي', 'شوێنی ئێستام', 'My Current Location')}</span>
+          </button>
 
+          <button
+            type="button"
+            onClick={handleOtherLocationClick}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-2xs border ${
+              activeBtn === 'custom'
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'bg-white hover:bg-[#E8F4EA] text-[#1E3725] border-[#BBDDC6]'
+            }`}
+          >
+            <MapPin
+              className={`w-3.5 h-3.5 ${
+                activeBtn === 'custom' ? 'text-white' : 'text-emerald-600'
+              }`}
+            />
+            <span>{tr('موقع آخر', 'شوێنێکی تر', 'Another Location')}</span>
+          </button>
+        </div>
 
         {/* Open Full Screen Map Button */}
         <button
@@ -647,24 +751,18 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
             playClickSound();
             onOpenFullScreen();
           }}
-          className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#46674D] to-[#2D4833] hover:from-[#36593F] hover:to-[#1E3725] text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+          className="px-3 py-2 rounded-xl bg-white hover:bg-[#E8F4EA] text-[#2D4833] border border-[#BBDDC6] text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 cursor-pointer"
         >
-          <Maximize2 className="w-3.5 h-3.5 stroke-[2.4]" />
-          <span>
-            {tr(
-              'فتح الخريطة بشاشة كاملة',
-              'کردنەوەی نەخشە بە شاشەی پڕ',
-              'Open Full-Screen Map'
-            )}
-          </span>
+          <Maximize2 className="w-3.5 h-3.5 stroke-[2.2]" />
+          <span>{tr('تكبير الخريطة', 'گەورەکردنی نەخشە', 'Expand Map')}</span>
         </button>
       </div>
 
       {/* Live Leaflet Map Preview Box */}
-      <div className="relative h-48 rounded-2xl overflow-hidden border border-[#BBDDC6] shadow-inner bg-[#E8F4EA]">
-        <div ref={previewContainerRef} className="w-full h-full cursor-pointer z-10" />
+      <div className="relative h-52 rounded-2xl overflow-hidden border border-[#BBDDC6] shadow-inner bg-[#E8F4EA]">
+        <div ref={previewContainerRef} className="w-full h-full cursor-grab active:cursor-grabbing z-10" />
 
-        {/* Mini Floating Quick Controls on Preview (Icon-only without text) */}
+        {/* Mini Floating Quick Controls on Preview */}
         <div
           className={`absolute top-2.5 z-20 flex items-center gap-1.5 ${
             isRTL ? 'right-2.5' : 'left-2.5'
@@ -687,20 +785,9 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
           >
             {isSatellite ? <Satellite className="w-4 h-4" /> : <MapIcon className="w-4 h-4" />}
           </button>
-
-          <button
-            type="button"
-            onClick={handleQuickLocate}
-            disabled={isLocating}
-            aria-label={tr('موقعي', 'شوێنی من', 'Locate Me')}
-            title={tr('موقعي', 'شوێنی من', 'Locate Me')}
-            className="w-9 h-9 rounded-xl bg-white/95 hover:bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6] flex items-center justify-center shadow-sm transition-all cursor-pointer"
-          >
-            <LocateFixed className={`w-4 h-4 text-[#46674D] ${isLocating ? 'animate-spin' : ''}`} />
-          </button>
         </div>
 
-        {/* Bottom Overlay Bar to Open Full Screen */}
+        {/* Bottom Overlay Bar */}
         <div
           onClick={() => {
             playClickSound();
@@ -709,18 +796,24 @@ export const EmbeddedGoogleMapPreviewCard: React.FC<EmbeddedGoogleMapPreviewCard
           className="absolute bottom-2.5 inset-x-2.5 z-20 px-3 py-2 rounded-xl bg-white/95 hover:bg-white backdrop-blur-md border border-[#BBDDC6] shadow-md flex items-center justify-between cursor-pointer transition-all"
         >
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#46674D] animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[11px] font-mono font-black text-[#1E3725]" dir="ltr">
               {latitude.toFixed(5)}, {longitude.toFixed(5)}
             </span>
           </div>
-          <span className="text-[11px] font-black text-[#46674D] flex items-center gap-1">
+          <span className="text-[11px] font-bold text-[#46674D] flex items-center gap-1">
             <Crosshair className="w-3.5 h-3.5" />
-            {tr(
-              'انقر لفتح الشاشة الكاملة وتحديد مكان آخر',
-              'کلیک بکە بۆ شاشەی پڕ و گۆڕینی شوێن',
-              'Tap for full screen & pick another spot'
-            )}
+            {showGreenPin
+              ? tr(
+                  'حرك الرمز الأخضر فوق الخريطة لتحديد الموقع',
+                  'نیشانە سەوزەکە لەسەر نەخشە بجوڵێنە',
+                  'Move the green marker over the map'
+                )
+              : tr(
+                  'خريطة باعذرة المباشرة',
+                  'نەخشەی ڕاستەوخۆی باعەدرێ',
+                  'Direct Map of Baadre'
+                )}
           </span>
         </div>
       </div>

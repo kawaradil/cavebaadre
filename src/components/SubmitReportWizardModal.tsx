@@ -32,6 +32,7 @@ import {
   CivicReport,
   SECTOR_ILLUSTRATIONS,
   formatWhatsAppReportMessage,
+  isReportSentToDepartment,
 } from '../types/baadre';
 import { useBaadre } from '../context/BaadreContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -69,140 +70,140 @@ const SECTOR_EXAMPLES: Record<
 > = {
   roads: {
     ar: [
-      'حفر وتشققات وهبوط في طبقة الأسفلت في الشوارع الرئيسية أو الفرعية.',
-      'تلف أو كسر الأرصفة الجانبية وأحجار الرصيف وبحاجة لتبليط.',
-      'مطبات اصطناعية مكسورة أو غير نظامية بحاجة لإعادة طلاء تحذيري.',
-      'انسداد الطرق بالصخور المتساقطة أو تراكم الأتربة والأنقاض.',
-      'صيانة فتحات العبارات والجسور الصغيرة على الطرق العامة.',
+      'شارع يحتاج صيانة',
+      'حفرة في الشارع',
+      'رصيف متضرر',
+      'مطب غير نظامي',
+      'أنقاض في الطريق',
     ],
     ku: [
-      'چاڵ، دابەزین و درزبردن لە قیڕی شەقامە گشتی و لاوەکییەکاندا.',
-      'تێکچوون یان شکانی شۆستەکان و بەردی شۆستە و پێویستی قیرتاوکردن.',
-      'کەند و بەربەستی خێرایی شکاو یان نانیزامی کە بۆیاخیان دەوێت.',
-      'گیرانی ڕێگاوبان بەهۆی کەوتنی بەرد یان پاشماوەی بیناسازی.',
-      'نۆژەنکردنەوەی پردە بچووکەکان و ڕێڕەوەکانی هاتوچۆ.',
+      'شەقام پێویستی بە چاککردنە',
+      'چاڵ لەسەر شەقام',
+      'شۆستەی تێکچوو',
+      'تاسەی نایاسایی',
+      'پاشماوە لەسەر ڕێگا',
     ],
     en: [
-      'Potholes, cracks, and asphalt sinking on main or branch roads.',
-      'Damaged or missing sidewalks and road curb stones.',
-      'Broken or irregular speed bumps needing warning paint.',
-      'Road blockages due to fallen rocks, mud, or rubble.',
-      'Maintenance of culverts and small bridges on public roads.',
+      'Street needs maintenance',
+      'Pothole on the street',
+      'Damaged sidewalk',
+      'Irregular speed bump',
+      'Debris on the road',
     ],
   },
   water: {
     ar: [
-      'كسر في خطوط وأنابيب الإسالة الرئيسية أو الفرعية وهدر المياه.',
-      'تسربات مياه غير مرئية تسبب رطوبة وهبوطاً في التربة أو الشارع.',
-      'انقطاع تام لمياه الشرب عن حي معين أو ضعف شديد في ضغط الضخ.',
-      'أعطال في المحابس الرئيسية وفتحات التحكم بشبكة المياه.',
-      'تلوث أو تغير في طعم أو لون مياه الشرب الواردة للمنازل.',
+      'كسر أنبوب مياه',
+      'تسرب مياه مستمر',
+      'انقطاع مياه الشرب',
+      'ضعف ضخ المياه',
+      'عطل قفل المياه',
     ],
     ku: [
-      'شکانی بۆرییە سەرەکی یان لاوەکییەکانی ئاو و بەفیڕۆچوونی ئاو.',
-      'دزەکردنی ئاو کە دەبێتە هۆی شێداری و دابەزینی زەوی و شەقام.',
-      'بڕانی تەواوەتی ئاوی خواردنەوە لە گەڕەکێک یان لاوازی زۆری پەستان.',
-      'تێکچوونی قوفڵە سەرەکییەکان و کۆنتڕۆڵی تۆڕی ئاو.',
-      'لێڵبوون یان گۆڕانی تام و ڕەنگی ئاوی خواردنەوەی ماڵان.',
+      'شکانی بۆری ئاو',
+      'دزەکردنی بەردەوامی ئاو',
+      'بڕانی ئاوی خواردنەوە',
+      'لاوازی پەستانی ئاو',
+      'تێکچوونی قوفڵی ئاو',
     ],
     en: [
-      'Burst municipal water pipes causing street flooding & wastage.',
-      'Underground leaks causing soil erosion or pavement damage.',
-      'Drinking water outages or severe water pressure drops.',
-      'Broken main valves and water distribution regulators.',
-      'Discoloration, turbidity, or odor in domestic tap water.',
+      'Broken water pipe',
+      'Continuous water leak',
+      'Water supply outage',
+      'Weak water pressure',
+      'Faulty water valve',
     ],
   },
   sewage: {
     ar: [
-      'طفح مياه الصرف الصحي والمجاري في الشارع أو أمام المنازل.',
-      'انسداد مشابك وفتحات تصريف مياه الأمطار والسيول.',
-      'أغطية المنهولات المكسورة أو المفقودة والتي تشكل خطراً كبيراً.',
-      'انبعاث روائح مجاري كريهة ومستمرة من فتحات التصريف.',
-      'هبوط التربة والشارع حول فتحات التفتيش وغرف المجاري.',
+      'انسداد أو طفح مجاري',
+      'غطاء منهول مفقود',
+      'تجمع مياه أمطار',
+      'روائح مجاري كريهة',
+      'كسر ساقية تصريف',
     ],
     ku: [
-      'زێدەڕۆیی و ڕژانی ئاوەڕۆ لەسەر شەقام یان بەردەم ماڵان.',
-      'گیرانی مەنهۆڵ و کانیەکانی ئاوی باراناو لە وەرزی زستاندا.',
-      'سەری مەنهۆڵی شکاو یان ونبوو کە مەترسییە بۆ سەلامەتی.',
-      'بڵاوبوونەوەی بۆنی زۆر ناخۆش لە ڕێڕەوەکانی ئاوەڕۆوە.',
-      'دابەزینی زەوی و شەقام لە دەوری چاڵەکانی پشکنینی ئاوەڕۆ.',
+      'گیران یان ڕژانی ئاوەڕۆ',
+      'سەری مەنهۆڵی نەماو',
+      'کۆبوونەوەی ئاوی باران',
+      'بۆنی ناخۆشی ئاوەڕۆ',
+      'شکانی جۆگەی ئاوەڕۆ',
     ],
     en: [
-      'Sewage overflow onto roads, sidewalks, or near residences.',
-      'Clogged stormwater grates and rain drainage channels.',
-      'Broken or missing manhole covers posing pedestrian/car hazard.',
-      'Persistent foul sewage fumes and odors from drains.',
-      'Ground subsidence around sewage inspection chambers.',
+      'Blocked or overflowing sewage',
+      'Missing manhole cover',
+      'Rainwater accumulation',
+      'Foul sewage odor',
+      'Broken drainage channel',
     ],
   },
   lighting: {
     ar: [
-      'مصابيح الإنارة المطفأة ليلاً في الشوارع أو الأزقة الداخلية.',
-      'أسلاك كهربائية متدلية من الأعمدة تشكل خطراً على حياة السكان.',
-      'أعمدة إنارة مائلة أو متآكلة من القاعدة ومعرضة للسقوط.',
-      'لوحات تغذية ومفاتيح الإنارة المكشوفة أو التالفة.',
-      'ظلام تام في تقاطعات أو ساحات عامة بحاجة لإنارة إضافية.',
+      'إنارة مكسورة أو مطفأة',
+      'سلك كهرباء متدلٍ',
+      'عمود إنارة مائل',
+      'عطل صندوق كهرباء',
+      'زقاق مظلم يحتاج إنارة',
     ],
     ku: [
-      'کوژانەوەی گلۆپەکانی ڕووناکی شەقام لە شەواندا لە گەڕەکەکاندا.',
-      'وایەر و تێلی شۆڕبووەوە لە ستوونەکان کە مەترسییە بۆ سەر ژیانی خەڵک.',
-      'ستوونی کارەبای لاربووەوە یان تێکچوو لە بنکەکەیەوە کە مەترسی کەوتنی هەیە.',
-      'تابڵۆی کارەبای سەر شەقام کە کراوەتەوە یان سووتاوە.',
-      'تاریکی تەواو لە چوارڕیان یان گۆڕەپانە گشتییەکان کە پێویستی بە ڕووناکییە.',
+      'ڕووناکی شکاو یان کوژاوە',
+      'تێلی کارەبای شۆڕبووەوە',
+      'ستوونی کارەبای لاربوو',
+      'تێکچوونی بۆکسی کارەبا',
+      'کۆڵانی تاریک پێویستی بە ڕووناکییە',
     ],
     en: [
-      'Streetlight failures and dark areas along roads at night.',
-      'Dangling, exposed, or sparking electrical wires on poles.',
-      'Tilted, damaged, or severely corroded lighting poles.',
-      'Vandalized or damaged public electrical power panels.',
-      'Total lighting blackout across road intersections or squares.',
+      'Broken or off streetlight',
+      'Low-hanging electric wire',
+      'Tilted utility pole',
+      'Faulty electric box',
+      'Dark alley needs lighting',
     ],
   },
   sanitation: {
     ar: [
-      'تراكم النفايات والأوساخ في الساحات العامة أو بجانب الأرصفة.',
-      'حاويات نفايات ممتلئة لم يتم تفريغها أو حاويات مكسورة تالفة.',
-      'صيانة ألعاب الأطفال والمقاعد في الحدائق والمتنزهات العامة.',
-      'أغصان الأشجار الكثيفة المتداخلة مع أسلاك الكهرباء أو تحجب الرؤية.',
-      'انتشار الحشرات أو القوارض والكلاب السائبة وبحاجة لحملات مكافحة.',
+      'تراكم نفايات',
+      'حاوية قمامة ممتلئة',
+      'حاوية نفايات مكسورة',
+      'صيانة حديقة عامة',
+      'أغصان أشجار تعيق الطريق',
     ],
     ku: [
-      'کۆبوونەوەی زبڵ و خاشاک لە گۆڕەپانە گشتییەکان یان تەنیشت شۆستە.',
-      'سەبەتەی زبڵی پڕبوو کە بەتاڵ نەکراوەتەوە یان سەبەتەی شکاو.',
-      'خزمەتگوزاری یاری منداڵان و کورسییەکانی باخچە و سەیرانگا گشتییەکان.',
-      'لقی درەختەکان کە تێکەڵ بە وایەری کارەبا بوون یان ڕێگری لە بینین دەکەن.',
-      'بڵاوبوونەوەی مێروو یان سەگی بێلانە کە پێویستی بە دەرمانڕێژکردنە.',
+      'کۆبوونەوەی زبڵ و خاشاک',
+      'سەبەتەی زبڵی پڕبوو',
+      'سەبەتەی زبڵی شکاو',
+      'چاککردنی باخچەی گشتی',
+      'لقی درەخت ڕێگری دەکات',
     ],
     en: [
-      'Accumulation of trash and garbage in open spaces or sidewalks.',
-      'Overflowing or damaged municipal trash dumpsters and bins.',
-      'Maintenance of benches and kids play equipment in parks.',
-      'Overgrown tree branches entangling wires or blocking road sight.',
-      'Pest and stray animal proliferation requiring municipality action.',
+      'Trash accumulation',
+      'Full garbage bin',
+      'Broken trash container',
+      'Public park maintenance',
+      'Tree branches blocking road',
     ],
   },
   other: {
     ar: [
-      'التجاوز على الأرصفة العامة أو بناء بدون ترخيص يعيق حركة السير.',
-      'لوحات إرشادية وتسميات شوارع تالفة أو مفقودة.',
-      'مباني قديمة مهجورة آيلة للسقوط تشكل تهديداً لسلامة المارة.',
-      'شكاوى الضوضاء الصادرة من المعامل أو الورش غير المرخصة وسط الأحياء.',
-      'بلاغات الطوارئ البلدية والخدمات التي لا تندرج تحت القطاعات الأخرى.',
+      'تجاوز على الرصيف',
+      'لوحة إرشادية متضررة',
+      'مبنى مهجور خطر',
+      'حفرة أعمال مكشوفة',
+      'خدمة بلدية أخرى',
     ],
     ku: [
-      'زێدەڕۆیی بۆ سەر شۆستەی گشتی یان دروستکردنی ناڕەوا کە ڕێگا دەگرێت.',
-      'هێماکانی هاتوچۆ و تابلۆی ناوی شەقامەکان کە تێکچوون یان نەماون.',
-      'خانووی کۆن و چۆڵکراو کە مەترسی ڕووخانی هەیە بەسەر خەڵکدا.',
-      'دەنگەدەنگ و بێزاری لە کارگە و وەرشەی ناڕێگەپێدراو لەناو گەڕەکدا.',
-      'سکاڵا و فریاکەوتنی گشتی کە لە کەرتەکانی تردا جێگەی نابێتەوە.',
+      'زێدەڕۆیی سەر شۆستە',
+      'تابلۆی هاتوچۆی تێکچوو',
+      'بینای چۆڵکراوی مەترسیدار',
+      'چاڵی کارکردنی سەرنەپۆشراو',
+      'خزمەتگوزاری تری شارەوانی',
     ],
     en: [
-      'Illegal building encroachments obstructing walkways or streets.',
-      'Missing or damaged street direction signs and traffic boards.',
-      'Dilapidated abandoned buildings threatening pedestrian safety.',
-      'Excessive noise from unlicensed industrial shops in neighborhoods.',
-      'General civic emergency requests not covered by other sectors.',
+      'Sidewalk encroachment',
+      'Damaged street sign',
+      'Hazardous abandoned building',
+      'Open utility trench',
+      'Other municipal service',
     ],
   },
 };
@@ -216,40 +217,52 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
   roads: {
     titles: {
       ar: [
-        'حفر وتكسرات عميقة في طبقة الأسفلت',
-        'هبوط في أرضية الشارع الرئيسي',
-        'رصيف جانبي متضرر وبحاجة لتبليط وصيانة',
-        'مطبات اصطناعية بحاجة لإعادة طلاء وترميم',
-        'انسداد الطريق بسبب صخور وأتربة منجرفة',
-        'صيانة جسر صغير أو عبّارة مياه على الطريق',
-        'تشققات طولية وعرضية في مسار السيارات',
-        'تآكل حواف الطريق وتكسر الأكتاف الجانبية',
-        'تجمع حصى ومخلفات بناء يعيق حركة السير',
-        'فرع زقاق غير مبلط ويتحول إلى وحل شتاءً',
+        'حفرة في الشارع',
+        'رصيف متضرر يحتاج صيانة',
+        'أتربة وصخور في الطريق',
+        'مطب يحتاج طلاء وترميم',
+        'هبوط في الأسفلت',
+        'صيانة عبّارة الطريق',
+        'تشققات في الشارع',
+        'تآكل حافة الطريق',
+        'حصى ومخلفات على الطريق',
+        'شارع فرعي يحتاج تبليط',
+        'انزلاق صخري قرب المنعطف',
+        'ممر مشاة غير مخطط',
+        'رصيف مدرسي متكسر',
+        'حاجز مروري مكسور',
       ],
       ku: [
-        'چاڵ و درزبردن لە قیڕی شەقام',
-        'دابەزینی قیڕی شەقامی سەرەکی',
-        'تێکچوونی شۆستە و پێویستی قیرتاوکردن',
-        'کەند و بەربەستی خێرایی پێویستی بە بۆیاخە',
-        'گیرانی ڕێگاوبان بە بەرد و خۆڵی باراناو',
-        'نۆژەنکردنەوەی پردی بچووک یان ڕێڕەوی ئاو',
-        'درزی درێژی و پانی لەسەر ڕێڕەوی ئۆتۆمبێل',
-        'داڕمانی قەراغی شەقام و تێکچوونی لێوارەکان',
-        'کۆبوونەوەی چەو و پاشماوەی بیناسازی لەسەر ڕێگا',
-        'کۆڵانی قیرتاونەکراو کە لە زستاندا دەبێتە قوڕ',
+        'چاڵ لەسەر شەقام',
+        'شۆستەی تێکچوو پێویستی بە چاککردنە',
+        'بەرد و خۆڵ لەسەر ڕێگا',
+        'تاسە پێویستی بە بۆیاخ و چاککردنە',
+        'دابەزینی قیڕی شەقام',
+        'چاککردنی ئاوبەری ڕێگا',
+        'درزبردن لە قیڕی شەقام',
+        'داڕمانی قەراغی شەقام',
+        'چەو و پاشماوە لەسەر ڕێگا',
+        'کۆڵان پێویستی بە قیرتاوکردنە',
+        'خلیسکی بەرد لە نزیک پێچ',
+        'ڕێڕەوی پیادەی بێ هێڵکاری',
+        'شۆستەی قوتابخانەی تێکچوو',
+        'بەربەستی هاتوچۆی شکاو',
       ],
       en: [
-        'Deep potholes and asphalt cracks',
-        'Main street pavement subsidence',
-        'Damaged sidewalk needing paving and repair',
-        'Speed bumps needing repainting and leveling',
-        'Roadway blocked by fallen rocks and debris',
-        'Culvert or small bridge maintenance',
-        'Longitudinal and transverse cracks in traffic lane',
-        'Eroded road edges and damaged shoulder curbs',
-        'Loose gravel and rubble obstructing vehicle flow',
-        'Unpaved residential alley turning muddy in winter',
+        'Pothole on the street',
+        'Damaged sidewalk needs repair',
+        'Rocks & dirt on roadway',
+        'Speed bump needs paint & repair',
+        'Asphalt road subsidence',
+        'Road culvert maintenance',
+        'Cracks in street asphalt',
+        'Eroded road edge',
+        'Gravel & debris on road',
+        'Alley needs paving',
+        'Rock slide near road curve',
+        'Unmarked pedestrian crossing',
+        'Damaged school sidewalk',
+        'Broken traffic guardrail',
       ],
     },
     descriptions: {
@@ -264,6 +277,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'حواف الشارع الجانبية متآكلة ومنحدرة بشدة مما يشكل خطراً عند محاولة المركبات التوقف أو التجاوز.',
         'وجود بقايا حصى ورمل متناثر على منعطف الطريق يسبب انزلاق العجلات ويشكل خطراً على الدراجات والسيارات.',
         'هذا الزقاق الفرعي بحاجة ماسة إلى التسوية والفرش أو التبليط لتسهيل وصول الأهالي وسيارات الطوارئ.',
+        'تساقط صخور وحصى من التل المجاور على المنعطف يشكل خطراً كبيراً على السيارات القادمة مسرعة.',
+        'عدم وجود خطوط عبور مشاة واضحة أمام المدارس والمحلات يعرض الطلاب والأهالي لمخاطر دهس مستمرة.',
+        'رصيف المشاة المؤدي إلى المدرسة متهالك وبلاطاته مقلوعة مما يجبر الطلاب على السير وسط حركة السير.',
+        'حاجز الحماية الفولاذي على حافة الوادي مكسور بعد حادث مروري وبحاجة إلى صيانة عاجلة لحماية السيارات.',
       ],
       ku: [
         'چاڵی قووڵ لە ناوەڕاستی شەقام هەیە کە زیان بە ئۆتۆمبێلی خەڵک دەگەیەنێت و پێویستی بە قیڕتاوکردنە.',
@@ -276,6 +293,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'قەراغی شەقامەکە داڕماوە و تێکچووە و مەترسی دروست دەکات کاتێک ئۆتۆمبێل لادەدات یان دەوەستێت.',
         'چەو و لمی پەرشوبڵاو لەسەر پێچی شەقامەکە کەوتووە و دەبێتە هۆی خلیسکانی تایەی ئۆتۆمبێلەکان.',
         'ئەم کۆڵانە پێویستی بە تێکەڵەڕێژکردن یان قیڕتاوکردن هەیە بۆ ئاسانکاری هاتوچۆی دانیشتووان.',
+        'کەوتنی بەرد و چەو لە گردەکەوە بۆ سەر پێچی شەقام مەترسییە بۆ سەر شۆفێران.',
+        'نەبوونی هێڵی پەڕینەوەی پیادە لە بەردەم قوتابخانەکان مەترسی لەسەر ژیانی قوتابیان دروست دەکات.',
+        'شۆستەی ڕێگای قوتابخانە تێکچووە و قوتابیان ناچارن لە ناوەڕاستی شەقام هاتوچۆ بکەن.',
+        'پەرژینی پارێزگاری قەراغ دۆڵەکە دوای ڕووداوێک شکاوە و پێویستی بە چاککردنەوەی خێرایە.',
       ],
       en: [
         'Deep potholes in the middle of the road damaging vehicles and causing traffic delays, especially at night.',
@@ -288,46 +309,62 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'Roadside shoulders are severely eroded, creating a drop-off hazard when vehicles pull over.',
         'Scattered gravel and sand on the road curve causing tire skidding and safety risks for motorists.',
         'This residential alley urgently needs grading and paving to allow safe passage for residents and emergency vehicles.',
+        'Rocks and gravel falling from the adjacent hill onto the road bend pose a serious hazard to fast-moving cars.',
+        'Lack of clear pedestrian zebra crossings near schools exposes students and pedestrians to severe traffic risks.',
+        'Paved walkway leading to the elementary school is heavily broken, forcing students onto the busy roadway.',
+        'Steel safety guardrail along the ravine edge is broken following an accident and needs immediate replacement.',
       ],
     },
   },
   water: {
     titles: {
       ar: [
-        'كسر في خط وأنبوب مياه رئيسي',
-        'تسرب مياه مستمر تحت الأسفلت',
-        'انقطاع تام لمياه الشرب عن الحي',
-        'ضعف شديد في ضغط ضخ المياه',
-        'عطل في محبس تحكم شبكة المياه',
-        'تلوث أو تغير في لون وطعم مياه الإسالة',
-        'كسر في أنبوب التوصيل الفرعي أمام المنازل',
-        'تجمع مياه راكدة بسبب نضوح مستمر بالشبكة',
-        'تأخر جدول توزيع وضخ المياه عن الموعد',
-        'صوت تسرب قوي في قفل المياه الرئيسي بالزقاق',
+        'كسر أنبوب مياه رئيسي',
+        'تسرب مياه تحت الأسفلت',
+        'انقطاع مياه الشرب',
+        'تغير لون أو نقاوة المياه',
+        'ضعف ضخ المياه',
+        'عطل قفل المياه الرئيسي',
+        'كسر أنبوب مياه فرعي',
+        'تسرب مياه بجانب الرصيف',
+        'تأخر ضخ المياه للحي',
+        'غرفة صمام مياه مكشوفة',
+        'عطل بمضخة خزان الحي',
+        'صدأ في شبكة المياه الفرعية',
+        'كسر وصلة تغذية مدرسة',
+        'هدر مياه في مبنى عام',
       ],
       ku: [
         'شکانی بۆری ئاوی سەرەکی',
-        'دزەکردنی بەردەوامی ئاو لەژێر قیڕدا',
-        'بڕانی تەواوەتی ئاوی خواردنەوە لە گەڕەک',
-        'لاوازی زۆری پەستانی ئاو',
-        'تێکچوونی قوفڵی سەرەکی تۆڕی ئاو',
-        'لێڵبوون یان گۆڕانی تامی ئاوی ماڵان',
-        'شکانی بۆری فەرعی ئاو لە بەردەم ماڵان',
-        'کۆبوونەوەی ئاوی وەستاو بەهۆی دزەکردنی تۆڕی ئاو',
-        'دواکەوتنی کاتی بەردانەوەی ئاوی گەڕەک',
-        'دەنگ و دزەکردنی بەهێز لە قوفڵی ئاوی کۆڵانەکە',
+        'دزەکردنی ئاو لەژێر قیڕ',
+        'بڕانی ئاوی خواردنەوە',
+        'لێڵبوونی ئاوی ماڵان',
+        'لاوازی پەستانی ئاو',
+        'تێکچوونی قوفڵی سەرەکی ئاو',
+        'شکانی بۆری فەرعی ئاو',
+        'دزەکردنی ئاو لە تەنیشت شۆستە',
+        'دواکەوتنی بەردانەوەی ئاو',
+        'شوێنی قوفڵی ئاوی سەرنەپۆشراو',
+        'تێکچوونی پەمپی تانکی گەڕەک',
+        'ژەنگ لە تۆڕی فەرعی ئاو',
+        'شکانی بۆری ئاوی قوتابخانە',
+        'بەفیڕۆچوونی ئاو لە بینای گشتی',
       ],
       en: [
-        'Burst main water pipeline',
-        'Continuous underground water leakage',
-        'Complete drinking water outage in neighborhood',
-        'Severe drop in water supply pressure',
-        'Faulty municipal water valve',
-        'Turbid or discolored municipal tap water',
-        'Broken branch water pipe in front of homes',
-        'Stagnant water pooling from continuous network seepage',
-        'Delayed water pumping schedule in the sector',
-        'Heavy leak from main alley water control valve',
+        'Broken main water pipe',
+        'Water leak under asphalt',
+        'Drinking water outage',
+        'Discolored tap water',
+        'Weak water pressure',
+        'Faulty main water valve',
+        'Broken branch water pipe',
+        'Curbside water leak',
+        'Delayed water schedule',
+        'Uncovered water valve box',
+        'Neighborhood tank pump failure',
+        'Rust in local water line',
+        'Broken school water connection',
+        'Water waste at public facility',
       ],
     },
     descriptions: {
@@ -342,6 +379,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'خروج مياه مستمر من حافة الرصيف عند تشغيل الضخ مما يدل على ثقب في الأنبوب المدفون تحت الأرض.',
         'لم يتم ضخ المياه لهذا القطاع في الموعد المقرر وبدأت خزانات الأهالي بالنفاد، نرجو المتابعة.',
         'غطاء غرفة محبس المياه مكشوف وممتلئ بالمياه المتسربة ويحتاج إلى صيانة وتبديل التوصيلات التالفة.',
+        'توقف مضخة التغذية التابعة لخزان مياه الحي مما أدى إلى انقطاع فوري للإمدادات عن كافة المنازل المحيطة.',
+        'مياه الشرب تصل محملة بآثار صدأ وترسبات حديدية نتيجة تآكل الأنابيب القديمة وتحتاج الشبكة لغسيل وصيانة.',
+        'انكسار أنبوب التغذية المائي للمدرسة الحكومية مما سبب تشكل مستنقع مائي أمام البوابة الرئيسية.',
+        'تسرب وهدر مستمر لمياه الشرب من خزانات أو صمامات مبنى عام دون صيانة منذ أيام.',
       ],
       ku: [
         'شکانی بۆری سەرەکی ئاو کە دەبێتە هۆی بەفیڕۆچوونی ئاوێکی زۆر و دروستبوونی گۆمی ئاو لە شەقامدا.',
@@ -354,6 +395,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'لە کاتی بەردانەوەی ئاودا لە تەنیشت شۆستەکەوە ئاوێکی زۆر دێتە دەرەوە و نیشانەی شکانی بۆری ژێر زەوییە.',
         'لە کاتی دیاریکراودا ئاو بۆ ئەم کەرتە بەرنەدراوەتەوە و تانکی ماڵەکان خەریکە تەواو دەبێت.',
         'شوێنی قوفڵی ئاوەکە سەری نەماوە و پڕ بووە لە ئاوی دزەکردوو و پێویستی بە چاککردنەوەی بەپەلە هەیە.',
+        'پەمپی ئاوی تانکی گەڕەک لەکارکەوتووە و بووەتە هۆی بڕانی تەواوەتی ئاو لە ماڵەکان.',
+        'ئاوی خواردنەوە ژەنگی پێوەیە بەهۆی کۆنی بۆرییەکانەوە و پێویستی بە شۆردن و گۆڕین هەیە.',
+        'شکانی بۆری ئاوی قوتابخانە کە بووەتە هۆی دروستبوونی گۆماو لە بەردەم دەرگای سەرەکی.',
+        'بەفیڕۆچوونی بەردەوامی ئاوی خواردنەوە لە بینایەکی گشتی بەبێ چاککردنەوە.',
       ],
       en: [
         'Burst municipal main line causing massive drinking water loss and street flooding that obstructs access.',
@@ -366,46 +411,62 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'Water gushes from beneath the curb whenever pumping starts, indicating a ruptured underground pipe.',
         'Scheduled water supply has been delayed for this sector and household reserves are running dry.',
         'Water valve chamber is uncovered and flooded with leaking water, requiring urgent fitting replacement.',
+        'Neighborhood booster pump stopped operating, cutting water supplies to surrounding homes.',
+        'Tap water arrives rusty with particulate sediment due to aged pipe corrosion, requiring system flushing.',
+        'School water feed line burst, forming a water pool directly in front of the main school gate.',
+        'Continuous potable water leakage and waste from public building fixtures requiring maintenance.',
       ],
     },
   },
   sewage: {
     titles: {
       ar: [
-        'طفح مياه الصرف الصحي في الشارع',
-        'انسداد مشبك تصريف مياه الأمطار',
-        'غطاء منهول مكسور أو مفقود يشكل خطراً',
-        'انبعاث روائح مجاري كريهة ومستمرة',
-        'هبوط في الأرضية حول فتحة المجاري',
-        'انسداد في خط المجاري الرئيسي للحي',
-        'كسر في ساقية تصريف المياه الجانبية',
-        'تجمع مياه آسنة ومستنقع في نهاية الزقاق',
-        'ارتداد مياه الصرف نحو مداخل المنازل',
-        'حاجة لتسليك وتنظيف مناهيل الشارع قبل المطر',
+        'طفح مجاري في الشارع',
+        'غطاء منهول مفقود أو مكسور',
+        'انسداد مشبك مياه الأمطار',
+        'روائح مجاري كريهة',
+        'هبوط حول فتحة المنهول',
+        'انسداد خط المجاري الرئيسي',
+        'كسر ساقية تصريف المياه',
+        'تجمع مياه آسنة بالزقاق',
+        'ارتداد مياه الصرف للمنازل',
+        'حاجة لتنظيف مناهيل الشارع',
+        'انسداد ساقية مياه الأمطار',
+        'تجمع مياه راكدة أمام المسجد',
+        'تآكل جدران مجرى الصرف',
+        'تسرب مجاري لأرضية ترابية',
       ],
       ku: [
-        'ڕژانی ئاوەڕۆ لەسەر شەقام',
-        'گیرانی کانی و مەنهۆڵی ئاوی باراناو',
-        'سەری مەنهۆڵی شکاو یان دیارنەماو',
-        'بڵاوبوونەوەی بۆنی ناخۆشی ئاوەڕۆ',
-        'دابەزینی زەوی لە دەوری مەنهۆڵ',
-        'گیرانی هێڵی سەرەکی ئاوەڕۆی گەڕەک',
-        'شکانی جۆگەی ئاوەڕۆی تەنیشت شەقام',
-        'کۆبوونەوەی ئاوی پیس لە کۆتایی کۆڵان',
-        'گەڕانەوەی ئاوی ئاوەڕۆ بۆ ناو ماڵان',
-        'پێویستی پاککردنەوەی مەنهۆڵەکان پێش وەرزی باران',
+        'ڕژانی ئاوەڕۆ لە شەقام',
+        'سەری مەنهۆڵی شکاو یان نەماو',
+        'گیرانی مەنهۆڵی باراناو',
+        'بۆنی ناخۆشی ئاوەڕۆ',
+        'دابەزینی زەوی دەوری مەنهۆڵ',
+        'گیرانی بۆری سەرەکی ئاوەڕۆ',
+        'شکانی جۆگەی ئاوەڕۆ',
+        'کۆبوونەوەی ئاوی پیس لە کۆڵان',
+        'گەڕانەوەی ئاوەڕۆ بۆ ماڵان',
+        'پێویستی پاککردنەوەی مەنهۆڵەکان',
+        'گیرانی جۆگەی ئاوی باران',
+        'کۆبوونەوەی ئاوی پیس لای مزگەوت',
+        'داڕمانی دیواری جۆگەی ئاوەڕۆ',
+        'دزەکردنی ئاوەڕۆ بۆ زەوی',
       ],
       en: [
-        'Sewage overflow on the public street',
-        'Clogged rainwater drainage grate',
-        'Broken or missing manhole cover',
-        'Persistent foul sewage fumes and odors',
-        'Ground collapse around sewage manhole',
-        'Blockage in main neighborhood sewer line',
-        'Broken roadside drainage channel',
-        'Stagnant wastewater pool at the end of alley',
-        'Sewage backflow toward residential entrances',
-        'Manholes needing desilting and cleaning before rain',
+        'Sewage overflow on street',
+        'Missing or broken manhole cover',
+        'Clogged rainwater drain',
+        'Foul sewage odors',
+        'Ground collapse near manhole',
+        'Blocked main sewer line',
+        'Broken drainage channel',
+        'Stagnant wastewater pool',
+        'Sewage backflow to homes',
+        'Manholes need cleaning',
+        'Blocked rainwater gutter',
+        'Stagnant puddle near mosque',
+        'Drain channel wall collapse',
+        'Sewage leak into dirt lot',
       ],
     },
     descriptions: {
@@ -420,6 +481,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'تجمع مستنقع من المياه الآسنة والراكدة في المنخفض الموجود بنهاية الشارع يجلب البعوض والحشرات الضارة.',
         'ضيق وانسداد مجرى الصرف يتسبب بارتداد المياه المتسخة باتجاه أرصفة ومداخل البيوت المجاورة.',
         'المناهيل ومشابك الأمطار في هذا الشارع ممتلئة بالطين والأوساخ وتحتاج إلى حملة تنظيف وتسليك عاجلة.',
+        'انسداد ساقية تصريف الأمطار المكشوفة بالقمامة والطين مما يؤدي إلى فيضان المياه فوق الطريق عند كل زخّة مطر.',
+        'تجمع مستنقع مائي راكد من الصرف السطحي بجوار المسجد يعيق دخول المصلين وينشر الحشرات والروائح.',
+        'تصدع وانهيار جزئي في الجدران الإسمنتية لمجرى الصرف المكشوف مما يهدد بتآكل أساسات الطريق المجاورة.',
+        'تسرب مياه الصرف الصحي إلى ساحة ترابية مجاورة للبيوت السكنية مما يلوث التربة ويخلق بؤرة بيئية سيئة.',
       ],
       ku: [
         'ڕژانی ئاوی پیسی ئاوەڕۆ لە بەردەم ماڵان و دووکانەکان کە بۆنی ناخۆش و مەترسی تەندروستی دروستکردووە.',
@@ -432,6 +497,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'کۆبوونەوەی گۆماوی ئاوی پیس و وەستاو لە خوارەوەی شەقامەکە کە بووەتە سەرچاوەی مێشوولە و نەخۆشی.',
         'بەهۆی گیرانی ڕێڕەوی ئاوەڕۆکەوە ئاوی پیس دەگەڕێتەوە بۆ بەردەم دەرگای ماڵەکانی گەڕەک.',
         'مەنهۆڵ و تۆڕی باراناوی ئەم شەقامە پڕ بوون لە قوڕ و پاشماوە و پێویستیان بە پاککردنەوەی خێرایە.',
+        'گیرانی جۆگەی کراوەی باراناو بە زبڵ و قوڕ کە دەبێتە هۆی لافاو لەسەر شەقام.',
+        'کۆبوونەوەی گۆماوی پیس لە بەردەم مزگەوت کە ڕێگری لە نوێژخوێنان دەکات.',
+        'داڕمانی دیواری کۆنکریتی جۆگەی ئاوەڕۆ کە مەترسی لەسەر بناغەی شەقامەکە دروست دەکات.',
+        'دزەکردنی ئاوی پیسی ئاوەڕۆ بۆ گۆڕەپانی نزیک ماڵان کە ژینگە پیس دەکات.',
       ],
       en: [
         'Sewage flooding in front of houses and shops creating severe health hazards and foul smells.',
@@ -444,46 +513,62 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'Stagnant wastewater puddle at the low end of the street breeding mosquitoes and creating unsanitary conditions.',
         'Clogged sewer conduit causing dirty water to back up toward adjacent house entrances and walkways.',
         'Storm grates and manholes along this street are packed with mud and require urgent desilting.',
+        'Open stormwater channel clogged with mud and litter, overflowing onto the street during rain.',
+        'Stagnant runoff puddle next to the neighborhood mosque impeding worshippers and attracting insects.',
+        'Partial collapse of the concrete sewer ditch sidewall threatening adjacent roadway foundation.',
+        'Sewage seepage into an open unpaved lot next to residences, creating unsanitary soil contamination.',
       ],
     },
   },
   lighting: {
     titles: {
       ar: [
-        'انطفاء أعمدة الإنارة في الشارع ليلاً',
-        'أسلاك كهربائية متدلية ومكشوفة من العمود',
-        'عمود إنارة مائل ومعرض للسقوط',
-        'عطل في صندوق ولوحة مفاتيح الإنارة',
-        'ظلام تام في تقاطع حيوي أو ساحة عامة',
-        'احتراق مصباح LED في عمود الإنارة',
-        'تشابك أغصان الأشجار مع أسلاك الإنارة',
-        'تماس كهربائي أو شرار في عمود الإنارة',
-        'عمل مصابيح الشارع نهاراً وانطفاؤها ليلاً',
-        'حاجة لنصب وحدة إنارة في زقاق مظلم',
+        'انطفاء إنارة الشارع',
+        'سلك كهرباء متدلٍ وخطر',
+        'عمود كهرباء مائل',
+        'إنارة مكسورة أو متقطعة',
+        'صندوق كهرباء مكشوف',
+        'تماس وشرار في العمود',
+        'خلل مؤقت الإنارة النهاري',
+        'أشجار تلامس أسلاك الكهرباء',
+        'تقاطع مظلم يحتاج إنارة',
+        'زقاق مظلم يحتاج مصباح',
+        'عمود إنارة مائل قرب الملعب',
+        'كابل كهربائي مكشوف على الأرض',
+        'انطفاء كامل لإنارة المدخل',
+        'كسر غطاء مصباح عمود الإنارة',
       ],
       ku: [
-        'کوژانەوەی ستوونەکانی ڕووناکی شەقام لە شەواندا',
-        'تێل و وایەری کارەبای شۆڕبووەوە و مەترسیدار',
-        'ستوونی کارەبای لاربووەوە کە مەترسی کەوتنی هەیە',
-        'تێکچوونی سندووقی کۆنتڕۆڵی ڕووناکی',
-        'تاریکی لە چوارڕیان یان گۆڕەپانی گشتی',
-        'سووتانی گلۆپی لید (LED) لە ستوونی ڕووناکی',
-        'تێکەڵبوونی لقی درەخت لەگەڵ تێلی کارەبای شەقام',
-        'شۆرتی کارەبا و پریشکە لە ستوونی ڕووناکی',
-        'داگیرسانی گلۆپەکان بە ڕۆژ و کوژانەوەیان بە شەو',
-        'پێویستی دانانی گلۆپی ڕووناکی لە کۆڵانێکی تاریکدا',
+        'کوژانەوەی ڕووناکی شەقام',
+        'تێلی کارەبای شۆڕبووەوە',
+        'ستوونی کارەبای لاربوو',
+        'گلۆپی شکاو یان پچڕپچڕ',
+        'سندووقی کارەبای کراوە',
+        'شۆرت و پریشکە لە ستوون',
+        'تێکچوونی ئۆتۆماتیکی گلۆپ',
+        'لقی درەخت لەگەڵ تێلی کارەبا',
+        'چوارڕیانی تاریک بێ ڕووناکی',
+        'کۆڵانی تاریک پێویستی بە گلۆپە',
+        'ستوونی ڕووناکی لار لای یاریگا',
+        'کێبڵی کارەبای ڕووت لەسەر زەوی',
+        'کوژانەوەی تەواوی ڕووناکی دەروازە',
+        'شکانی شوشەی گلۆپی ستوون',
       ],
       en: [
-        'Streetlights completely out along the road',
-        'Exposed dangling overhead electrical wires',
-        'Tilted streetlight pole risking collapse',
-        'Damaged streetlight electrical control cabinet',
-        'Total blackout at busy junction or square',
-        'Burnt-out LED lamp on streetlight pole',
-        'Tree branches tangled with streetlight cables',
-        'Electrical sparking or short circuit on pole',
-        'Streetlights staying on by day and off at night',
-        'Need for new lighting fixture in dark alley',
+        'Streetlight outage',
+        'Hazardous dangling wire',
+        'Tilted utility pole',
+        'Broken or flickering lamp',
+        'Exposed electric box',
+        'Sparks on utility pole',
+        'Faulty daylight switch',
+        'Branches touching power lines',
+        'Dark unlit intersection',
+        'Dark alley needs lamp',
+        'Tilted pole near sports pitch',
+        'Bare electric cable on ground',
+        'Total outage at town entrance',
+        'Broken streetlamp glass cover',
       ],
     },
     descriptions: {
@@ -498,6 +583,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'تفرعات الأشجار العالية تلامس أسلاك ومصابيح الإنارة وتحجب الضوء عن الرصيف والشارع.',
         'التقاطع الرئيسي مظلم تماماً في المساء مما يصعّب رؤية المشاة والعابرين للسائقين القادمين.',
         'هذا الممر السكني يفتقر إلى وحدات إنارة كافية ويشهد ظلاماً شديداً يعيق تنقل الأهالي ليلاً.',
+        'عمود إنارة معدني مائل بشكل حاد بجانب ساحة الألعاب والملعب مما يهدد بسقوطه على رواد المكان.',
+        'وجود كابل كهربائي رئيسي مكشوف وممدد على الأرض بدون عازل أو دفن يشكل خطراً مميتاً على المواطنين.',
+        'المدخل الرئيسي لبلدة باعدرى مظلم تماماً منذ عدة ليالٍ نتيجة عطل في اللوحة المركزية لتوزيع الكهرباء.',
+        'الغطاء الزجاجي للمصباح مكسور ومعلق بالهواء وقد يسقط على السيارات أو المارة عند هبوب الرياح.',
       ],
       ku: [
         'گلۆپی ستوونەکانی ئەم شەقامە چەندین شەوە بە تەواوی کوژاونەتەوە و تاریکی زۆر و مەترسی دروستکردووە.',
@@ -510,6 +599,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'لقی درەختە بەرزەکان بەر تێل و گلۆپی ستوونەکە کەوتوون و ڕێگری لە بڵاوبوونەوەی ڕووناکی دەکەن.',
         'چوارڕیانە سەرەکییەکە لە شەواندا بە تەواوی تاریکە و شۆفێران بە زەحمەت پیادەڕەوان دەبینن.',
         'ئەم کۆڵانە ڕووناکی پێویستی تێدا نییە و لە شەودا زۆر تاریکە و پێویستی بە دانانی گلۆپی نوێ هەیە.',
+        'ستوونی کارەبا لە تەنیشت یاریگای وەرزشی زۆر لار بووەتەوە و مەترسی کەوتنی هەیە.',
+        'کێبڵێکی کارەبای مەترسیدار لەسەر زەوی کەوتووە و دانەپۆشراوە و پێویستی بە چارەسەری بەپەلەیە.',
+        'دەروازەی سەرەکی باعدرێ لە شەواندا تاریکە بەهۆی تێکچوونی تابلۆی سەرەکی کارەباوە.',
+        'شوشەی سەری گلۆپەکە شکاوە و هەڵواسراوە و مەترسی کەوتنی هەیە بەسەر خەڵکدا.',
       ],
       en: [
         'Streetlights have been completely dark for multiple nights causing safety hazards for pedestrians and drivers.',
@@ -522,46 +615,62 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'High tree branches are rubbing against streetlight cables and blocking illumination from the walkway.',
         'The main intersection is pitch dark at night, making it dangerous for pedestrians crossing the road.',
         'This residential passageway lacks adequate lighting fixtures and remains very dark throughout the night.',
+        'Steel lighting pole sharply tilted near the youth playground, risking collapse onto visitors.',
+        'Exposed heavy-duty electric cable lying bare on the ground surface, presenting extreme shock hazards.',
+        'Main township entrance is completely dark at night due to a fault in the central distribution panel.',
+        'Glass luminaire cover is fractured and dangling loosely, threatening to drop on pedestrians below.',
       ],
     },
   },
   sanitation: {
     titles: {
       ar: [
-        'تراكم النفايات والأنقاض في الساحة',
-        'حاوية نفايات ممتلئة لم يتم تفريغها',
-        'حاوية نفايات بلدية مكسورة وتالفة',
-        'صيانة ألعاب ومقاعد حديقة عامة',
-        'أغصان أشجار تعيق الرؤية وتتشابك مع الأسلاك',
-        'انتشار الكلاب السائبة أو الحشرات',
-        'رمي مخلفات بناء وأنقاض على جانب الطريق',
-        'حاجة لتوفير حاويات قمامة إضافية بالحي',
-        'يباس أشجار الحديقة وحاجتها للسقي والتقليم',
-        'تراكم أوراق وأتربة في الجزرة الوسطية والرصيف',
+        'تراكم نفايات في الساحة',
+        'حاوية نفايات ممتلئة',
+        'حاوية قمامة مكسورة',
+        'أغصان أشجار تعيق الطريق',
+        'مخلفات بناء على الطريق',
+        'صيانة ألعاب ومقاعد الحديقة',
+        'يباس أشجار الحديقة',
+        'حاجة لحاوية قمامة بالحي',
+        'أتربة وأوساخ على الرصيف',
+        'انتشار حشرات حول النفايات',
+        'تراكم مخلفات حديقة عامة',
+        'حاوية نفايات بلا غطاء أو عجلات',
+        'إلقاء مخلفات قص الأشجار',
+        'تجمع نفايات قرب المركز الصحي',
       ],
       ku: [
-        'کۆبوونەوەی زبڵ و خاشاک لە گۆڕەپاندا',
-        'سەبەتەی زبڵی پڕبوو کە بەتاڵ نەکراوەتەوە',
-        'سەبەتەی زبڵی شکاو و تێکچووی شارەوانی',
-        'چاککردنی یاری و کورسییەکانی باخچەی گشتی',
-        'لقی درەخت کە ڕێگری لە بینین دەکات و تێکەڵ بە وایەرە',
-        'بڵاوبوونەوەی سەگی بێلانە یان مێروو',
-        'فڕێدانی پاشماوەی بیناسازی لە قەراغ شەقام',
-        'پێویستی دابینکردنی سەبەتەی زبڵی زیاتر بۆ گەڕەک',
-        'وشکبوونی داروگوڵی باخچە و پێویستی ئاودان',
-        'کۆبوونەوەی گەڵا و خۆڵ لە ناوەند و شۆستەی شەقام',
+        'کۆبوونەوەی زبڵ لە گۆڕەپان',
+        'سەبەتەی زبڵی پڕبوو',
+        'سەبەتەی زبڵی شکاو',
+        'لقی درەخت ڕێگری دەکات',
+        'پاشماوەی بیناسازی لە قەراغ ڕێگا',
+        'چاککردنی کورسی و یاری باخچە',
+        'وشکبوونی درەختەکانی باخچە',
+        'پێویستی سەبەتەی زبڵ بۆ گەڕەک',
+        'کۆبوونەوەی خۆڵ لەسەر شۆستە',
+        'بڵاوبوونەوەی مێروو لە دەوری زبڵ',
+        'کۆبوونەوەی پاشماوەی باخچەی گشتی',
+        'سەبەتەی زبڵی بێ سەر و تایە',
+        'فڕێدانی لقی درەخت لەسەر شەقام',
+        'کۆبوونەوەی زبڵ لای بنکەی تەندروستی',
       ],
       en: [
-        'Accumulated trash and garbage pile in public area',
-        'Overflowing unemptied municipal garbage dumpster',
-        'Broken or damaged municipal garbage bin',
-        'Maintenance of benches and play equipment in public park',
-        'Overgrown branches obstructing view and tangled in wires',
-        'Proliferation of stray animals or pests',
-        'Construction rubble dumped along the roadside',
-        'Need for additional garbage containers in neighborhood',
-        'Park trees and greenery needing irrigation and pruning',
-        'Dirt and fallen leaves accumulated on median and curb',
+        'Accumulated trash in square',
+        'Overflowing garbage bin',
+        'Broken municipal trash bin',
+        'Overgrown tree branches',
+        'Construction rubble on roadside',
+        'Park benches & play repair',
+        'Park trees need watering',
+        'Neighborhood needs trash bins',
+        'Dirt & litter on sidewalk',
+        'Pests around waste spot',
+        'Park green waste accumulation',
+        'Dumpster missing wheels & lid',
+        'Pruned tree branches dumped',
+        'Trash pile near health center',
       ],
     },
     descriptions: {
@@ -576,6 +685,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'الحي السكني يفتقر إلى حاويات نفايات كافية مما يضطر الأهالي لتجمع الأكياس عند زاوية الشارع.',
         'تراكم الأتربة والأكياس المتطايرة على طول السياج والرصيف العام ويحتاج الموقع إلى حملة كنس وتنظيف.',
         'تجمع الحشرات والقوارض حول موقع النفايات المفتوح ونأمل تنظيف المكان ورشه بالمبيدات الصحية.',
+        'تراكم أكوام كبيرة من أوراق الشجر والمخلفات الخضراء داخل الحديقة العامة دون رفعها منذ أيام طويلة.',
+        'حاوية النفايات الحديدية فقدت عجلاتها وغطاءها مما يجعلها غير صالحة للنقل الآمن عبر سيارات البلدية.',
+        'قام بعض الأهالي بقص أشجارهم ورمي الأغصان الضخمة وسط ممر المشاة مما يغلق الطريق بالكامل.',
+        'تراكم النفايات بجانب جدار المركز الصحي العام يهدد بانتشار العدوى ويتطلب رفعاً دورياً مستعجلاً.',
       ],
       ku: [
         'کۆمەڵێک زبڵ و پاشماوە لە گۆڕەپانەکە و تەنیشت شۆستە کۆبووەتەوە و بۆنی ناخۆش و مێرووی زۆری دروستکردووە.',
@@ -588,6 +701,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'ئەم گەڕەکە سەبەتەی زبڵی پێویستی تێدا نییە و هاووڵاتیان ناچارن کیسەی زبڵ لە سووچی کۆڵان دابنێن.',
         'خۆڵ و کیسەی نایلۆن بە درێژایی شۆستە و پەرژینەکە کۆبووەتەوە و پێویستی بە هەڵمەتی ماڵین و پاککردنەوەیە.',
         'مێروو و مێشوولەی زۆر لە دەوری شوێنی زبڵەکە کۆبوونەتەوە و داواکارین پاک بکرێتەوە و دەرمانڕێژ بکرێت.',
+        'کۆبوونەوەی گەڵا و پاشماوەی درەخت لە ناو باخچەی گشتی کە چەند ڕۆژە فڕێ نەدراوە.',
+        'سەبەتەی ئاسنینی زبڵ تایەکانی شکاون و سەری نەماوە و بارکردنی ئەستەم بووە.',
+        'بڕینی دار و فڕێدانی لقە گەورەکانی لەسەر ڕێگای پیادە کە هاتوچۆی بە تەواوی داخستووە.',
+        'کۆبوونەوەی زبڵ لە نزیک دیواری بنکەی تەندروستی گشتی کە مەترسی تەندروستی دروست دەکات.',
       ],
       en: [
         'Large heaps of uncollected garbage and trash accumulating on the sidewalk causing noxious odors and pests.',
@@ -600,46 +717,62 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'The residential block lacks sufficient waste bins, causing trash bags to pile up at the street corner.',
         'Windblown litter and dust have accumulated along the curb and fence, requiring a street sweeping crew.',
         'Pests and insects are gathering around the open waste spot; urgent cleanup and sanitation spraying needed.',
+        'Large heaps of trimmed foliage and green waste have accumulated inside the community park for days.',
+        'Municipal metal dumpster missing lid and wheels, preventing proper mechanical lifting and emptying.',
+        'Heavy tree clippings were discarded along the pedestrian lane, blocking the entire walkway.',
+        'Accumulated garbage adjacent to the community health clinic perimeter requiring urgent removal.',
       ],
     },
   },
   other: {
     titles: {
       ar: [
-        'تجاوز غير قانوني على الرصيف والشارع',
-        'لوحات إرشادية وتسمية مفقودة أو متضررة',
-        'مبنى قديم مهجور يشكل خطراً على المارة',
-        'شكوى ضوضاء من ورشة غير مرخصة بالحي',
-        'طلب خدمة أو بلاغ بلدي عام',
-        'حفرة مكشوفة ناتجة عن أعمال حفر غير مكتملة',
-        'سيارة قديمة متروكة ومتهالكة تشغل الطريق',
-        'سياج حماية متضرر قرب جسر أو منحدر',
-        'مقترح تجميل أو تشجير ساحة عامة بالحي',
-        'عائق ميداني طارئ في المرفق البلدي العام',
+        'تجاوز على الرصيف والشارع',
+        'لوحة إرشادية مفقودة أو متضررة',
+        'مبنى قديم مهجور وخطر',
+        'ضوضاء ورشة داخل الحي',
+        'حفرة أعمال مكشوفة',
+        'سيارة متروكة تعيق الطريق',
+        'سياج حماية متضرر',
+        'مقترح تشجير ساحة بالحي',
+        'عوائق إسمنتية في الطريق',
+        'ملاحظة خدمية عامة',
+        'لوحة سرعة مرورية تالفة',
+        'مخلفات حدادة في طريق المشاة',
+        'كلاب ضالة تتجمع قرب الحي',
+        'سياج مدرسي منهار جزئياً',
       ],
       ku: [
-        'زێدەڕۆیی ناڕەوا بۆ سەر شۆستە و شەقام',
-        'تابلۆی هاتوچۆ یان ناوی شەقام شکاوە یان نییە',
-        'خانوویەکی چۆڵکراوی کۆن کە مەترسی ڕووخانی هەیە',
-        'دەنگەدەنگ و بێزاری لە وەرشەی ناڕێگەپێدراو',
-        'داواکاری خزمەتگوزاری یان سکاڵای گشتی شارەوانی',
-        'چاڵی سەرنەپۆشراو بەهۆی کاری هەڵکەندنی تەواونەکراو',
-        'ئۆتۆمبێلی کۆن و جێهێڵدراو کە ڕێگای گرتووە',
-        'تێکچوونی پەرژینی پارێزگاری لە نزیک پرد یان لێژایی',
-        'پێشنیاری جوانکاری و سەوزکردنی گۆڕەپانی گەڕەک',
-        'ئاستەنگی مەیدانی کتوپڕ لە شوێنی گشتیدا',
+        'زێدەڕۆیی سەر شۆستە و شەقام',
+        'تابلۆی هاتوچۆ شکاوە یان نەماوە',
+        'خانووی کۆنی مەترسیدار',
+        'دەنگەدەنگی وەرشە لە گەڕەک',
+        'چاڵی کارکردنی سەرنەپۆشراو',
+        'ئۆتۆمبێلی جێهێڵدراو لەسەر ڕێگا',
+        'تێکچوونی پەرژینی پارێزگاری',
+        'پێشنیاری سەوزکردنی گۆڕەپان',
+        'بەربەستی کۆنکریتی لەسەر ڕێگا',
+        'تێبینی خزمەتگوزاری گشتی',
+        'تابلۆی خێرایی هاتوچۆی تێکچوو',
+        'پاشماوەی ئاسنگەری لەسەر شۆستە',
+        'سەگی بێلانە لە دەوری گەڕەک',
+        'داڕمانی بەشێک لە پەرژینی قوتابخانە',
       ],
       en: [
-        'Illegal encroachment on sidewalk or street',
-        'Damaged or missing directional street signage',
-        'Abandoned derelict building posing hazard',
-        'Noise complaint regarding unlicensed workshop',
-        'General municipal civic service request',
-        'Unfenced trench left from incomplete excavation',
-        'Abandoned wrecked vehicle blocking public right-of-way',
-        'Damaged safety guardrail near bridge or slope',
-        'Proposal for landscaping and beautifying public square',
-        'Urgent field obstruction in public municipal facility',
+        'Sidewalk & road encroachment',
+        'Damaged or missing street sign',
+        'Hazardous abandoned building',
+        'Workshop noise in neighborhood',
+        'Unfenced open trench',
+        'Abandoned car blocking road',
+        'Damaged safety guardrail',
+        'Square landscaping proposal',
+        'Concrete blocks on roadway',
+        'General civic service note',
+        'Damaged speed limit sign',
+        'Welding scrap on pedestrian path',
+        'Stray dogs gathering near block',
+        'Partially collapsed school fence',
       ],
     },
     descriptions: {
@@ -654,6 +787,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'نلتمس من البلدية تأهيل وتشجير هذه الساحة المتروكة في الحي لتكون متنفساً نظيفاً وآمناً للأهالي.',
         'وجود عوائق وحواجز إسمنتية قديمة متروكة في الطريق لم تعد لها حاجة وتعيق انسيابية السير.',
         'ملاحظة ميدانية عامة تتعلق بتحسين المظهر الحضري والسلامة العامة في هذا الموقع ونرجو الكشف الميداني.',
+        'لوحة تحديد السرعة المرورية في الشارع العام ملتوية ومطموسة بفعل صدمة سابقة مما يربك السائقين.',
+        'وجود قطع حديدية ومخلفات حادة ناتجة عن ورشة حدادة ملقاة على الرصيف العام تشكل خطورة على الأطفال.',
+        'تجمع قطيع من الكلاب الضالة في الساحة المهجورة القريبة من المنازل مما يثير مخاوف الأهالي والأطفال.',
+        'انهيار جزء من السياج الخارجي للمدرسة مما يسمح بدخول الحيوانات السائبة إلى باحة المدرسة العامة.',
       ],
       ku: [
         'کەلوپەلی بیناسازی لەسەر شۆستەی گشتی دانراوە و پیادەڕەوان ناچار دەبن بچنە ناوەڕاستی شەقام.',
@@ -666,6 +803,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'داواکارین لە شارەوانی ئەم گۆڕەپانە چۆڵەی گەڕەک سەوز و ڕێکبخات بۆ ئەوەی ببێتە شوێنێکی پاک بۆ دانیشتووان.',
         'بەربەستی کۆنکریتی کۆن لەسەر ڕێگاکە جێهێڵدراوە و ئێستا پێویست نین و ئاستەنگی هاتوچۆ دروست دەکەن.',
         'تێبینییەکی گشتی مەیدانی سەبارەت بە باشترکردنی خزمەتگوزاری و سەلامەتی لەم شوێنەدا و تکایە بەدواداچوونی بۆ بکرێت.',
+        'تابلۆی دیاریکردنی خێرایی لەسەر شەقامی گشتی لار بووەتەوە و هێماکەی دیار نییە.',
+        'پارچەی ئاسنی تیژ و پاشماوەی وەرشەی ئاسنگەری لەسەر شۆستە کە مەترسیدارە بۆ منداڵان.',
+        'کۆبوونەوەی سەگی بێلانە لە گۆڕەپانی چۆڵکراوی نزیک ماڵان کە ترس و دڵەڕاوکێی دروستکردووە.',
+        'ڕووخانی بەشێک لە پەرژینی دەرەوەی قوتابخانە کە ڕێگە بە چوونەژوورەوەی ئاژەڵ بۆ حەوشەکە دەدات.',
       ],
       en: [
         'Construction material obstructing the sidewalk forcing pedestrians onto the busy road.',
@@ -678,6 +819,10 @@ export const SMART_SECTOR_SUGGESTIONS: Record<ReportSector, SmartSectorSuggestio
         'We kindly request the municipality to landscape and rehabilitate this vacant lot into a clean community space.',
         'Old unused concrete blocks left on the roadway are obstructing smooth vehicle movement.',
         'General civic field observation regarding urban safety and public utility improvement at this location.',
+        'Traffic speed limit sign is bent and defaced from an earlier collision, confusing road users.',
+        'Sharp scrap metal and workshop cuttings discarded across the public sidewalk endangering children.',
+        'Pack of stray dogs roaming in an empty lot near homes, creating safety concerns for children and residents.',
+        'Section of the school boundary wall has partially collapsed, compromising compound perimeter security.',
       ],
     },
   },
@@ -756,6 +901,11 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
   useEffect(() => {
     if (!isOpen) return;
     if (editingReport) {
+      // بعد إرسال البلاغ أو إنجازه أو تحديد حالته، لا يمكن التعديل
+      if (editingReport.status !== 'pending' || isReportSentToDepartment(editingReport)) {
+        onClose();
+        return;
+      }
       setStep(1);
       const existingImgs = editingReport.images || [];
       setUploadedImages(existingImgs);
@@ -886,13 +1036,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       urgency: editingReport?.urgency || ('normal' as const),
       neighborhood: finalNeighborhood,
       street: street.trim() || tr('الشارع الرئيسي', 'شەقامی سەرەکی', 'Main Street'),
-      landmark:
-        landmark.trim() ||
-        tr(
-          `قرب مركز ${finalNeighborhood}`,
-          `نزیک سەنتەری ${finalNeighborhood}`,
-          `Near ${finalNeighborhood} center`
-        ),
+      landmark: landmark.trim(),
       latitude,
       longitude,
       citizenName:
@@ -958,6 +1102,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       // إظهار دائرة التحميل اللطيفة بدون أي نصوص لتحويل الصور إلى 500 كيلوبايت ورفعها إلى Storage
       setIsProcessingImagesOnNext(true);
       try {
+
         const needsUpload = photoItems.some((item) => !item.storageUrl && item.file);
         if (!needsUpload) {
           await new Promise((r) => setTimeout(r, 400));
@@ -1263,9 +1408,9 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                   )}
                 {step === 5 &&
                   tr(
-                    'الحي أو القطاع • اسم الشارع • أقرب نقطة دالة',
-                    'گەڕەک • ناوی شەقام • نزیکترین نیشانە',
-                    'Neighborhood, Street & Nearest Landmark'
+                    'الحي أو القطاع • اسم الشارع • أقرب نقطة',
+                    'گەڕەک • ناوی شەقام • نزیکترین خاڵ',
+                    'Neighborhood, Street & Nearest Point'
                   )}
                 {step === 6 &&
                   tr(
@@ -1317,15 +1462,20 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                     <Camera className="w-7 h-7" />
                   </div>
                   <div>
-                    <div className="flex items-center justify-center gap-2">
-                      <p className="text-sm font-black text-[#1E3725]">
-                        {tr(
-                          'تحديد وإرفاق صور البلاغ الميداني',
-                          'دیاریکردن و هاوپێچکردنی وێنەی سکاڵا',
-                          'Select & Attach Field Report Photos'
-                        )}
-                      </p>
-                    </div>
+                    <p className="text-sm font-black text-[#1E3725]">
+                      {tr(
+                        'إرفاق صور البلاغ الميداني',
+                        'هاوپێچکردنی وێنەی سکاڵای مەیدانی',
+                        'Attach Field Report Photos'
+                      )}
+                    </p>
+                    <p className="text-[11px] font-bold text-[#46674D] mt-1">
+                      {tr(
+                        'يمكنك إدراج حتى 10 صور من موقع البلاغ الميداني',
+                        'دەتوانیت تا ١٠ وێنە لە شوێنی سکاڵاکە هاوپێچ بکەیت',
+                        'Attach up to 10 photos from the field report site'
+                      )}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
@@ -1372,7 +1522,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                   )}
 
                   {photoItems.length > 0 && (
-                    <div className="space-y-2 pt-2">
+                    <div className="space-y-2 pt-2 text-start">
                       <div className="flex items-center justify-between text-xs font-bold text-[#1E3725] px-1">
                         <span>
                           {tr(
@@ -1382,6 +1532,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                           )}
                         </span>
                       </div>
+
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                         {photoItems.map((item, i) => (
                           <div
@@ -1946,15 +2097,15 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                   />
                 </div>
 
-                {/* أقرب نقطة دالة (مدرسة، جامع، تقاطع) - اختياري */}
+                {/* أقرب نقطة ( مدرسة ، دائرة بلدية ، مركز شرطة ، اسواق ) - اختياري */}
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <label className="block text-xs sm:text-sm font-black text-[#1E3725]">
                         {tr(
-                          'أقرب نقطة دالة (مدرسة، جامع، تقاطع):',
-                          'نزیکترین نیشانە (قوتابخانە، مزگەوت، چوارڕیان):',
-                          'Nearest Landmark (School, Mosque, Intersection):'
+                          'أقرب نقطة ( مدرسة ، دائرة بلدية ، مركز شرطة ، اسواق )',
+                          'نزیکترین خاڵ ( قوتابخانە ، شارەوانی ، بنکەی پۆلیس ، بازاڕ )',
+                          'Nearest Point ( School, Municipality, Police Station, Markets )'
                         )}
                       </label>
                       <span className="text-[11px] font-bold text-[#46674D] bg-[#E8F4EA] px-2 py-0.5 rounded-full border border-[#BBDDC6]">
@@ -1981,11 +2132,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                         )
                       );
                     }}
-                    placeholder={tr(
-                      'مثال: مقابل مدرسة باعدرى أو قرب الجامع أو التقاطع',
-                      'نموونە: بەرامبەر قوتابخانەی باعەدرێ یان نزیک مزگەوت',
-                      'Example: Opposite Baadre school or near mosque/intersection'
-                    )}
+                    placeholder=""
                     className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-[#46674D] focus:outline-none"
                   />
                 </div>
@@ -2177,13 +2324,13 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                     </span>
                   </div>
 
-                  {/* 5. الحي أو القطاع • اسم الشارع • أقرب نقطة دالة */}
+                  {/* 5. الحي أو القطاع • اسم الشارع • أقرب نقطة */}
                   <div className="p-3 rounded-xl bg-white border border-[#E8F4EA] space-y-1">
                     <span className="font-black text-[#1E3725] block">
                       {tr(
-                        '5. الحي أو القطاع • اسم الشارع • أقرب نقطة دالة:',
-                        '5. گەڕەک • ناوی شەقام • نزیکترین نیشانە:',
-                        '5. Neighborhood, Street & Landmark:'
+                        '5. الحي أو القطاع • اسم الشارع • أقرب نقطة:',
+                        '5. گەڕەک • ناوی شەقام • نزیکترین خاڵ:',
+                        '5. Neighborhood, Street & Nearest Point:'
                       )}
                     </span>
                     <p className="font-bold text-[#2D4833]">
@@ -2307,13 +2454,22 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                 type="button"
                 disabled={isProcessingImagesOnNext}
                 onClick={handleNextStep}
-                className="px-6 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] disabled:opacity-60 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] disabled:opacity-80 text-white font-black text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
               >
-                <span>{tr('التالي', 'دواتر', 'Next')}</span>
-                {isRTL ? (
-                  <ArrowLeft className="w-4 h-4" />
+                {isProcessingImagesOnNext ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-[spin_0.5s_linear_infinite]" />
+                    <span>{tr('جاري التجهيز السريع...', 'ئامادەکردنی خێرا...', 'Processing quickly...')}</span>
+                  </>
                 ) : (
-                  <ArrowRight className="w-4 h-4" />
+                  <>
+                    <span>{tr('التالي', 'دواتر', 'Next')}</span>
+                    {isRTL ? (
+                      <ArrowLeft className="w-4 h-4" />
+                    ) : (
+                      <ArrowRight className="w-4 h-4" />
+                    )}
+                  </>
                 )}
               </button>
             ) : isSent ? (
@@ -2482,6 +2638,8 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                           type="button"
                           onClick={() => {
                             playClickSound();
+                            const langKey =
+                              language === 'ku' ? 'ku' : language === 'en' ? 'en' : 'ar';
                             if (smartModalType === 'title') {
                               setTitle(
                                 enforceInputLimit(
@@ -2490,6 +2648,18 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                                   FIELD_LIMITS.TITLE.maxChars
                                 )
                               );
+                              // ربط التفاصيل تلقائياً عند اختيار أي عنوان ذكي مختصر
+                              const linkedDesc =
+                                currentSectorSuggestions.descriptions[langKey]?.[idx];
+                              if (linkedDesc) {
+                                setDescription(
+                                  enforceInputLimit(
+                                    linkedDesc,
+                                    FIELD_LIMITS.DESCRIPTION.maxWords,
+                                    FIELD_LIMITS.DESCRIPTION.maxChars
+                                  )
+                                );
+                              }
                             } else {
                               setDescription(
                                 enforceInputLimit(

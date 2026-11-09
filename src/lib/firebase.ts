@@ -24,7 +24,9 @@ import {
   getStorage,
   ref as storageRef,
   uploadString,
+  uploadBytes,
   getDownloadURL,
+  deleteObject,
   FirebaseStorage,
 } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -133,6 +135,13 @@ export async function getAppCheckTokenHeader(): Promise<Record<string, string>> 
     }
   } catch {}
   return {};
+}
+
+export async function withAppCheckHeaders(
+  headers: Record<string, string> = {}
+): Promise<Record<string, string>> {
+  const appCheckHeader = await getAppCheckTokenHeader();
+  return { ...headers, ...appCheckHeader };
 }
 
 export const FIREBASE_STORAGE_BUCKET = 'gs://baadre-smarteye.firebasestorage.app';
@@ -421,6 +430,69 @@ export async function uploadImageToFirebaseStorage(
   }
 }
 
+
+/**
+ * حذف ملف وسائط من Firebase Storage إذا كان رابطاً من ستوريج المشروع
+ */
+export async function deleteStorageFileByUrl(url?: string): Promise<boolean> {
+  if (!url || typeof url !== 'string') return false;
+  const isStorageUrl =
+    url.includes('firebasestorage.googleapis.com') ||
+    url.includes('firebasestorage.app') ||
+    url.startsWith('gs://');
+  if (!isStorageUrl) return false;
+
+  try {
+    const fileRef = storageRef(storage, url);
+    await deleteObject(fileRef);
+    return true;
+  } catch (err) {
+    // نتجاهل الخطأ إن كان الملف غير موجود مسبقاً
+    return false;
+  }
+}
+
+/**
+ * حذف جميع صور وفيديوهات البلاغ (قبل الإنجاز وبعد الإنجاز) من Firebase Storage نهائياً
+ */
+export async function deleteReportMediaFromStorage(
+  report?: Partial<CivicReport> | null
+): Promise<void> {
+  if (!report) return;
+  const urlsToDelete: string[] = [];
+
+  if (Array.isArray(report.images)) {
+    urlsToDelete.push(...report.images);
+  }
+  if (Array.isArray(report.resolvedImages)) {
+    urlsToDelete.push(...report.resolvedImages);
+  }
+  if (report.videoUrl) {
+    urlsToDelete.push(report.videoUrl);
+  }
+  if (report.resolvedVideoUrl) {
+    urlsToDelete.push(report.resolvedVideoUrl);
+  }
+  if (report.videoThumbnail && !report.videoThumbnail.startsWith('data:')) {
+    urlsToDelete.push(report.videoThumbnail);
+  }
+  if (report.resolvedVideoThumbnail && !report.resolvedVideoThumbnail.startsWith('data:')) {
+    urlsToDelete.push(report.resolvedVideoThumbnail);
+  }
+
+  const validUrls = urlsToDelete.filter(
+    (u) =>
+      typeof u === 'string' &&
+      !u.startsWith('data:') &&
+      (u.includes('firebasestorage.googleapis.com') ||
+        u.includes('firebasestorage.app') ||
+        u.startsWith('gs://'))
+  );
+
+  await Promise.allSettled(validUrls.map((u) => deleteStorageFileByUrl(u)));
+}
+
+
 /**
  * تحويل بيانات البلاغ المنجز (status === 'resolved') مع جميع صور الإنجاز (بعد) وجميع صور البلاغ (قبل)
  * إلى وثيقة عمل منجز متكاملة داخل كولكشن CompletedWork في Firestore.
@@ -489,9 +561,14 @@ export function buildCompletedWorkDocumentFromReport(
       organizationName: completingDept,
       completedDepartment: completingDept,
       managedByPeople: [completingDept],
-      durationText: `${hoursDiff} ساعة`,
       reporterName: report.citizenName,
       reporterPhone: report.citizenPhone,
+      videoUrl: report.videoUrl || undefined,
+      videoThumbnail: report.videoThumbnail || undefined,
+      videoDurationSeconds: report.videoDurationSeconds || undefined,
+      resolvedVideoUrl: report.resolvedVideoUrl || undefined,
+      resolvedVideoThumbnail: report.resolvedVideoThumbnail || undefined,
+      resolvedVideoDurationSeconds: report.resolvedVideoDurationSeconds || undefined,
     },
     targetWorkNumericId
   );
@@ -629,10 +706,10 @@ export async function executeCitizenReportEditTransaction(
       );
     }
 
-    // التحقق من الملكية إذا كان للبلاغ ownerUid مرتبط بحساب مصادق
+    // التحقق الصارم من الملكية: لا يستطيع تعديل البلاغ إلا الشخص الذي تم تسجيل البلاغ بواسطته حصراً
     const reportOwner = currentReport.ownerUid || currentReport.citizenId;
-    if (callerUid && reportOwner && !isPureNumericId(reportOwner) && reportOwner !== callerUid) {
-      throw new Error('غير مصرح: لا يمكنك تعديل بلاغ يخص مواطناً آخر.');
+    if (!callerUid || !reportOwner || reportOwner !== callerUid) {
+      throw new Error('غير مصرح: لا يستطيع تعديل هذا البلاغ إلا الشخص الذي تم تسجيل البلاغ بواسطته.');
     }
 
     // بناء حزمة الحقول المسموحة فقط دون المساس بحقول الإدارة أو الحالة أو الملكية

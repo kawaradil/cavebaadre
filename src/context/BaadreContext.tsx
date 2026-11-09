@@ -221,8 +221,10 @@ export interface BaadreContextType {
   deleteReport: (reportId: string) => void;
   upvoteReport: (reportId: string) => void;
   addDepartment: (dept: Omit<MunicipalDepartment, 'id'>) => void;
+  updateDepartment: (deptId: string, updates: Partial<MunicipalDepartment>) => void;
   deleteDepartment: (deptId: string) => void;
   toggleBlockCitizen: (citizenId: string) => void;
+  deleteCitizen: (citizenId: string) => Promise<boolean>;
   addProject: (proj: Omit<OrganizationProject, 'id'>) => void;
   updateDepartmentAvailability: (
     deptId: string,
@@ -1201,13 +1203,22 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const myReports = useMemo(() => {
     if (!currentUser) return [];
-    return reports.filter(
-      (r) =>
-        myReportIds.includes(r.id) ||
-        r.citizenId === currentUser.uid ||
-        r.ownerUid === currentUser.uid
-    );
-  }, [reports, myReportIds, currentUser]);
+    const currentEffectiveRole: 'citizen' | 'admin' | 'super_admin' = isSuperAdmin
+      ? 'super_admin'
+      : isAdmin
+      ? 'admin'
+      : 'citizen';
+
+    return reports.filter((r) => {
+      const isOwnedByCurrentUser =
+        r.ownerUid === currentUser.uid || r.citizenId === currentUser.uid;
+      if (!isOwnedByCurrentUser) return false;
+      if (r.creatorRole) {
+        return r.creatorRole === currentEffectiveRole;
+      }
+      return true;
+    });
+  }, [reports, currentUser, isSuperAdmin, isAdmin]);
 
   // عند فتح التطبيق من قبل الإدارة يُفتح على قسم الإحصاءات، وإذا تم التحويل للمواطن يُفتح على قسم الأعمال/البلاغات المنجزة
   useEffect(() => {
@@ -1422,6 +1433,7 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           images: validImages,
           citizenId: resolvedOwnerUid,
           ownerUid: resolvedOwnerUid,
+          creatorRole: isSuperAdmin ? 'super_admin' : isAdmin ? 'admin' : 'citizen',
           citizenName: (input.citizenName.trim() || 'مواطن من باعدرى').slice(0, 200),
           citizenPhone: (input.citizenPhone.trim() || '07500000000').slice(0, 40),
           citizenWhatsapp: (input.citizenPhone.trim() || '07500000000').slice(0, 40),
@@ -1504,6 +1516,15 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           : undefined);
 
       if (!targetReport) return undefined;
+
+      // لا أحد يستطيع تعديل البلاغ إلا الشخص الذي تم تسجيل البلاغ بواسطته حصراً
+      const callerUid = auth.currentUser?.uid || currentUser?.uid;
+      if (!callerUid) return undefined;
+      const isReportCreator =
+        targetReport.ownerUid === callerUid || targetReport.citizenId === callerUid;
+      if (!isReportCreator) {
+        return undefined;
+      }
 
       // حماية فورية على مستوى العميل قبل بدء المعاملة: لا تعديل إذا لم تكن الحالة New ('pending') أو تم إرسالها للدائرة
       if (targetReport.status !== 'pending' || isReportSentToDepartment(targetReport)) {
@@ -2147,6 +2168,33 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [departments, canAccessAdmin]
   );
 
+  const updateDepartment = useCallback(
+    (deptId: string, updates: Partial<MunicipalDepartment>) => {
+      if (!canAccessAdmin) return;
+      setDepartments((prev) => {
+        const next = prev.map((d) => (d.id === deptId ? { ...d, ...updates, id: d.id } : d));
+        try {
+          localStorage.setItem(CACHE_KEY_DEPTS, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      setDoc(
+        doc(db, COLLECTIONS.DEPARTMENTS, deptId),
+        { ...updates, id: deptId },
+        { merge: true }
+      ).catch((err) => {
+        try {
+          handleFirestoreError(
+            err,
+            OperationType.UPDATE,
+            `${COLLECTIONS.DEPARTMENTS}/${deptId}`
+          );
+        } catch {}
+      });
+    },
+    [canAccessAdmin]
+  );
+
   const deleteDepartment = useCallback(
     (deptId: string) => {
       if (!canAccessAdmin) return;
@@ -2216,6 +2264,60 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })();
     },
     [canAccessAdmin]
+  );
+
+  const deleteCitizen = useCallback(
+    async (citizenId: string): Promise<boolean> => {
+      if (!canAccessAdmin || !citizenId) return false;
+      const cleanId = citizenId.trim();
+      if (auth.currentUser?.uid === cleanId) return false;
+
+      const targetCit = citizens.find((c) => c.id === cleanId);
+      const targetEmail = String(targetCit?.email || '').trim().toLowerCase();
+
+      setCitizens((prev) =>
+        prev.filter(
+          (c) =>
+            c.id !== cleanId &&
+            (!targetEmail || String(c.email || '').trim().toLowerCase() !== targetEmail)
+        )
+      );
+
+      // حذف مباشر ودقيق من قاعدتي المواطنين (citizens) والمستخدمين (users) في فايرستور
+      const firestoreDeletions: Promise<any>[] = [
+        deleteDoc(doc(db, COLLECTIONS.CITIZENS, cleanId)).catch(() => {}),
+        deleteDoc(doc(db, 'users', cleanId)).catch(() => {}),
+        deleteDoc(doc(db, 'admins', cleanId)).catch(() => {}),
+      ];
+
+      if (targetEmail) {
+        firestoreDeletions.push(
+          getDocs(query(collection(db, COLLECTIONS.CITIZENS), where('email', '==', targetEmail)))
+            .then((snap) => Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {}))))
+            .catch(() => {}),
+          getDocs(query(collection(db, 'users'), where('email', '==', targetEmail)))
+            .then((snap) => Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {}))))
+            .catch(() => {})
+        );
+      }
+
+      await Promise.all(firestoreDeletions);
+
+      try {
+        const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+        await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ targetUid: cleanId, targetEmail }),
+        });
+      } catch {}
+
+      return true;
+    },
+    [canAccessAdmin, citizens]
   );
 
   const addProject = useCallback(
@@ -2616,8 +2718,10 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       deleteReport,
       upvoteReport,
       addDepartment,
+      updateDepartment,
       deleteDepartment,
       toggleBlockCitizen,
+      deleteCitizen,
       addProject,
       updateDepartmentAvailability,
       createSurvey,
@@ -2681,8 +2785,10 @@ export const BaadreProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       deleteReport,
       upvoteReport,
       addDepartment,
+      updateDepartment,
       deleteDepartment,
       toggleBlockCitizen,
+      deleteCitizen,
       addProject,
       updateDepartmentAvailability,
       createSurvey,

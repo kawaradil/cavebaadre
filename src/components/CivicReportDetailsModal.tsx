@@ -18,6 +18,7 @@ import {
   Edit3,
   RotateCcw,
   AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -130,7 +131,7 @@ interface CivicReportDetailsModalProps {
   onClose: () => void;
 }
 
-type RecipientRoleKey = 'engineer' | 'deputy' | 'manager';
+type RecipientRoleKey = 'phone1' | 'phone2' | 'engineer' | 'deputy' | 'manager';
 type TimelineActionStatus = 'in_progress' | 'resolved' | 'rejected';
 
 export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = ({
@@ -180,7 +181,7 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
   );
   const [assignedTeam, setAssignedTeam] = useState(report?.assignedTeam || '');
   const [selectedRecipientKey, setSelectedRecipientKey] =
-    useState<RecipientRoleKey>('engineer');
+    useState<RecipientRoleKey>('phone1');
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [activeReportImageIdx, setActiveReportImageIdx] = useState<number>(0);
@@ -228,7 +229,7 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
           d.fieldTeamName === report.assignedTeam
       );
       setAssignedTeam(
-        matched?.nameAr || report.assignedTeam || departments[0]?.nameAr || ''
+        matched?.nameAr || report.assignedTeam || ''
       );
       setEditingStep(null);
       setIsRevertConfirmOpen(false);
@@ -296,23 +297,29 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     return `964${digits}`;
   };
 
-  const engineerName =
+  // رقم دائرة 1 مع اسم صاحب الرقم 1
+  const phone1 =
+    matchedDept?.phone1 ||
+    matchedDept?.engineerPhone ||
+    matchedDept?.phone ||
+    '07504738358';
+  const owner1 =
+    matchedDept?.phone1Owner ||
     matchedDept?.engineerName ||
     matchedDept?.headName ||
-    tr('المهندس المختص', 'ئەندازیاری تایبەتمەند', 'Specialist Engineer');
-  const engineerPhone = matchedDept?.engineerPhone || matchedDept?.phone || '9647749019911';
+    tr('مسؤول التواصل', 'بەرپرسی پەیوەندی', 'Contact Officer');
 
-  const deputyName =
-    matchedDept?.deputyName ||
-    tr('معاون المدير', 'جێگری بەڕێوەبەر', 'Deputy Director');
-  const deputyPhone = matchedDept?.deputyPhone || matchedDept?.phone || '9647749019911';
-
-  const managerName =
+  // رقم دائرة 2 مع اسم صاحب الرقم 2
+  const phone2 =
+    matchedDept?.phone2 ||
+    matchedDept?.managerPhone ||
+    matchedDept?.deputyPhone ||
+    '';
+  const owner2 =
+    matchedDept?.phone2Owner ||
     matchedDept?.managerName ||
-    matchedDept?.headName ||
-    tr('مدير الدائرة', 'بەڕێوەبەری فەرمانگە', 'Department Director');
-  const managerPhone =
-    matchedDept?.managerPhone || matchedDept?.emergencyPhone || '9647749019911';
+    matchedDept?.deputyName ||
+    tr('مسؤول إضافي', 'بەرپرسی تر', 'Secondary Officer');
 
   const recipientOptions: {
     key: RecipientRoleKey;
@@ -323,29 +330,25 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     phone: string;
   }[] = [
     {
-      key: 'engineer',
-      roleAr: 'المهندس المختص',
-      roleKu: 'ئەندازیاری تایبەتمەند',
-      roleEn: 'Engineer',
-      name: engineerName,
-      phone: engineerPhone,
+      key: 'phone1',
+      roleAr: tr('المسؤول', 'بەرپرس', 'Officer in charge'),
+      roleKu: 'بەرپرس',
+      roleEn: 'Officer in charge',
+      name: owner1,
+      phone: phone1,
     },
-    {
-      key: 'deputy',
-      roleAr: 'معاون المدير',
-      roleKu: 'جێگری بەڕێوەبەر',
-      roleEn: 'Deputy',
-      name: deputyName,
-      phone: deputyPhone,
-    },
-    {
-      key: 'manager',
-      roleAr: 'مدير الدائرة',
-      roleKu: 'بەڕێوەبەری فەرمانگە',
-      roleEn: 'Director',
-      name: managerName,
-      phone: managerPhone,
-    },
+    ...(phone2
+      ? [
+          {
+            key: 'phone2' as RecipientRoleKey,
+            roleAr: tr('رقم إضافي', 'ژمارەی تر', 'Secondary Contact'),
+            roleKu: 'ژمارەی تر',
+            roleEn: 'Secondary Contact',
+            name: owner2,
+            phone: phone2,
+          },
+        ]
+      : []),
   ];
 
   const activeRecipient =
@@ -361,42 +364,85 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     'فەرمانگەی خزمەتگوزاری پەیوەندیدار لە باعەدرێ';
 
   const buildWhatsAppDispatchMessage = (adminNoteText: string) => {
+    const cleanAdminNote = adminNoteText.trim();
+    const recipientName = activeRecipient.name || tr('المسؤول المعني', 'بەرپرسی پەیوەندیدار', 'Officer in charge');
+    const recipientPhone = activeRecipient.phone || '';
+    const reportCode = toEnglishDigits(report.trackingCode);
+    const locationKu = `ناحیەی باعەدرێ - ${report.neighborhood}${report.street ? ` - ${report.street}` : ''}${report.landmark ? ` (نزیک: ${report.landmark})` : ''}`;
+    const locationAr = `ناحية باعدرى - ${report.neighborhood}${report.street ? ` - ${report.street}` : ''}${report.landmark ? ` (أقرب نقطة: ${report.landmark})` : ''}`;
+    const latVal = report.latitude ?? report.lat;
+    const lngVal = report.longitude ?? report.lng;
+    const gpsLink = latVal && lngVal ? `https://www.google.com/maps?q=${latVal},${lngVal}` : '';
+
     const lines: string[] = [
-      `🏛️ *إحالة بلاغ رسمي - تطبيق ÇAVÊ BAADRÊ (منظمة Raba)*`,
-      `🏛️ *ناردنی سکاڵای فەرمی - ئەپی ÇAVÊ BAADRÊ (ڕێکخراوی Raba)*`,
-      `━━━━━━━━━━━━━━━━━━`,
-      `🏢 *الدائرة:* ${deptAr}`,
-      `👤 *المستلم (${activeRecipient.roleAr}):* ${activeRecipient.name}`,
-      `🔖 *رمز البلاغ:* ${report.trackingCode}`,
-      `📌 *عنوان البلاغ:* ${report.title}`,
-      `📂 *القطاع الخدمي:* ${sector.ar}`,
-      `🚨 *الأولوية:* ${urgency.labelAr}`,
-      `📍 *الموقع:* ناحية باعذرة - ${report.neighborhood} (${report.street})`,
-      `📝 *تفاصيل البلاغ:* ${report.description}`,
+      // 1. زمانی کوردی لەپێشترە (یەکەم)
+      `🏛️ *ناردنی فەرمی سکاڵا - ئەپی چاڤێ باعەدرێ (ÇAVÊ BAADRÊ)*`,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `بۆ بەڕێز: ${recipientName} (${recipientPhone})`,
+      `فەرمانگە: ${deptKu}`,
+      ``,
     ];
 
-    if (adminNoteText.trim()) {
-      lines.push(`📋 *ملاحظات الإدارة:* ${adminNoteText.trim()}`);
-    }
-
-    const imgCount = report.images?.length || 0;
-    if (imgCount > 0) {
+    // التفاصيل المضافة عند إرسال البلاغ (ملاحظات وتوجيهات الإرسال)
+    if (cleanAdminNote) {
       lines.push(
-        `📷 *الصور التوثيقية المرفقة:* (${imgCount} صور) تم تحميلها في الخلفية لإرفاقها مباشرة بالمحادثة`
+        `📋 *تێبینی و ڕێنماییەکانی ناردن:*`,
+        `${cleanAdminNote}`,
+        ``
       );
     }
 
+    // تفاصيل البلاغ بالكردية
     lines.push(
-      `━━━━━━━━━━━━━━━━━━`,
-      `☀️ *کوردی:*`,
-      `🏢 *بۆ فەرمانگەی:* ${deptKu}`,
-      `👤 *وەرگر (${activeRecipient.roleKu}):* ${activeRecipient.name}`,
-      `🚨 *گرنگی:* ${urgency.ku}`,
-      adminNoteText.trim() ? `📋 *تێبینی کارگێڕی:* ${adminNoteText.trim()}` : '',
-      `🗺️ *GPS:* https://www.google.com/maps?q=${report.latitude},${report.longitude}`
+      `📝 *وردەکارییەکانی سکاڵا:*`,
+      `• کۆدی سکاڵا: #${reportCode}`,
+      `• ناونیشانی سکاڵا: ${report.title}`,
+      `• کەرتی خزمەتگوزاری: ${sector.ku}`,
+      `• شوێن: ${locationKu}`,
+      `• ئاستی گرنگی: ${urgency.ku}`,
+      `• ڕوونکردنەوەی کێشە: ${report.description}`,
     );
 
-    return lines.filter(Boolean).join('\n');
+    if (gpsLink) {
+      lines.push(`• نەخشەی شوێن (GPS): ${gpsLink}`);
+    }
+
+    // 2. اللغة العربية (ثانياً)
+    lines.push(
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `🏛️ *إحالة بلاغ رسمي - تطبيق عين باعدرى (ÇAVÊ BAADRÊ)*`,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `إلى المحترم: ${recipientName} (${recipientPhone})`,
+      `الدائرة: ${deptAr}`,
+      ``
+    );
+
+    // التفاصيل المضافة عند إرسال البلاغ بالعربية
+    if (cleanAdminNote) {
+      lines.push(
+        `📋 *ملاحظات وتوجيهات الإرسال:*`,
+        `${cleanAdminNote}`,
+        ``
+      );
+    }
+
+    // تفاصيل البلاغ بالعربية
+    lines.push(
+      `📝 *تفاصيل البلاغ:*`,
+      `• رمز البلاغ: #${reportCode}`,
+      `• عنوان البلاغ: ${report.title}`,
+      `• القطاع الخدمي: ${sector.ar}`,
+      `• الموقع: ${locationAr}`,
+      `• الأولوية: ${urgency.labelAr}`,
+      `• تفاصيل المشكلة: ${report.description}`,
+    );
+
+    if (gpsLink) {
+      lines.push(`• خريطة الموقع (GPS): ${gpsLink}`);
+    }
+
+    return lines.join('\n');
   };
 
   const handleCopyCode = async () => {
@@ -481,14 +527,27 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     e.preventDefault();
     if (isUploadingStorage) return;
 
+    if (stepStatus === 'in_progress' && !assignedTeam.trim()) {
+      alert(
+        tr(
+          'الرجاء اختيار الدائرة الخدمية المعنية من القائمة أولاً',
+          'تکایە سەرەتا فەرمانگەی پێوەندیدار هەڵبژێرە',
+          'Please select a department first'
+        )
+      );
+      return;
+    }
+
     const targetDept =
       assignedTeam.trim() ||
       report.assignedTeam ||
-      departments[0]?.nameAr ||
       'مديرية بلدية باعدرى';
 
     const rawNoteForStatus = (statusNotes[stepStatus] || '').trim();
-    const recipientFullLabel = `${activeRecipient.roleAr}: ${activeRecipient.name}`;
+
+    const recipientFullLabel = activeRecipient.name
+      ? `${activeRecipient.name} (${activeRecipient.phone})`
+      : targetDept;
 
     const finalNote =
       stepStatus === 'rejected'
@@ -502,9 +561,9 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
           )
         : rawNoteForStatus ||
           tr(
-            `تم إرسال البلاغ إلى ${targetDept} (${recipientFullLabel}).`,
-            `سکاڵاکە نێردرا بۆ ${targetDept} (${recipientFullLabel}).`,
-            `Report sent to ${targetDept} (${recipientFullLabel}).`
+            `تم إرسال البلاغ إلى ${targetDept} (المسؤول: ${activeRecipient.name}).`,
+            `سکاڵاکە نێردرا بۆ ${deptKu} (بەرپرس: ${activeRecipient.name}).`,
+            `Report sent to ${targetDept} (Contact: ${activeRecipient.name}).`
           );
 
     const updatedNotesMap: Record<ReportStatus, string> = {
@@ -517,18 +576,21 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
     setStatusNotes(updatedNotesMap);
 
     let finalResolvedImages = resolvedImages.filter((img) => !img.startsWith('data:'));
-    if (stepStatus === 'resolved' && resolvedImages.length > 0) {
+
+    if (stepStatus === 'resolved') {
       setIsUploadingStorage(true);
       try {
-        const uploaded = await Promise.all(
-          resolvedImages
-            .slice(0, MAX_UPLOAD_IMAGES)
-            .map((img) => uploadImageToFirebaseStorage(img, 'completed_work'))
-        );
-        finalResolvedImages = uploaded.filter(
-          (url): url is string => Boolean(url && !url.startsWith('data:'))
-        );
-        setResolvedImages(finalResolvedImages);
+        if (resolvedImages.length > 0) {
+          const uploaded = await Promise.all(
+            resolvedImages
+              .slice(0, MAX_UPLOAD_IMAGES)
+              .map((img) => uploadImageToFirebaseStorage(img, 'completed_work'))
+          );
+          finalResolvedImages = uploaded.filter(
+            (url): url is string => Boolean(url && !url.startsWith('data:'))
+          );
+          setResolvedImages(finalResolvedImages);
+        }
       } finally {
         setIsUploadingStorage(false);
       }
@@ -751,23 +813,29 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
           }`}
           dir={dir}
         >
-          {/* Smart Report Image (Opens Full-Screen Lightbox on Click) */}
+          {/* Smart Report Media: Photo Carousel */}
           <div className="w-full space-y-2">
             <div className="w-full aspect-video bg-[#1E3725] overflow-hidden relative group">
-              <SmartAdaptiveImage
-                src={report.images[activeReportImageIdx] || report.images[0]}
-                alt={report.title}
-                gallery={report.images}
-                initialIndex={activeReportImageIdx}
-              />
+              <div className="w-full h-full relative">
+                <SmartAdaptiveImage
+                  src={report.images[activeReportImageIdx] || report.images[0]}
+                  alt={report.title}
+                  gallery={report.images}
+                  initialIndex={activeReportImageIdx}
+                />
+              </div>
             </div>
+
+            {/* شريط الصور المصغرة */}
             {report.images && report.images.length > 1 && (
               <div className="px-4 sm:px-8 flex items-center gap-2 overflow-x-auto pb-1">
                 {report.images.slice(0, MAX_UPLOAD_IMAGES).map((imgUrl, idx) => (
                   <button
                     key={`rep-main-thumb-${idx}`}
                     type="button"
-                    onClick={() => setActiveReportImageIdx(idx)}
+                    onClick={() => {
+                      setActiveReportImageIdx(idx);
+                    }}
                     className={`relative w-16 h-11 rounded-xl overflow-hidden border-2 shrink-0 cursor-pointer transition-all ${
                       activeReportImageIdx === idx
                         ? 'border-[#46674D] ring-2 ring-[#46674D]/30'
@@ -1157,20 +1225,6 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                                 <span>{savedInProgressTime}</span>
                               </span>
                             )}
-                            {activeRole === 'admin' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  playClickSound();
-                                  setEditingStep('in_progress');
-                                }}
-                                title={tr('تعديل', 'دەستکاری', 'Edit')}
-                                aria-label={tr('تعديل', 'دەستکاری', 'Edit')}
-                                className="w-7 h-7 rounded-lg bg-blue-50/80 hover:bg-blue-100 text-blue-600 flex items-center justify-center cursor-pointer transition-colors"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
                           </div>
                         </div>
 
@@ -1250,9 +1304,19 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                           <select
                             required
                             value={assignedTeam}
-                            onChange={(e) => setAssignedTeam(e.target.value)}
+                            onChange={(e) => {
+                              setAssignedTeam(e.target.value);
+                              setSelectedRecipientKey('phone1');
+                            }}
                             className="w-full bg-[#F4F9F5] border border-blue-200 focus:border-blue-600 rounded-xl px-3 py-2 text-xs font-black text-[#1E3725] focus:outline-none"
                           >
+                            <option value="">
+                              {tr(
+                                '-- اختر الدائرة الخدمية المعنية --',
+                                '-- فەرمانگەی پێوەندیدار هەڵبژێرە --',
+                                '-- Select Department --'
+                              )}
+                            </option>
                             {departments.map((dept) => (
                               <option key={dept.id} value={dept.nameAr}>
                                 {language === 'ku' && dept.nameKu
@@ -1265,67 +1329,80 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                           </select>
                         </div>
 
-                        <div className="space-y-1.5">
-                          <label className="block text-xs font-black text-blue-900">
+                        {!assignedTeam ? (
+                          <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs font-bold text-center leading-relaxed">
                             {tr(
-                              'اختيار الاسم في الدائرة:',
-                              'هەڵبژاردنی ناو لە فەرمانگە:',
-                              'Select Recipient:'
+                              '⚠️ الرجاء اختيار الدائرة الخدمية المعنية من القائمة أعلاه لعرض مسؤول التواصل ورقم الهاتف المخصص',
+                              '⚠️ تکایە سەرەتا فەرمانگەی پێوەندیدار لە لیستەکە هەڵبژێرە بۆ بینینی ناو و ژمارەی تەلەفۆن',
+                              '⚠️ Please select a department above to view contact details'
                             )}
-                          </label>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            {recipientOptions.map((rec) => {
-                              const isSelected = selectedRecipientKey === rec.key;
-                              const roleTitle =
-                                language === 'ku'
-                                  ? rec.roleKu
-                                  : language === 'en'
-                                  ? rec.roleEn
-                                  : rec.roleAr;
-                              return (
-                                <button
-                                  key={rec.key}
-                                  type="button"
-                                  onClick={() => {
-                                    playClickSound();
-                                    setSelectedRecipientKey(rec.key);
-                                  }}
-                                  className={`p-2 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-0.5 ${
-                                    isSelected
-                                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                      : 'bg-[#F4F9F5] text-[#1E3725] border-blue-200 hover:border-blue-400'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span
-                                      className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
-                                        isSelected
-                                          ? 'bg-white/20 text-white'
-                                          : 'bg-blue-100 text-blue-800'
-                                      }`}
-                                    >
-                                      {roleTitle}
-                                    </span>
-                                    {isSelected && <Check className="w-3 h-3" />}
-                                  </div>
-                                  <p className="text-xs font-black truncate mt-0.5">
-                                    {rec.name}
-                                  </p>
-                                  <p
-                                    className={`text-[10px] font-mono ${
-                                      isSelected
-                                        ? 'text-white/90'
-                                        : 'text-slate-500'
-                                    }`}
-                                    dir="ltr"
-                                  >
-                                    {rec.phone}
-                                  </p>
-                                </button>
-                              );
-                            })}
                           </div>
-                        </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-black text-blue-900">
+                              {tr(
+                                'اختيار الاسم في الدائرة:',
+                                'هەڵبژاردنی ناو لە فەرمانگە:',
+                                'Select Recipient:'
+                              )}
+                            </label>
+                            <div className={`grid gap-2 ${recipientOptions.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                              {recipientOptions.map((rec) => {
+                                const isSelected = selectedRecipientKey === rec.key;
+                                return (
+                                  <button
+                                    key={rec.key}
+                                    type="button"
+                                    onClick={() => {
+                                      playClickSound();
+                                      setSelectedRecipientKey(rec.key);
+                                    }}
+                                    className={`p-3 rounded-2xl border text-right transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                      isSelected
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                        : 'bg-[#F4F9F5] text-[#1E3725] border-blue-200 hover:border-blue-400'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div
+                                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                          isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
+                                        }`}
+                                      >
+                                        <User className="w-4 h-4" />
+                                      </div>
+                                      <div className="min-w-0 text-start">
+                                        <p className="text-xs font-black truncate">
+                                          {rec.name}
+                                        </p>
+                                        <p
+                                          className={`text-[11px] font-mono font-bold mt-0.5 ${
+                                            isSelected ? 'text-white/90' : 'text-slate-600'
+                                          }`}
+                                          dir="ltr"
+                                        >
+                                          {rec.phone}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {rec.key === 'phone2' && (
+                                        <span
+                                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                            isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                                          }`}
+                                        >
+                                          {tr('إضافي', 'زیادە', 'Extra')}
+                                        </span>
+                                      )}
+                                      {isSelected && <Check className="w-4 h-4" />}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="space-y-1">
                           <div className="flex items-center justify-between gap-2">
@@ -1497,24 +1574,23 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                             </p>
                           )}
 
-                          {report.resolvedImages &&
-                            report.resolvedImages.length > 0 && (
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {report.resolvedImages.map((imgUrl, idx) => (
-                                  <div
-                                    key={`saved-res-img-${idx}`}
-                                    className="rounded-xl overflow-hidden border border-emerald-200 bg-[#1E3725] aspect-video"
-                                  >
-                                    <SmartAdaptiveImage
-                                      src={imgUrl}
-                                      alt={`Completed ${idx + 1}`}
-                                      gallery={report.resolvedImages}
-                                      initialIndex={idx}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                          {report.resolvedImages && report.resolvedImages.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {report.resolvedImages.map((imgUrl, idx) => (
+                                <div
+                                  key={`saved-res-img-${idx}`}
+                                  className="rounded-xl overflow-hidden border border-emerald-200 bg-[#1E3725] aspect-video"
+                                >
+                                  <SmartAdaptiveImage
+                                    src={imgUrl}
+                                    alt={`Completed ${idx + 1}`}
+                                    gallery={report.resolvedImages}
+                                    initialIndex={idx}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </motion.div>
                       )}
 
@@ -1540,25 +1616,27 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                               </span>
                             </div>
 
-                            {resolvedImages.length < MAX_UPLOAD_IMAGES && (
-                              <label className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-emerald-400 bg-[#F4F9F5] hover:bg-emerald-50 transition-all cursor-pointer">
-                                <Upload className="w-4 h-4 text-emerald-600" />
-                                <span className="text-xs font-black text-[#1E3725]">
-                                  {tr(
-                                    'اختيار صور الإنجاز',
-                                    'هەڵبژاردنی وێنەی ئەنجامدان',
-                                    'Select Photos'
-                                  )}
-                                </span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  onChange={handleResolvedImagesUpload}
-                                  className="hidden"
-                                />
-                              </label>
-                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {resolvedImages.length < MAX_UPLOAD_IMAGES && (
+                                <label className="flex-1 inline-flex items-center justify-center gap-2 p-2.5 rounded-xl border border-dashed border-emerald-400 bg-[#F4F9F5] hover:bg-emerald-50 transition-all cursor-pointer">
+                                  <Upload className="w-4 h-4 text-emerald-600" />
+                                  <span className="text-xs font-black text-[#1E3725]">
+                                    {tr(
+                                      'اختيار صور الإنجاز',
+                                      'هەڵبژاردنی وێنەکان',
+                                      'Select Photos'
+                                    )}
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleResolvedImagesUpload}
+                                    className="hidden"
+                                  />
+                                </label>
+                              )}
+                            </div>
 
                             {uploadLimitMessage && (
                               <p className="text-[11px] font-black text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5">
@@ -1567,7 +1645,7 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                             )}
 
                             {resolvedImages.length > 0 && (
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
                                 {resolvedImages.map((imgUrl, idx) => (
                                   <div
                                     key={`resolved-upload-${idx}`}
@@ -1879,10 +1957,10 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                 </div>
               </div>
 
-              {/* زر تعديل البلاغ أمام زر حذف البلاغ — لا يظهران لحساب المواطن عند تحديد "تم الإرسال" */}
-              {(activeRole === 'admin' || (!hasInProgressRecord && !hasResolvedRecord)) && (
+              {/* زر تعديل البلاغ أمام زر حذف البلاغ — لا يظهران لحساب المواطن بعد إرسال البلاغ أو إنجازه أو تحديد حالته */}
+              {(activeRole === 'admin' || (!hasInProgressRecord && !hasResolvedRecord && report.status === 'pending')) && (
                 <div className="pt-3 border-t border-[#E8F4EA] flex items-center justify-center gap-5">
-                  {activeRole !== 'admin' && !hasInProgressRecord && !hasResolvedRecord && (
+                  {activeRole !== 'admin' && !hasInProgressRecord && !hasResolvedRecord && report.status === 'pending' && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1895,16 +1973,18 @@ export const CivicReportDetailsModal: React.FC<CivicReportDetailsModalProps> = (
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playClickSound();
-                      setIsDeleteConfirmOpen(true);
-                    }}
-                    className="text-xs font-bold text-rose-400 hover:text-rose-600 transition-colors cursor-pointer"
-                  >
-                    {tr('حذف البلاغ', 'سڕینەوەی سکاڵا', 'Delete Report')}
-                  </button>
+                  {(activeRole === 'admin' || (!hasInProgressRecord && !hasResolvedRecord && report.status === 'pending')) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsDeleteConfirmOpen(true);
+                      }}
+                      className="text-xs font-bold text-rose-400 hover:text-rose-600 transition-colors cursor-pointer"
+                    >
+                      {tr('حذف البلاغ', 'سڕینەوەی سکاڵا', 'Delete Report')}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

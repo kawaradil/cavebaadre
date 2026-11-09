@@ -18,7 +18,7 @@ import {
   query,
   limit,
 } from 'firebase/firestore';
-import { auth, db, getAppCheckTokenHeader } from '../lib/firebase';
+import { auth, db, withAppCheckHeaders } from '../lib/firebase';
 import {
   CitizenProfileDTO,
   AdminCitizenDTO,
@@ -26,16 +26,6 @@ import {
   toAdminCitizenDTO,
 } from '../types/dto';
 import { UserProfileDocument, UserRole } from '../types/auth';
-
-async function withAppCheckHeaders(
-  baseHeaders: Record<string, string> = {}
-): Promise<Record<string, string>> {
-  const appCheckHeader = await getAppCheckTokenHeader();
-  return {
-    ...baseHeaders,
-    ...appCheckHeader,
-  };
-}
 
 let cachedCitizensList: { timestamp: number; data: AdminCitizenDTO[] } | null = null;
 let inFlightCitizensPromise: Promise<AdminCitizenDTO[]> | null = null;

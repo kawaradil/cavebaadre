@@ -1,6 +1,6 @@
 import { getMessaging, getToken, onMessage, deleteToken, isSupported, Messaging } from 'firebase/messaging';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { app, auth, db, COLLECTIONS } from '../lib/firebase';
+import { app, auth, db, COLLECTIONS, withAppCheckHeaders } from '../lib/firebase';
 import { NewReportNotificationPayloadDTO } from '../types/dto';
 
 const DEVICE_ID_STORAGE_KEY = 'cave_baadre_fcm_device_id_v1';
@@ -114,10 +114,10 @@ export async function registerAdminDeviceFcmToken(
     const idToken = await user.getIdToken();
     await fetch('/api/notifications/register-token', {
       method: 'POST',
-      headers: {
+      headers: await withAppCheckHeaders({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${idToken}`,
-      },
+      }),
       body: JSON.stringify({
         fcmToken: resolvedFcmToken,
         deviceId,
@@ -162,10 +162,10 @@ export async function cleanupDeviceTokenOnLogout(): Promise<void> {
       const idToken = await user.getIdToken();
       await fetch('/api/notifications/unregister-token', {
         method: 'POST',
-        headers: {
+        headers: await withAppCheckHeaders({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
-        },
+        }),
         body: JSON.stringify({
           deviceId,
           fcmToken: currentRegisteredToken,
@@ -257,10 +257,10 @@ export async function triggerNewReportServerNotification(reportId: string): Prom
     const idToken = await user.getIdToken();
     await fetch('/api/notifications/notify-new-report', {
       method: 'POST',
-      headers: {
+      headers: await withAppCheckHeaders({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${idToken}`,
-      },
+      }),
       body: JSON.stringify({ reportId: String(reportId) }),
     });
   } catch {

@@ -2276,6 +2276,150 @@ apiRouter.post(
 );
 
 /**
+ * 15b. Delete Citizen / User Permanently from Core Application (Admin & Super Admin)
+ */
+apiRouter.post(
+  '/admin/delete-user',
+  authenticateUser,
+  async (req: Request, res: Response) => {
+    const caller = (req as any).user;
+    if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+      res.status(403).json({ error: 'غير مصرح.' });
+      return;
+    }
+
+    const { targetUid, targetEmail: bodyEmail } = req.body || {};
+    if (!targetUid || typeof targetUid !== 'string') {
+      res.status(400).json({ error: 'معرّف المستخدم مطلوب.' });
+      return;
+    }
+
+    const cleanUid = targetUid.trim();
+    if (cleanUid === caller.uid) {
+      res.status(400).json({ error: 'لا يمكنك حذف حسابك الحالي من هنا.' });
+      return;
+    }
+
+    try {
+      const store = readLocalStore();
+      const [remoteUser, remoteCitizen] = await Promise.all([
+        restGetDoc('users', cleanUid, caller.idToken),
+        restGetDoc('citizens', cleanUid, caller.idToken),
+      ]);
+
+      const existingUser = remoteUser || store.users[cleanUid] || {};
+      const existingCitizen = remoteCitizen || store.citizens[cleanUid] || {};
+      const targetEmail = String(
+        existingUser.email || existingCitizen.email || bodyEmail || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      const targetRole: UserRole = isDesignatedSuperAdminEmail(targetEmail)
+        ? 'super_admin'
+        : (existingUser.role as UserRole) ||
+          (existingCitizen.role as UserRole) ||
+          (store.super_admins[cleanUid]
+            ? 'super_admin'
+            : store.admins[cleanUid]
+            ? 'admin'
+            : 'citizen');
+
+      if (targetRole === 'super_admin') {
+        res.status(403).json({ error: 'لا يمكن حذف حساب السوبر أدمن.' });
+        return;
+      }
+
+      if (targetRole === 'admin' && caller.role !== 'super_admin') {
+        res.status(403).json({ error: 'حذف حساب المسؤول محصور بالسوبر أدمن فقط.' });
+        return;
+      }
+
+      delete store.users[cleanUid];
+      delete store.citizens[cleanUid];
+      delete store.admins[cleanUid];
+      delete store.super_admins[cleanUid];
+      delete store.admin_recovery_vault[cleanUid];
+
+      if (targetEmail) {
+        for (const [id, u] of Object.entries(store.users)) {
+          if (String(u?.email || '').trim().toLowerCase() === targetEmail) {
+            delete store.users[id];
+          }
+        }
+        for (const [id, c] of Object.entries(store.citizens)) {
+          if (String(c?.email || '').trim().toLowerCase() === targetEmail) {
+            delete store.citizens[id];
+          }
+        }
+      }
+
+      if (store.user_fcm_tokens) {
+        for (const [tokenId, tokenDoc] of Object.entries(store.user_fcm_tokens)) {
+          if (tokenDoc?.uid === cleanUid) {
+            delete store.user_fcm_tokens[tokenId];
+          }
+        }
+      }
+      writeLocalStore(store);
+
+      const deletePromises: Promise<any>[] = [
+        restDeleteDoc('users', cleanUid, caller.idToken).catch(() => {}),
+        restDeleteDoc('citizens', cleanUid, caller.idToken).catch(() => {}),
+        restDeleteDoc('admins', cleanUid, caller.idToken).catch(() => {}),
+      ];
+
+      if (targetEmail) {
+        deletePromises.push(
+          restListDocs('users', caller.idToken, 100)
+            .then((docs) =>
+              Promise.all(
+                docs
+                  .filter((d) => String(d.data?.email || '').trim().toLowerCase() === targetEmail)
+                  .map((d) => restDeleteDoc('users', d.id, caller.idToken).catch(() => {}))
+              )
+            )
+            .catch(() => {}),
+          restListDocs('citizens', caller.idToken, 100)
+            .then((docs) =>
+              Promise.all(
+                docs
+                  .filter((d) => String(d.data?.email || '').trim().toLowerCase() === targetEmail)
+                  .map((d) => restDeleteDoc('citizens', d.id, caller.idToken).catch(() => {}))
+              )
+            )
+            .catch(() => {})
+        );
+      }
+
+      await Promise.all(deletePromises);
+
+      appendAuditLog(
+        {
+          action: 'USER_DELETED_FROM_CORE_APP',
+          actorUid: caller.uid,
+          actorEmail: caller.email,
+          actorRole: caller.role,
+          targetUid: cleanUid,
+          targetEmail,
+          targetRole,
+          timestamp: new Date().toISOString(),
+        },
+        caller.idToken
+      );
+
+      res.json({
+        success: true,
+        targetUid: cleanUid,
+        message: 'تم حذف المواطن / المستخدم من أساس التطبيق بنجاح.',
+      });
+    } catch {
+      res.status(500).json({ error: 'فشل حذف المواطن من التطبيق.' });
+    }
+  }
+);
+
+/**
  * 16. Cloud Contact Settings (Read by all, Updated only by Admin & Super Admin)
  */
 const DEFAULT_CONTACT_SETTINGS = {
