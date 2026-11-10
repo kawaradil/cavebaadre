@@ -5,9 +5,14 @@ import { useColorTheme } from '../context/ColorContext';
 interface SplashLoadingProps {
   isLoadingDb: boolean;
   onFinish: () => void;
+  isUpdatingApp?: boolean;
 }
 
-export const SplashLoading: React.FC<SplashLoadingProps> = ({ isLoadingDb, onFinish }) => {
+export const SplashLoading: React.FC<SplashLoadingProps> = ({
+  isLoadingDb,
+  onFinish,
+  isUpdatingApp = false,
+}) => {
   const { palette } = useColorTheme();
   const [minTimeElapsed, setMinTimeElapsed] = useState<boolean>(false);
   const [isExiting, setIsExiting] = useState<boolean>(false);
@@ -21,8 +26,12 @@ export const SplashLoading: React.FC<SplashLoadingProps> = ({ isLoadingDb, onFin
     return () => clearTimeout(timer);
   }, []);
 
-  // Dismiss splash smoothly once data is ready or safety limit reached
+  // Dismiss splash smoothly once data is ready or safety limit reached (unless currently updating)
   useEffect(() => {
+    if (isUpdatingApp) {
+      return;
+    }
+
     if (minTimeElapsed && !isLoadingDb && !isExiting) {
       setIsExiting(true);
       const exitTimer = setTimeout(() => {
@@ -31,16 +40,16 @@ export const SplashLoading: React.FC<SplashLoadingProps> = ({ isLoadingDb, onFin
       return () => clearTimeout(exitTimer);
     }
 
-    // Safety timeout: Maximum 1100ms on splash
+    // Safety timeout: Maximum 1100ms on splash when not updating
     const safetyTimer = setTimeout(() => {
-      if (!isExiting) {
+      if (!isExiting && !isUpdatingApp) {
         setIsExiting(true);
         setTimeout(() => onFinish(), 350);
       }
     }, 1100);
 
     return () => clearTimeout(safetyTimer);
-  }, [minTimeElapsed, isLoadingDb, onFinish, isExiting]);
+  }, [minTimeElapsed, isLoadingDb, onFinish, isExiting, isUpdatingApp]);
 
   return (
     <AnimatePresence>
@@ -168,19 +177,38 @@ export const SplashLoading: React.FC<SplashLoadingProps> = ({ isLoadingDb, onFin
                 </svg>
               </div>
 
-              <p
-                dir="rtl"
-                className="text-xs sm:text-sm font-black text-[#1B3A46] font-['Noto_Kufi_Arabic','Cairo',sans-serif] tracking-normal drop-shadow-[0_1px_4px_rgba(255,255,255,0.9)]"
-              >
-                تطبيق الخدمات المجتمعية
-              </p>
+              {isUpdatingApp ? (
+                <div className="space-y-1 animate-pulse">
+                  <p
+                    dir="rtl"
+                    className="text-xs sm:text-sm font-black text-[#1E8E93] bg-white/80 px-3.5 py-1.5 rounded-full shadow-xs tracking-normal"
+                  >
+                    جاري تحديث التطبيق إلى الإصدار الجديد...
+                  </p>
+                  <p
+                    dir="ltr"
+                    className="text-[10px] sm:text-[11px] font-bold text-[#195D73]"
+                  >
+                    Updating to latest version...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p
+                    dir="rtl"
+                    className="text-xs sm:text-sm font-black text-[#1B3A46] font-['Noto_Kufi_Arabic','Cairo',sans-serif] tracking-normal drop-shadow-[0_1px_4px_rgba(255,255,255,0.9)]"
+                  >
+                    تطبيق الخدمات المجتمعية
+                  </p>
 
-              <p
-                dir="ltr"
-                className="text-[11px] sm:text-xs font-bold uppercase text-[#3B6878] font-['Montserrat',sans-serif] tracking-[0.18em]"
-              >
-                RABA ORGANIZATION
-              </p>
+                  <p
+                    dir="ltr"
+                    className="text-[11px] sm:text-xs font-bold uppercase text-[#3B6878] font-['Montserrat',sans-serif] tracking-[0.18em]"
+                  >
+                    RABA ORGANIZATION
+                  </p>
+                </>
+              )}
             </motion.div>
           </motion.div>
         </motion.div>

@@ -112,11 +112,11 @@ const BaadreMainLayout: React.FC = () => {
     typeof window !== 'undefined' ? (window as any).__deferredPwaPrompt || null : null
   );
 
-  const [isAutoUpdating, setIsAutoUpdating] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
 
   useEffect(() => {
-    return subscribeToAutoUpdater(() => {
-      setIsAutoUpdating(true);
+    return subscribeToAutoUpdater((info) => {
+      setUpdateInfo(info);
     });
   }, []);
 
@@ -194,6 +194,7 @@ const BaadreMainLayout: React.FC = () => {
       {showSplash && (
         <SplashLoading
           isLoadingDb={false}
+          isUpdatingApp={updateInfo?.phase === 'updating'}
           onFinish={() => {
             try {
               sessionStorage.setItem('cave_baadre_session_splash_shown', '1');
@@ -208,18 +209,35 @@ const BaadreMainLayout: React.FC = () => {
 
       <OfflineBanner />
 
-      {/* مؤشر التحديث التلقائي الفوري عند صدور نسخة جديدة من التطبيق على شاشة الموبايل */}
-      {isAutoUpdating && (
-        <div className="fixed top-4 inset-x-0 z-[200] flex justify-center px-3 pointer-events-none">
-          <div className="px-4 py-2.5 rounded-2xl bg-white/95 backdrop-blur-xl text-[#0E3544] border border-[#B2E2E5] shadow-[0_12px_32px_rgba(30,142,147,0.20)] flex items-center gap-2.5 whitespace-nowrap">
-            <span className="w-4 h-4 rounded-full border-2 border-[#DEF5F6] border-t-[#1E8E93] animate-spin shrink-0" />
-            <span className="text-xs sm:text-sm font-black">
-              {tr(
-                'جاري التحديث تلقائياً للإصدار الجديد...',
-                'نوێکردنەوەی خۆکار بۆ وەشانی نوێ...',
-                'Automatically updating to the new version...'
-              )}
-            </span>
+      {/* إشعار وتنبيه التحديث على الشاشة مباشرةً إذا كان التطبيق مفتوحاً وتم إصدار تحديث جديد */}
+      {updateInfo?.phase === 'updating' && !showSplash && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-[#0E3544]/55 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl bg-white/95 backdrop-blur-2xl p-6 text-center shadow-[0_24px_60px_rgba(30,142,147,0.30)] border border-[#B2E2E5] space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#DEF5F6] text-[#1E8E93] flex items-center justify-center mx-auto shadow-inner">
+              <svg className="w-7 h-7 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" />
+                <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base sm:text-lg font-black text-[#0E3544]">
+                {tr(
+                  'تم إصدار تحديث جديد للتطبيق',
+                  'وەشانێکی نوێی ئەپ بەردەستە',
+                  'New App Update Available'
+                )}
+              </h3>
+              <p className="text-xs sm:text-sm font-bold text-[#195D73] leading-relaxed">
+                {tr(
+                  'جاري تنزيل وتثبيت الإصدار الأحدث تلقائياً الآن...',
+                  'نوێکردنەوەی خۆکار بۆ وەشانی نوێ بەڕێوەدەچێت...',
+                  'Automatically updating to the latest version now...'
+                )}
+              </p>
+            </div>
+            <div className="w-full bg-[#DEF5F6] rounded-full h-1.5 overflow-hidden">
+              <div className="bg-[#1E8E93] h-full w-2/3 animate-[pulse_1s_ease-in-out_infinite]" />
+            </div>
           </div>
         </div>
       )}

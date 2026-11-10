@@ -58,7 +58,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   onOpenPrivacyPolicy,
 }) => {
   const { language, setLanguage, dir, isRTL } = useLanguage();
-  const { activePaletteName, setPalette, availablePalettes } = useColorTheme();
+  const { palette, activePaletteName, setPalette, availablePalettes } = useColorTheme();
   const {
     activeRole,
     setActiveRole,
@@ -283,7 +283,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               className="fixed inset-0 bg-[#1B3A46]/30 z-50 backdrop-blur-xs"
             />
 
-            {/* Drawer Container (مستوحى من لون السماء في الصورة المرفقة) */}
+            {/* Drawer Container — خلفية ناعمة ولطيفة تمتد حتى أطراف السايدبار مع إضاءات خلفية هادئة */}
             <motion.div
               dir={dir}
               initial={{ x: language === 'en' ? '-100%' : '100%' }}
@@ -294,19 +294,35 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               }}
               transition={{ type: 'spring', damping: 28, stiffness: 360, mass: 0.7 }}
               className={`fixed top-0 bottom-0 ${
-                language === 'en' ? 'left-0' : 'right-0'
-              } w-96 sm:w-[420px] max-w-[92vw] bg-gradient-to-b from-[#E7F2F5]/95 via-[#F2F8FA]/95 to-[#E4F0F4]/95 backdrop-blur-2xl z-50 flex flex-col shadow-[0_20px_70px_rgba(58,104,120,0.28)] overflow-hidden text-[#1B3A46] border-0`}
+                language === 'en' ? 'left-0 border-r' : 'right-0 border-l'
+              } w-96 sm:w-[420px] max-w-[94vw] bg-gradient-to-b from-[#EEF7FA]/98 via-[#F6FAF9]/98 to-[#E9F4F6]/98 backdrop-blur-3xl z-50 flex flex-col shadow-[0_20px_80px_rgba(30,142,147,0.24)] overflow-hidden text-[#1B3A46] border-white/60`}
             >
-              {/* Header (مثل الشريط العلوي مع نص نفطي وبدون إطارات) */}
+              {/* إضاءات خفيفة ولطيفة تمتد حتى أطراف السايدبار بألوان تركوازية ناعمة */}
+              <div
+                className="pointer-events-none absolute -top-32 -right-32 w-80 h-80 rounded-full opacity-45 blur-3xl"
+                style={{ background: `radial-gradient(circle, ${palette.gradientToHex} 0%, transparent 70%)` }}
+              />
+              <div
+                className="pointer-events-none absolute -bottom-32 -left-32 w-80 h-80 rounded-full opacity-40 blur-3xl"
+                style={{ background: `radial-gradient(circle, ${palette.primaryHex} 0%, transparent 70%)` }}
+              />
+              <div
+                className="pointer-events-none absolute inset-0 opacity-60"
+                style={{
+                  background: `radial-gradient(ellipse at 50% 30%, ${palette.primaryLightHex}66 0%, transparent 80%)`,
+                }}
+              />
+
+              {/* Header — يمتد كاملاً إلى أطراف السايدبار العلوية */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
-                className="px-5 py-4.5 relative flex items-center justify-center bg-gradient-to-r from-[#467586]/55 via-[#58899A]/35 to-[#6C9DAE]/55 backdrop-blur-md border-0 shadow-2xs select-none overflow-hidden"
+                className="px-5 py-4 relative flex items-center justify-center bg-gradient-to-r from-[#467586]/60 via-[#58899A]/40 to-[#6C9DAE]/60 backdrop-blur-xl border-b border-white/40 shadow-2xs select-none overflow-hidden shrink-0"
               >
                 <div
                   className="pointer-events-none absolute inset-0"
                   style={{
                     background:
-                      'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.14) 50%, transparent 80%)',
+                      'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.60) 0%, rgba(255,255,255,0.18) 50%, transparent 80%)',
                   }}
                 />
                 <span
@@ -321,17 +337,17 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   onClick={onClose}
                   className={`absolute top-1/2 -translate-y-1/2 ${
                     isRTL ? 'left-4' : 'right-4'
-                  } z-10 w-9 h-9 flex items-center justify-center bg-transparent text-[#0E3544] hover:bg-white/25 rounded-xl border-0 shadow-none transition-all active:scale-95 cursor-pointer`}
+                  } z-10 w-9 h-9 flex items-center justify-center bg-transparent text-[#0E3544] hover:bg-white/30 rounded-xl border-0 shadow-none transition-all active:scale-95 cursor-pointer`}
                   aria-label="Close"
                 >
                   <X className="w-5 h-5 stroke-[2.2]" />
                 </button>
               </div>
 
-              {/* Scrollable Body */}
+              {/* Scrollable Body — يمتد بأناقة حتى أطراف السايدبار مع بطاقات ناعمة */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
-                className={`px-4 py-3.5 flex-1 overflow-y-auto space-y-3 custom-scrollbar ${
+                className={`relative z-10 px-3.5 sm:px-4 py-3.5 flex-1 overflow-y-auto space-y-3 custom-scrollbar ${
                   isRTL ? 'text-right' : 'text-left'
                 }`}
               >
@@ -1230,10 +1246,10 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Footer (أسفل السايدبار مثل الشريط العلوي مع أيقونة إنستغرام المنظمة بشكل لطيف وبدون إطارات) */}
+              {/* Footer — يمتد كاملاً إلى أطراف السايدبار السفلية مع حافة علوية ناعمة */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
-                className="relative px-3 py-2.5 bg-gradient-to-r from-[#467586]/55 via-[#58899A]/35 to-[#6C9DAE]/55 backdrop-blur-md border-0 text-center text-[10px] font-bold text-[#0E3544] flex flex-col items-center justify-center gap-2 select-none overflow-hidden"
+                className="relative z-10 px-3.5 py-3 bg-gradient-to-r from-[#467586]/60 via-[#58899A]/40 to-[#6C9DAE]/60 backdrop-blur-xl border-t border-white/40 text-center text-[10px] font-bold text-[#0E3544] flex flex-col items-center justify-center gap-2 select-none overflow-hidden shrink-0"
               >
                 <div
                   className="pointer-events-none absolute inset-0"

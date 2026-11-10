@@ -11,7 +11,29 @@ const VERSION_POLL_INTERVAL_MS = 2 * 60 * 1000; // Check every 2 minutes while a
 let isUpdateDeferred = false;
 let pendingTargetBuildId: string | null = null;
 let isReloadingNow = false;
-let notifyUpdatingListeners: Array<() => void> = [];
+export type AppUpdatePhase = 'idle' | 'detected' | 'updating' | 'ready';
+
+export interface AppUpdateInfo {
+  phase: AppUpdatePhase;
+  targetBuildId?: string;
+  isInitialLaunch?: boolean;
+}
+
+let currentUpdateInfo: AppUpdateInfo = { phase: 'idle' };
+let notifyUpdateListeners: Array<(info: AppUpdateInfo) => void> = [];
+
+export function getAppUpdateInfo(): AppUpdateInfo {
+  return currentUpdateInfo;
+}
+
+function broadcastUpdateInfo(info: AppUpdateInfo): void {
+  currentUpdateInfo = info;
+  for (const listener of notifyUpdateListeners) {
+    try {
+      listener(info);
+    } catch {}
+  }
+}
 
 /**
  * Checks if an error corresponds to a stale lazy-loaded JS/CSS chunk after a new deployment
@@ -42,6 +64,17 @@ function canPerformAutoReload(targetBuildId: string): boolean {
     const lastTs = Number(sessionStorage.getItem(RELOAD_TS_KEY) || '0');
     const lastBuild = sessionStorage.getItem(RELOAD_BUILD_KEY) || '';
 
+    // If it's a completely new buildId, always allow update even within 10 seconds
+    if (
+      targetBuildId &&
+      targetBuildId !== 'sw-update' &&
+      targetBuildId !== 'chunk-recovery' &&
+      lastBuild &&
+      lastBuild !== targetBuildId
+    ) {
+      return true;
+    }
+
     if (now - lastTs < MIN_RELOAD_COOLDOWN_MS) {
       return false;
     }
@@ -65,7 +98,8 @@ function canPerformAutoReload(targetBuildId: string): boolean {
  */
 export async function forceCleanAppReload(
   targetBuildId: string = 'manual',
-  bypassCooldown: boolean = false
+  bypassCooldown: boolean = false,
+  isInitialLaunch: boolean = false
 ): Promise<void> {
   if (typeof window === 'undefined') return;
 
@@ -75,6 +109,11 @@ export async function forceCleanAppReload(
 
   if (!bypassCooldown && isUpdateDeferred) {
     pendingTargetBuildId = targetBuildId;
+    broadcastUpdateInfo({
+      phase: 'detected',
+      targetBuildId,
+      isInitialLaunch,
+    });
     return;
   }
 
@@ -86,12 +125,12 @@ export async function forceCleanAppReload(
     sessionStorage.setItem(RELOAD_BUILD_KEY, targetBuildId);
   } catch {}
 
-  // Notify UI so a brief smooth indicator appears before refresh
-  for (const listener of notifyUpdatingListeners) {
-    try {
-      listener();
-    } catch {}
-  }
+  // Broadcast updating state to UI (splash screen or in-app dialog)
+  broadcastUpdateInfo({
+    phase: 'updating',
+    targetBuildId,
+    isInitialLaunch,
+  });
 
   try {
     // 1. Instruct active/waiting Service Workers to skipWaiting and purge old caches
@@ -117,8 +156,8 @@ export async function forceCleanAppReload(
     }
   } catch {}
 
-  // Short visual grace period (450ms) so the update indicator renders smoothly
-  await new Promise((resolve) => setTimeout(resolve, 450));
+  // Visual grace period (600ms) so user clearly sees the modern update indicator before page reload
+  await new Promise((resolve) => setTimeout(resolve, 600));
 
   try {
     const nextUrl = new URL(window.location.href);
@@ -198,12 +237,17 @@ export async function checkForAppUpdate(): Promise<void> {
  * bfcache restore, network reconnect, SW controller swap, and stale chunk recovery)
  * to automatically keep installed mobile PWAs on the latest version.
  */
-export function subscribeToAutoUpdater(onUpdating: () => void): () => void {
+export function subscribeToAutoUpdater(
+  onUpdateInfo: (info: AppUpdateInfo) => void
+): () => void {
   if (typeof window === 'undefined') {
     return () => {};
   }
 
-  notifyUpdatingListeners.push(onUpdating);
+  notifyUpdateListeners.push(onUpdateInfo);
+  if (currentUpdateInfo.phase !== 'idle') {
+    onUpdateInfo(currentUpdateInfo);
+  }
 
   const hadControllerAtBoot =
     'serviceWorker' in navigator && Boolean(navigator.serviceWorker.controller);
@@ -282,13 +326,13 @@ export function subscribeToAutoUpdater(onUpdating: () => void): () => void {
   // Automatic recovery if a lazy-loaded module hash changed after a new deployment
   const handleVitePreloadError = (event: Event) => {
     event.preventDefault();
-    void forceCleanAppReload('chunk-recovery');
+    void forceCleanAppReload('chunk-recovery', true);
   };
 
   const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
     if (isStaleChunkError(event.reason)) {
       event.preventDefault();
-      void forceCleanAppReload('chunk-recovery');
+      void forceCleanAppReload('chunk-recovery', true);
     }
   };
 
@@ -299,21 +343,19 @@ export function subscribeToAutoUpdater(onUpdating: () => void): () => void {
   window.addEventListener('vite:preloadError', handleVitePreloadError);
   window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
-  // Initial startup check right after first paint
-  const initialTimer = window.setTimeout(() => {
-    void checkForAppUpdate();
-  }, 1200);
+  // Check immediately upon launch
+  void checkForAppUpdate();
 
-  // Periodic background check while app remains open on screen
+  // Periodic background check while app remains open on screen (every 30 seconds for immediate live detection)
+  const LIVE_CHECK_INTERVAL_MS = 30 * 1000;
   const intervalId = window.setInterval(() => {
     if (document.visibilityState === 'visible') {
       void checkForAppUpdate();
     }
-  }, VERSION_POLL_INTERVAL_MS);
+  }, LIVE_CHECK_INTERVAL_MS);
 
   return () => {
-    notifyUpdatingListeners = notifyUpdatingListeners.filter((fn) => fn !== onUpdating);
-    window.clearTimeout(initialTimer);
+    notifyUpdateListeners = notifyUpdateListeners.filter((fn) => fn !== onUpdateInfo);
     window.clearInterval(intervalId);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('pageshow', handlePageShow);
