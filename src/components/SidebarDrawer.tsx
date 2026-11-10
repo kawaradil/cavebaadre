@@ -1230,10 +1230,10 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Footer (أسفل السايدبار مثل الشريط العلوي مع نص نفطي وبدون إطارات) */}
+              {/* Footer (أسفل السايدبار مثل الشريط العلوي مع أيقونة إنستغرام المنظمة بشكل لطيف وبدون إطارات) */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
-                className="relative p-3 bg-gradient-to-r from-[#467586]/55 via-[#58899A]/35 to-[#6C9DAE]/55 backdrop-blur-md border-0 text-center text-[10px] font-bold text-[#0E3544] flex items-center justify-center gap-1.5 flex-wrap select-none overflow-hidden"
+                className="relative px-3 py-2.5 bg-gradient-to-r from-[#467586]/55 via-[#58899A]/35 to-[#6C9DAE]/55 backdrop-blur-md border-0 text-center text-[10px] font-bold text-[#0E3544] flex flex-col items-center justify-center gap-2 select-none overflow-hidden"
               >
                 <div
                   className="pointer-events-none absolute inset-0"
@@ -1242,27 +1242,74 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                       'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.14) 50%, transparent 80%)',
                   }}
                 />
-                {isRTL ? (
-                  <>
-                    <bdi className="relative z-10 text-[#0E3544]">
-                      {language === 'ku' ? 'ڕێکخراوی' : 'منظمة'} <span dir="ltr" className="font-black text-[#0E3544]">RABA</span>
-                    </bdi>
-                    <span className="relative z-10 text-[#0E3544]/50">•</span>
-                    <bdi className="relative z-10 text-[#0E3544]">
-                      {language === 'ku' ? 'ئەپی' : 'تطبيق'} <span dir="ltr" className="font-black text-[#0E3544]">ÇAVÊ BAADRÊ</span>
-                    </bdi>
-                    <span className="relative z-10 text-[#0E3544]/50">•</span>
-                    <bdi dir="ltr" className="relative z-10 font-black text-[#0E3544]">© {new Date().getFullYear()}</bdi>
-                  </>
-                ) : (
-                  <>
-                    <bdi className="relative z-10 font-black text-[#0E3544]">RABA Organization</bdi>
-                    <span className="relative z-10 text-[#0E3544]/50">•</span>
-                    <bdi className="relative z-10 font-black text-[#0E3544]">ÇAVÊ BAADRÊ App</bdi>
-                    <span className="relative z-10 text-[#0E3544]/50">•</span>
-                    <bdi className="relative z-10 font-black text-[#0E3544]">© {new Date().getFullYear()}</bdi>
-                  </>
-                )}
+
+                {/* زر متابعة منظمة RABA على إنستغرام متناسق مع جميع السمات اللونية */}
+                <a
+                  href="https://www.instagram.com/rabaorganization?cplk=c21nZ3F3ZmZuZzR6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  dir={isRTL ? 'rtl' : 'ltr'}
+                  onClick={() => playClickSound()}
+                  aria-label={tr(
+                    'تابعنا على انستكرام',
+                    'لە ئینستاگرام فۆڵۆمان بکە',
+                    'Follow us on Instagram'
+                  )}
+                  title={tr(
+                    'تابعنا على انستكرام — RABA Organization',
+                    'لە ئینستاگرام فۆڵۆمان بکە — RABA',
+                    'Follow us on Instagram — RABA Organization'
+                  )}
+                  className="relative z-10 group px-3.5 py-1.5 rounded-2xl bg-white/85 hover:bg-white text-[#1B3A46] shadow-[0_4px_14px_rgba(30,142,147,0.10)] hover:shadow-[0_6px_20px_rgba(30,142,147,0.18)] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] inline-flex items-center justify-center gap-2.5 cursor-pointer border-0"
+                >
+                  <span className="text-[11px] sm:text-xs font-black text-[#1B3A46] tracking-wide whitespace-nowrap">
+                    {tr(
+                      'تابعنا على انستكرام',
+                      'لە ئینستاگرام فۆڵۆمان بکە',
+                      'Follow us on Instagram'
+                    )}
+                  </span>
+                  <span className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#467586] via-[#58899A] to-[#6C9DAE] text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.1"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4 h-4"
+                      aria-hidden="true"
+                    >
+                      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                    </svg>
+                  </span>
+                </a>
+
+                <div className="relative z-10 flex items-center justify-center gap-1.5 flex-wrap">
+                  {isRTL ? (
+                    <>
+                      <bdi className="text-[#0E3544]">
+                        {language === 'ku' ? 'ڕێکخراوی' : 'منظمة'} <span dir="ltr" className="font-black text-[#0E3544]">RABA</span>
+                      </bdi>
+                      <span className="text-[#0E3544]/50">•</span>
+                      <bdi className="text-[#0E3544]">
+                        {language === 'ku' ? 'ئەپی' : 'تطبيق'} <span dir="ltr" className="font-black text-[#0E3544]">ÇAVÊ BAADRÊ</span>
+                      </bdi>
+                      <span className="text-[#0E3544]/50">•</span>
+                      <bdi dir="ltr" className="font-black text-[#0E3544]">© {new Date().getFullYear()}</bdi>
+                    </>
+                  ) : (
+                    <>
+                      <bdi className="font-black text-[#0E3544]">RABA Organization</bdi>
+                      <span className="text-[#0E3544]/50">•</span>
+                      <bdi className="font-black text-[#0E3544]">ÇAVÊ BAADRÊ App</bdi>
+                      <span className="text-[#0E3544]/50">•</span>
+                      <bdi className="font-black text-[#0E3544]">© {new Date().getFullYear()}</bdi>
+                    </>
+                  )}
+                </div>
               </div>
             </motion.div>
           </>
