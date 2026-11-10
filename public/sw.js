@@ -1,7 +1,7 @@
-const CACHE_NAME = 'baadre-cave-pwa-v5';
+const SW_BUILD_ID = '__SW_BUILD_ID__';
+const CACHE_NAME = `baadre-cave-pwa-${SW_BUILD_ID}`;
 const ASSETS_TO_CACHE = [
   '/manifest.json',
-  '/pwa-icon.svg',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',
   '/pwa-maskable-512.png',
@@ -12,42 +12,80 @@ const ASSETS_TO_CACHE = [
   '/assets/aistudio/cave_baadre_logo.png'
 ];
 
-// Install event - Cache core static icons
+// Install event - Fetch fresh core icons bypassing HTTP cache and activate immediately
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
-        console.warn('PWA Cache addAll warning:', err);
-      });
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.all(
+        ASSETS_TO_CACHE.map((assetUrl) =>
+          fetch(new Request(assetUrl, { cache: 'reload' }))
+            .then((res) => {
+              if (res && res.status === 200) {
+                return cache.put(assetUrl, res);
+              }
+              return undefined;
+            })
+            .catch(() => {})
+        )
+      );
+    })
   );
 });
 
-// Activate event - Clean up old caches immediately
+// Activate event - Clean up ALL old version caches immediately & claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    }).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((name) => name !== CACHE_NAME)
+            .map((name) => caches.delete(name))
+        )
+      )
+      .then(() => self.clients.claim())
+      .then(() =>
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      )
+      .then((clients) => {
+        for (const client of clients) {
+          client.postMessage({
+            type: 'SW_ACTIVATED_NEW_VERSION',
+            buildId: SW_BUILD_ID,
+          });
+        }
+      })
   );
 });
 
-// Fetch event - Network-first for JS/CSS/HTML to prevent stale bundle mismatch, cache-first for static images/fonts
+// Support explicit update/purge commands from the client
+self.addEventListener('message', (event) => {
+  const data = event.data || {};
+  if (data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  } else if (data.type === 'PURGE_CACHES') {
+    event.waitUntil(
+      caches.keys().then((names) => Promise.all(names.map((n) => caches.delete(n))))
+    );
+  }
+});
+
+// Fetch event - Always network-fresh for HTML/JS/CSS & version checks; offline fallback when disconnected
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
-
-  // Skip non-http/https protocols (e.g. chrome-extension://)
   if (!url.protocol.startsWith('http')) return;
 
-  // STRICT BYPASS: Never intercept or cache Vite development files, HMR, or prebundled modules
+  // STRICT BYPASS: Never cache API routes, live version checks, Service Workers, Vite dev modules, or external APIs
   if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname === '/version.json' ||
+    url.pathname === '/sw.js' ||
+    url.pathname === '/firebase-messaging-sw.js' ||
+    url.pathname === '/manifest.json' ||
     url.pathname.includes('/node_modules/') ||
     url.pathname.includes('/@vite/') ||
     url.pathname.includes('/@fs/') ||
@@ -57,13 +95,7 @@ self.addEventListener('fetch', (event) => {
     url.searchParams.has('t') ||
     url.hostname.includes('ais-dev') ||
     url.hostname.includes('localhost') ||
-    url.hostname === '127.0.0.1'
-  ) {
-    return;
-  }
-
-  // STRICT BYPASS: Never intercept or cache Google, Firebase, reCAPTCHA, or external CDN requests
-  if (
+    url.hostname === '127.0.0.1' ||
     url.hostname.includes('google.com') ||
     url.hostname.includes('gstatic.com') ||
     url.hostname.includes('recaptcha.net') ||
@@ -76,7 +108,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for JS and CSS bundles so new deployments never mix stale chunks
+  // HTML Navigation: Always fetch fresh index.html with no-store when online; fall back to cache ONLY when offline
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put('/', clone).catch(() => {});
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cachedRoot = await caches.match('/');
+          if (cachedRoot) return cachedRoot;
+          const cachedIndex = await caches.match('/index.html');
+          return cachedIndex || Response.error();
+        })
+    );
+    return;
+  }
+
+  // JS and CSS bundles: Network-first so new deployments never mix stale chunks
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
       fetch(event.request)
@@ -98,7 +153,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static images, icons, or fonts
+  // Same-origin static images, icons, or fonts: Network-revalidated with fast cache fallback
   if (
     url.origin === self.location.origin &&
     (url.pathname.endsWith('.png') ||
@@ -126,26 +181,11 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           })
           .catch((fetchErr) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
+            if (cachedResponse) return cachedResponse;
             return Promise.reject(fetchErr);
           });
 
         return cachedResponse || networkFetch;
-      }).catch(async () => {
-        const fallback = await caches.match(event.request);
-        return fallback || fetch(event.request);
-      })
-    );
-    return;
-  }
-
-  // Network first with offline fallback for html and navigation
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/') || caches.match('/index.html');
       })
     );
   }
@@ -182,8 +222,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(notifTitle, {
       body: notifBody,
-      icon: '/assets/aistudio/file_0000000029c881f5afb4aa954e9b4fb8_c75b5b84.png',
-      badge: '/assets/aistudio/file_0000000029c881f5afb4aa954e9b4fb8_c75b5b84.png',
+      icon: '/pwa-icon-192.png',
+      badge: '/pwa-icon-192.png',
       dir: 'rtl',
       lang: 'ar',
       tag: reportId ? `baadre-report-${reportId}` : 'baadre-admin-report',
@@ -227,4 +267,3 @@ self.addEventListener('notificationclick', (event) => {
       })
   );
 });
-

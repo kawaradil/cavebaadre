@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>ÇAVÊ BAADRÊ | عين باعذرة | Baadre Eye - منظمة Raba</title>
     <meta name="description" content="تطبيق ÇAVÊ BAADRÊ (عين باعذرة - Baadre Eye) التابع لمنظمة Raba لإدارة ومتابعة البلاغات والخدمات في ناحية باعذرة" />
     <meta property="og:title" content="ÇAVÊ BAADRÊ | عين باعذرة | Baadre Eye - منظمة Raba" />
@@ -66,6 +69,19 @@
         window.dispatchEvent(new Event('pwa-prompt-ready'));
       });
 
+      // Clean temporary cache-buster query param (_v) after an automatic mobile PWA update
+      try {
+        var currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.has('_v')) {
+          currentUrl.searchParams.delete('_v');
+          var cleanPath =
+            currentUrl.pathname +
+            (currentUrl.searchParams.toString() ? '?' + currentUrl.searchParams.toString() : '') +
+            currentUrl.hash;
+          window.history.replaceState({}, '', cleanPath);
+        }
+      } catch (err) {}
+
       const isCapacitor =
         window.location.protocol === 'capacitor:' ||
         window.location.protocol === 'ionic:' ||
@@ -78,8 +94,11 @@
         (window.location.protocol === 'http:' || window.location.protocol === 'https:')
       ) {
         navigator.serviceWorker
-          .register('/sw.js')
+          .register('/sw.js', { updateViaCache: 'none' })
           .then(function (reg) {
+            if (reg.waiting) {
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
             reg.update().catch(function () {});
           })
           .catch(function () {});

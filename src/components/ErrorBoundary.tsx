@@ -1,5 +1,6 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import { forceCleanAppReload, isStaleChunkError } from '../services/appAutoUpdater';
 
 interface Props {
   children?: ReactNode;
@@ -28,10 +29,18 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (isStaleChunkError(error)) {
+      void forceCleanAppReload('chunk-recovery');
+      return;
+    }
     console.error('Uncaught error caught by ErrorBoundary:', error, errorInfo);
   }
 
   private handleReset = () => {
+    if (this.state.error && isStaleChunkError(this.state.error)) {
+      void forceCleanAppReload('manual', true);
+      return;
+    }
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
@@ -39,7 +48,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleReload = () => {
-    window.location.reload();
+    void forceCleanAppReload('manual', true);
   };
 
   public render() {

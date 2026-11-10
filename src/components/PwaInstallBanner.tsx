@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, X, Share } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../context/LanguageContext';
+import { useColorTheme } from '../context/ColorContext';
 
 interface PwaInstallBannerProps {
   installPrompt?: any;
@@ -13,6 +14,7 @@ export const PwaInstallBanner: React.FC<PwaInstallBannerProps> = ({
   isSplashActive = false,
 }) => {
   const { language, isRTL } = useLanguage();
+  const { palette } = useColorTheme();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(installPrompt || null);
   const [isIOS, setIsIOS] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
@@ -144,6 +146,7 @@ export const PwaInstallBanner: React.FC<PwaInstallBannerProps> = ({
                 src="/assets/aistudio/cave_baadre_logo.png"
                 alt="ÇAVÊ BAADRÊ"
                 className="w-full h-full object-contain"
+                style={{ filter: palette.logoFilter }}
               />
             </div>
             <span className="text-[10px] font-black text-[#1E3725] tracking-tight line-clamp-1">

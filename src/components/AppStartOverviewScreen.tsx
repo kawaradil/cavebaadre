@@ -152,13 +152,21 @@ export const AppStartOverviewScreen: React.FC<AppStartOverviewScreenProps> = ({
           {/* App Logo + Subtitle */}
           <div className="text-center space-y-2.5 pt-1">
             <div className="relative flex items-center justify-center py-1">
-              <div className="absolute w-36 h-36 rounded-full bg-white/80 blur-xl pointer-events-none" />
+              <div
+                className="absolute w-36 h-36 rounded-full blur-xl pointer-events-none"
+                style={{
+                  background: `radial-gradient(circle, rgba(255,255,255,0.92) 0%, ${palette.primaryLightHex}88 65%, transparent 100%)`,
+                }}
+              />
               <img
                 src="/assets/aistudio/cave_baadre_logo.png"
                 alt="ÇAVÊ BAADRÊ"
                 className="relative w-32 sm:w-36 h-auto object-contain select-none pointer-events-none"
                 style={{
-                  filter: `${palette.logoFilter} drop-shadow(0 10px 22px rgba(${palette.shadowRgb}, 0.22))`,
+                  filter:
+                    palette.logoFilter && palette.logoFilter !== 'none'
+                      ? `${palette.logoFilter} drop-shadow(0 10px 22px rgba(${palette.shadowRgb}, 0.22))`
+                      : `drop-shadow(0 10px 22px rgba(${palette.shadowRgb}, 0.22))`,
                 }}
               />
             </div>

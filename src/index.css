@@ -145,7 +145,7 @@
 
 /* 0. Logo & Splash Dynamic Color Filter */
 img[src*="cave_baadre_logo"] {
-  filter: var(--theme-logo-filter) !important;
+  filter: var(--theme-logo-filter);
 }
 
 /* 1. Backgrounds - Primary & Accent */

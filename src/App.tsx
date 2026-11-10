@@ -16,6 +16,7 @@ import { AuthModal } from './components/AuthModal';
 import { AppStartOverviewScreen } from './components/AppStartOverviewScreen';
 import { isReportSentToDepartment } from './types/baadre';
 import { playClickSound } from './lib/sound';
+import { subscribeToAutoUpdater, setAutoUpdateDeferred } from './services/appAutoUpdater';
 
 // Lazy-loaded feature views & heavy modals for faster initial load and modular scalability
 const MunicipalControlDashboard = lazy(() =>
@@ -111,6 +112,20 @@ const BaadreMainLayout: React.FC = () => {
     typeof window !== 'undefined' ? (window as any).__deferredPwaPrompt || null : null
   );
 
+  const [isAutoUpdating, setIsAutoUpdating] = useState(false);
+
+  useEffect(() => {
+    return subscribeToAutoUpdater(() => {
+      setIsAutoUpdating(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    setAutoUpdateDeferred(
+      isSubmitModalOpen || Boolean(editingCitizenReport) || isAddProjectOpen
+    );
+  }, [isSubmitModalOpen, editingCitizenReport, isAddProjectOpen]);
+
   useEffect(() => {
     if ((window as any).__deferredPwaPrompt) {
       setDeferredPrompt((window as any).__deferredPwaPrompt);
@@ -192,6 +207,22 @@ const BaadreMainLayout: React.FC = () => {
       <ModernGeometricPrismBackground />
 
       <OfflineBanner />
+
+      {/* مؤشر التحديث التلقائي الفوري عند صدور نسخة جديدة من التطبيق على شاشة الموبايل */}
+      {isAutoUpdating && (
+        <div className="fixed top-4 inset-x-0 z-[200] flex justify-center px-3 pointer-events-none">
+          <div className="px-4 py-2.5 rounded-2xl bg-white/95 backdrop-blur-xl text-[#0E3544] border border-[#B2E2E5] shadow-[0_12px_32px_rgba(30,142,147,0.20)] flex items-center gap-2.5 whitespace-nowrap">
+            <span className="w-4 h-4 rounded-full border-2 border-[#DEF5F6] border-t-[#1E8E93] animate-spin shrink-0" />
+            <span className="text-xs sm:text-sm font-black">
+              {tr(
+                'جاري التحديث تلقائياً للإصدار الجديد...',
+                'نوێکردنەوەی خۆکار بۆ وەشانی نوێ...',
+                'Automatically updating to the new version...'
+              )}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* رسالة لطيفة ونظيفة عند تغيير حالة البلاغ بدون التفاف (nowrap) */}
       {statusUpdateToast && (

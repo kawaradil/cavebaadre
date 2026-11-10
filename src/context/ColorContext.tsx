@@ -36,7 +36,7 @@ export interface ColorThemeTokens {
 
 export type GreenColorTokens = ColorThemeTokens;
 
-const STORAGE_THEME_KEY = 'cave_baadre_theme_palette_v5';
+const STORAGE_THEME_KEY = 'cave_baadre_theme_palette_v6';
 
 /**
  * 1. سمة تركوازي (Turquoise) - الافتراضية
@@ -100,7 +100,7 @@ export const INDIGO_THEME: ColorThemeTokens = {
   bgMidTintHex: '#EEF2FF',
   bgSoftTintHex: '#F5F7FF',
   shadowRgb: '57, 73, 171',
-  logoFilter: 'hue-rotate(36deg) saturate(1.15) brightness(0.97)',
+  logoFilter: 'hue-rotate(54deg) saturate(1.25) brightness(0.92)',
   splashFilter: 'hue-rotate(36deg) saturate(0.9) brightness(1.0)',
   logoUrl: '/assets/aistudio/cave_baadre_logo.png',
   cardBgClass: 'bg-white/90 backdrop-blur-xl border border-[#CFE2E8] shadow-[0_8px_28px_rgba(57,73,171,0.10)]',
@@ -134,7 +134,7 @@ export const SKY_SLATE_THEME: ColorThemeTokens = {
   bgMidTintHex: '#EFF6F8',
   bgSoftTintHex: '#F5FAFC',
   shadowRgb: '70, 117, 134',
-  logoFilter: 'saturate(0.68) hue-rotate(-8deg) brightness(0.98)',
+  logoFilter: 'hue-rotate(8deg) saturate(0.65) brightness(0.95)',
   splashFilter: 'saturate(0.6) hue-rotate(-8deg) brightness(1.0)',
   logoUrl: '/assets/aistudio/cave_baadre_logo.png',
   cardBgClass: 'bg-white/90 backdrop-blur-xl border border-[#CFE2E8] shadow-[0_8px_28px_rgba(70,117,134,0.10)]',
@@ -168,7 +168,7 @@ export const EMERALD_THEME: ColorThemeTokens = {
   bgMidTintHex: '#EDF7EF',
   bgSoftTintHex: '#F5FAF6',
   shadowRgb: '70, 103, 77',
-  logoFilter: 'hue-rotate(-74deg) saturate(0.88) brightness(0.95)',
+  logoFilter: 'hue-rotate(-52deg) saturate(0.72) brightness(0.92)',
   splashFilter: 'hue-rotate(-74deg) saturate(0.75) brightness(1.0)',
   logoUrl: '/assets/aistudio/cave_baadre_logo.png',
   cardBgClass: 'bg-white/90 backdrop-blur-xl border border-[#CFE2E8] shadow-[0_8px_28px_rgba(70,103,77,0.10)]',
@@ -202,7 +202,7 @@ export const ROYAL_BLUE_THEME: ColorThemeTokens = {
   bgMidTintHex: '#F0F9FF',
   bgSoftTintHex: '#F8FAFC',
   shadowRgb: '36, 124, 180',
-  logoFilter: 'hue-rotate(10deg) saturate(1.18) brightness(0.98)',
+  logoFilter: 'hue-rotate(24deg) saturate(1.22) brightness(0.96)',
   splashFilter: 'hue-rotate(10deg) saturate(1.0) brightness(1.0)',
   logoUrl: '/assets/aistudio/cave_baadre_logo.png',
   cardBgClass: 'bg-white/90 backdrop-blur-xl border border-[#CFE2E8] shadow-[0_8px_28px_rgba(36,124,180,0.10)]',

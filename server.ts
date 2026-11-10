@@ -60,13 +60,104 @@ app.use((_req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+const SERVER_BOOT_BUILD_ID = `v${Date.now()}`;
+
+function setNoCacheHeaders(res: express.Response) {
+  res.setHeader(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0'
+  );
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+}
+
+function getActiveBuildMetadata(): { buildId: string; builtAt: string } {
+  if (!isProd) {
+    return { buildId: 'dev', builtAt: new Date().toISOString() };
+  }
+  try {
+    const versionFilePath = path.join(__dirname, 'dist', 'version.json');
+    if (fs.existsSync(versionFilePath)) {
+      const parsed = JSON.parse(fs.readFileSync(versionFilePath, 'utf8'));
+      if (parsed && parsed.buildId) {
+        return {
+          buildId: String(parsed.buildId),
+          builtAt: String(parsed.builtAt || new Date().toISOString()),
+        };
+      }
+    }
+  } catch {}
+  return { buildId: SERVER_BOOT_BUILD_ID, builtAt: new Date().toISOString() };
+}
+
 // Health check endpoint for deployment probes
 app.get('/healthz', (_req, res) => {
   res.status(200).send('OK');
 });
 
+// Live version check endpoints for installed mobile PWAs (never cached)
+app.get(['/version.json', '/api/app-version'], (_req, res) => {
+  setNoCacheHeaders(res);
+  res.json(getActiveBuildMetadata());
+});
+
+// Prevent mobile browsers / WebAPK / iOS WebClip from HTTP-caching entry HTML, Manifest, or Service Workers
+app.use((req, res, next) => {
+  const reqPath = req.path || '';
+  if (
+    reqPath === '/' ||
+    reqPath === '/index.html' ||
+    reqPath === '/sw.js' ||
+    reqPath === '/firebase-messaging-sw.js' ||
+    reqPath === '/manifest.json'
+  ) {
+    setNoCacheHeaders(res);
+  }
+  next();
+});
+
 // Mount secure API routes
 app.use('/api', apiRouter);
+
+function serveProductionDist() {
+  const distPath = path.join(__dirname, 'dist');
+  app.use(
+    express.static(distPath, {
+      etag: true,
+      setHeaders: (res, filePath) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (
+          normalized.endsWith('/index.html') ||
+          normalized.endsWith('/sw.js') ||
+          normalized.endsWith('/firebase-messaging-sw.js') ||
+          normalized.endsWith('/manifest.json') ||
+          normalized.endsWith('/version.json')
+        ) {
+          setNoCacheHeaders(res);
+        } else if (
+          normalized.includes('/dist/assets/') &&
+          (normalized.endsWith('.js') || normalized.endsWith('.css'))
+        ) {
+          // Content-hashed Vite JS/CSS chunks can be cached safely
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          // Icons & images revalidate quickly so updated branding reflects immediately
+          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        }
+      },
+    })
+  );
+  app.get('*', (_req, res) => {
+    setNoCacheHeaders(res);
+    const indexPath = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Build files not found. Please run npm run build.');
+    }
+  });
+}
 
 // Set up Vite middlewares in development or static serving in production
 async function setupApp() {
@@ -80,25 +171,10 @@ async function setupApp() {
       app.use(vite.middlewares);
     } catch (err) {
       console.warn('Vite middleware could not be loaded, falling back to static files:', err);
-      const distPath = path.join(__dirname, 'dist');
-      app.use(express.static(distPath));
-      app.get('*', (_req, res) => {
-        const indexPath = path.join(distPath, 'index.html');
-        if (fs.existsSync(indexPath)) res.sendFile(indexPath);
-        else res.status(404).send('Build files not found.');
-      });
+      serveProductionDist();
     }
   } else {
-    const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      const indexPath = path.join(distPath, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).send('Build files not found. Please run npm run build.');
-      }
-    });
+    serveProductionDist();
   }
 
   app.listen(PORT, '0.0.0.0', () => {

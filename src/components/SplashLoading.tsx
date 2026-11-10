@@ -104,7 +104,10 @@ export const SplashLoading: React.FC<SplashLoadingProps> = ({ isLoadingDb, onFin
                 alt="ÇAVÊ BAADRÊ"
                 className="relative w-44 sm:w-52 md:w-56 h-auto object-contain select-none pointer-events-none"
                 style={{
-                  filter: `${palette.logoFilter} drop-shadow(0 14px 28px rgba(${palette.shadowRgb}, 0.24))`,
+                  filter:
+                    palette.logoFilter && palette.logoFilter !== 'none'
+                      ? `${palette.logoFilter} drop-shadow(0 14px 28px rgba(${palette.shadowRgb}, 0.24))`
+                      : `drop-shadow(0 14px 28px rgba(${palette.shadowRgb}, 0.24))`,
                 }}
                 loading="eager"
               />

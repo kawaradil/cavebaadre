@@ -5,7 +5,8 @@
  * and routes notification clicks directly to the report details modal inside the Admin dashboard.
  */
 
-const APP_ICON = '/assets/aistudio/file_0000000029c881f5afb4aa954e9b4fb8_c75b5b84.png';
+const SW_BUILD_ID = '__SW_BUILD_ID__';
+const APP_ICON = '/pwa-icon-192.png';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

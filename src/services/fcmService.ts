@@ -85,7 +85,7 @@ export async function registerAdminDeviceFcmToken(
         const messaging = await getSafeMessagingInstance();
         if (messaging) {
           const swReg = await navigator.serviceWorker
-            .register('/firebase-messaging-sw.js')
+            .register('/sw.js', { updateViaCache: 'none' })
             .catch(() => navigator.serviceWorker.ready);
 
           const vapidKey = (import.meta as any).env?.VITE_FIREBASE_VAPID_KEY;
@@ -335,7 +335,7 @@ export async function requestMobileNotificationPermission(): Promise<Notificatio
       permission = await Notification.requestPermission();
     }
     if (permission === 'granted' && 'serviceWorker' in navigator) {
-      await navigator.serviceWorker.register('/sw.js').catch(() => {});
+      await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
     }
     return permission;
   } catch {
