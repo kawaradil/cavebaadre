@@ -126,8 +126,8 @@
     --theme-bg-hover: #C4ECEE;
     --theme-border: #B2E2E5;
     --theme-rgb: 30, 142, 147;
-    --theme-logo-filter: hue-rotate(-18deg) saturate(1.12) brightness(0.97);
-    --theme-splash-filter: hue-rotate(-18deg) saturate(0.84) brightness(1.02) contrast(0.97);
+    --theme-logo-filter: none;
+    --theme-splash-filter: saturate(0.95);
   }
 
   html, body {
