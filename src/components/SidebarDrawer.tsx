@@ -313,34 +313,38 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 }}
               />
 
-              {/* Header — يمتد كاملاً إلى أطراف السايدبار العلوية */}
+              {/* Header — رأس السايدبار تركوازي متناسق وغني وبدون أي إطارات مع نص ÇAVÊ BAADRÊ فقط */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
-                className="px-5 py-4 relative flex items-center justify-center bg-gradient-to-r from-[#467586]/60 via-[#58899A]/40 to-[#6C9DAE]/60 backdrop-blur-xl border-b border-white/40 shadow-2xs select-none overflow-hidden shrink-0"
+                className="px-5 py-4 relative flex items-center justify-center bg-gradient-to-r from-[#1E8E93]/80 via-[#2BB3B6]/60 to-[#247CB4]/80 backdrop-blur-2xl border-0 shadow-none select-none overflow-hidden shrink-0"
               >
+                {/* إضاءة مركزية متوهجة ناعمة بدون إطارات */}
                 <div
-                  className="pointer-events-none absolute inset-0"
+                  className="pointer-events-none absolute inset-0 opacity-60"
                   style={{
                     background:
-                      'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.60) 0%, rgba(255,255,255,0.18) 50%, transparent 80%)',
+                      'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.40) 0%, rgba(255,255,255,0.08) 50%, transparent 80%)',
                   }}
                 />
+
+                {/* نص ÇAVÊ BAADRÊ فقط في المنتصف باللون البترولي العميق والأنيق */}
                 <span
                   dir="ltr"
-                  className="relative z-10 font-black text-lg sm:text-xl text-[#0E3544] tracking-widest text-center"
+                  className="relative z-10 font-black text-base sm:text-lg tracking-widest text-center text-[#0E3544] drop-shadow-[0_1px_2px_rgba(255,255,255,0.6)]"
                 >
                   ÇAVÊ BAADRÊ
                 </span>
 
+                {/* زر الإغلاق X بدون إطار */}
                 <button
                   type="button"
                   onClick={onClose}
                   className={`absolute top-1/2 -translate-y-1/2 ${
                     isRTL ? 'left-4' : 'right-4'
-                  } z-10 w-9 h-9 flex items-center justify-center bg-transparent text-[#0E3544] hover:bg-white/30 rounded-xl border-0 shadow-none transition-all active:scale-95 cursor-pointer`}
+                  } z-10 w-9 h-9 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/35 text-[#0E3544] border-0 shadow-none transition-all active:scale-95 cursor-pointer`}
                   aria-label="Close"
                 >
-                  <X className="w-5 h-5 stroke-[2.2]" />
+                  <X className="w-5 h-5 stroke-[2.3]" />
                 </button>
               </div>
 
@@ -1246,20 +1250,23 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Footer — يمتد كاملاً إلى أطراف السايدبار السفلية مع حافة علوية ناعمة */}
+              {/* Footer — أسفل السايدبار متناسق ولطيف واحترافي مع جميع السمات واللون التركوازي */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
-                className="relative z-10 px-3.5 py-3 bg-gradient-to-r from-[#467586]/60 via-[#58899A]/40 to-[#6C9DAE]/60 backdrop-blur-xl border-t border-white/40 text-center text-[10px] font-bold text-[#0E3544] flex flex-col items-center justify-center gap-2 select-none overflow-hidden shrink-0"
+                className="relative z-10 px-4 py-3.5 backdrop-blur-2xl border-t border-white/50 text-center select-none overflow-hidden shrink-0 flex flex-col items-center justify-center gap-2.5 shadow-[0_-4px_16px_rgba(30,142,147,0.06)]"
+                style={{
+                  background: `linear-gradient(135deg, ${palette.primaryLightHex}EE 0%, ${palette.surfaceSoftHex}F2 50%, ${palette.primaryLightHex}D9 100%)`,
+                }}
               >
+                {/* إضاءة ناعمة متناسقة مع السمة */}
                 <div
-                  className="pointer-events-none absolute inset-0"
+                  className="pointer-events-none absolute inset-0 opacity-70"
                   style={{
-                    background:
-                      'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.14) 50%, transparent 80%)',
+                    background: `radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.85) 0%, ${palette.primaryLightHex}55 60%, transparent 100%)`,
                   }}
                 />
 
-                {/* زر متابعة منظمة RABA على إنستغرام متناسق مع جميع السمات اللونية */}
+                {/* زر متابعة منظمة RABA على إنستغرام متناسق ولطيف مع جميع السمات اللونية */}
                 <a
                   href="https://www.instagram.com/rabaorganization?cplk=c21nZ3F3ZmZuZzR6"
                   target="_blank"
@@ -1276,16 +1283,27 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                     'لە ئینستاگرام فۆڵۆمان بکە — RABA',
                     'Follow us on Instagram — RABA Organization'
                   )}
-                  className="relative z-10 group px-3.5 py-1.5 rounded-2xl bg-white/85 hover:bg-white text-[#1B3A46] shadow-[0_4px_14px_rgba(30,142,147,0.10)] hover:shadow-[0_6px_20px_rgba(30,142,147,0.18)] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] inline-flex items-center justify-center gap-2.5 cursor-pointer border-0"
+                  className="relative z-10 group px-4 py-2 rounded-2xl bg-white/90 hover:bg-white shadow-[0_4px_14px_rgba(30,142,147,0.08)] hover:shadow-[0_6px_20px_rgba(30,142,147,0.18)] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] inline-flex items-center justify-center gap-2.5 cursor-pointer"
+                  style={{
+                    border: `1px solid ${palette.borderSoftHex}`,
+                  }}
                 >
-                  <span className="text-[11px] sm:text-xs font-black text-[#1B3A46] tracking-wide whitespace-nowrap">
+                  <span
+                    className="text-[11px] sm:text-xs font-black tracking-wide whitespace-nowrap"
+                    style={{ color: palette.primaryTextHex }}
+                  >
                     {tr(
                       'تابعنا على انستكرام',
                       'لە ئینستاگرام فۆڵۆمان بکە',
                       'Follow us on Instagram'
                     )}
                   </span>
-                  <span className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#467586] via-[#58899A] to-[#6C9DAE] text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+                  <span
+                    className="w-7 h-7 rounded-xl text-white flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform"
+                    style={{
+                      background: `linear-gradient(135deg, ${palette.primaryHex} 0%, ${palette.accentHex} 100%)`,
+                    }}
+                  >
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -1303,26 +1321,44 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   </span>
                 </a>
 
-                <div className="relative z-10 flex items-center justify-center gap-1.5 flex-wrap">
+                {/* حقوق وتفاصيل المنظمة والتطبيق */}
+                <div
+                  className="relative z-10 flex items-center justify-center gap-1.5 flex-wrap text-[10px] font-bold"
+                  style={{ color: palette.primaryTextHex }}
+                >
                   {isRTL ? (
                     <>
-                      <bdi className="text-[#0E3544]">
-                        {language === 'ku' ? 'ڕێکخراوی' : 'منظمة'} <span dir="ltr" className="font-black text-[#0E3544]">RABA</span>
+                      <bdi>
+                        {language === 'ku' ? 'ڕێکخراوی' : 'منظمة'}{' '}
+                        <span dir="ltr" className="font-black" style={{ color: palette.primaryHex }}>
+                          RABA
+                        </span>
                       </bdi>
-                      <span className="text-[#0E3544]/50">•</span>
-                      <bdi className="text-[#0E3544]">
-                        {language === 'ku' ? 'ئەپی' : 'تطبيق'} <span dir="ltr" className="font-black text-[#0E3544]">ÇAVÊ BAADRÊ</span>
+                      <span className="opacity-40">•</span>
+                      <bdi>
+                        {language === 'ku' ? 'ئەپی' : 'تطبيق'}{' '}
+                        <span dir="ltr" className="font-black" style={{ color: palette.primaryHex }}>
+                          ÇAVÊ BAADRÊ
+                        </span>
                       </bdi>
-                      <span className="text-[#0E3544]/50">•</span>
-                      <bdi dir="ltr" className="font-black text-[#0E3544]">© {new Date().getFullYear()}</bdi>
+                      <span className="opacity-40">•</span>
+                      <bdi dir="ltr" className="font-black opacity-80">
+                        © {new Date().getFullYear()}
+                      </bdi>
                     </>
                   ) : (
                     <>
-                      <bdi className="font-black text-[#0E3544]">RABA Organization</bdi>
-                      <span className="text-[#0E3544]/50">•</span>
-                      <bdi className="font-black text-[#0E3544]">ÇAVÊ BAADRÊ App</bdi>
-                      <span className="text-[#0E3544]/50">•</span>
-                      <bdi className="font-black text-[#0E3544]">© {new Date().getFullYear()}</bdi>
+                      <bdi className="font-black" style={{ color: palette.primaryHex }}>
+                        RABA Organization
+                      </bdi>
+                      <span className="opacity-40">•</span>
+                      <bdi className="font-black" style={{ color: palette.primaryHex }}>
+                        ÇAVÊ BAADRÊ App
+                      </bdi>
+                      <span className="opacity-40">•</span>
+                      <bdi dir="ltr" className="font-black opacity-80">
+                        © {new Date().getFullYear()}
+                      </bdi>
                     </>
                   )}
                 </div>
