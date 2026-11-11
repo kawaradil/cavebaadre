@@ -2425,28 +2425,21 @@ apiRouter.post(
 const DEFAULT_CONTACT_SETTINGS = {
   whatsappReportsNumber: '9647749019911',
   contactPhone: '9647749019911',
-  contactEmail: 'info@cavebaadre.org',
+  contactEmail: 'cavebaadre@gmail.com',
 };
 
 apiRouter.get('/settings/contact', async (_req: Request, res: Response) => {
   try {
     const store = readLocalStore();
-    const remoteConfig = await restGetDoc('system_config', 'contact_settings');
-    const saved = remoteConfig || store.system_config?.contact_settings || {};
-
     const settings = {
       whatsappReportsNumber: '9647749019911',
       contactPhone: '9647749019911',
-      contactEmail:
-        String(saved.contactEmail || DEFAULT_CONTACT_SETTINGS.contactEmail).trim() ||
-        DEFAULT_CONTACT_SETTINGS.contactEmail,
-      updatedAt: saved.updatedAt || null,
+      contactEmail: 'cavebaadre@gmail.com',
+      updatedAt: null,
     };
 
-    if (remoteConfig) {
-      store.system_config.contact_settings = settings;
-      writeLocalStore(store);
-    }
+    store.system_config.contact_settings = settings;
+    writeLocalStore(store);
 
     res.json({ success: true, settings });
   } catch {
@@ -2464,21 +2457,13 @@ apiRouter.post(
       return;
     }
 
-    const { contactEmail } = req.body || {};
-    const cleanEmail = String(contactEmail || '').trim();
-
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      res.status(400).json({ error: 'البريد الإلكتروني غير صالح.' });
-      return;
-    }
-
     const fixedWa = '9647749019911';
     const nowIso = new Date().toISOString();
     const updatedSettings = {
       id: 'contact_settings',
       whatsappReportsNumber: fixedWa,
       contactPhone: fixedWa,
-      contactEmail: cleanEmail,
+      contactEmail: 'cavebaadre@gmail.com',
       updatedBy: caller.uid,
       updatedAt: nowIso,
     };

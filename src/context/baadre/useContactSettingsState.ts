@@ -9,30 +9,28 @@ import {
 
 export function useContactSettingsState(canAccessAdmin: boolean) {
   const [contactSettings, setContactSettings] = useState<CloudContactSettings>(() => {
-    try {
-      const raw = localStorage.getItem(CACHE_KEY_CONTACT);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.contactEmail) return parsed;
-      }
-    } catch {}
-    return DEFAULT_CLOUD_CONTACT_SETTINGS;
+    return {
+      whatsappReportsNumber: '9647749019911',
+      contactPhone: '9647749019911',
+      contactEmail: 'cavebaadre@gmail.com',
+    };
   });
 
   useEffect(() => {
+    const fixedSettings: CloudContactSettings = {
+      whatsappReportsNumber: '9647749019911',
+      contactPhone: '9647749019911',
+      contactEmail: 'cavebaadre@gmail.com',
+    };
+    try {
+      localStorage.setItem(CACHE_KEY_CONTACT, JSON.stringify(fixedSettings));
+    } catch {}
+
     withAppCheckHeaders().then((headers) =>
       fetch('/api/settings/contact', { headers })
         .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data?.settings) {
-            setContactSettings({
-              whatsappReportsNumber: '9647749019911',
-              contactPhone: '9647749019911',
-              contactEmail:
-                String(data.settings.contactEmail || '').trim() ||
-                DEFAULT_CLOUD_CONTACT_SETTINGS.contactEmail,
-            });
-          }
+        .then(() => {
+          setContactSettings(fixedSettings);
         })
         .catch(() => {})
     );
@@ -42,21 +40,19 @@ export function useContactSettingsState(canAccessAdmin: boolean) {
       (snap) => {
         if (snap.exists()) {
           const d = snap.data() as Record<string, any>;
-          const updatedContact: CloudContactSettings = {
-            whatsappReportsNumber: '9647749019911',
-            contactPhone: '9647749019911',
-            contactEmail:
-              String(d.contactEmail || '').trim() ||
-              DEFAULT_CLOUD_CONTACT_SETTINGS.contactEmail,
-          };
-          setContactSettings((prev) => {
-            if (prev.contactEmail === updatedContact.contactEmail) return prev;
-            try {
-              localStorage.setItem(CACHE_KEY_CONTACT, JSON.stringify(updatedContact));
-            } catch {}
-            return updatedContact;
-          });
+          if (d.contactEmail !== 'cavebaadre@gmail.com') {
+            setDoc(
+              doc(db, 'system_config', 'contact_settings'),
+              {
+                contactEmail: 'cavebaadre@gmail.com',
+                whatsappReportsNumber: '9647749019911',
+                contactPhone: '9647749019911',
+              },
+              { merge: true }
+            ).catch(() => {});
+          }
         }
+        setContactSettings(fixedSettings);
       },
       () => {}
     );

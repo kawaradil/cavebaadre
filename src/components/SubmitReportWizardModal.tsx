@@ -21,12 +21,16 @@ import {
   FileText,
   Info,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ReportSector,
   SECTOR_META,
   BAADRE_NEIGHBORHOODS,
+  BAADRE_STREETS,
+  BAADRE_LANDMARKS,
   BAADRE_CENTER_COORDS,
   MUNICIPAL_WHATSAPP_NUMBER,
   CivicReport,
@@ -835,8 +839,8 @@ interface SelectedPhotoItem {
   storageUrl?: string;
 }
 
-type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
-const TOTAL_STEPS = 7;
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+const TOTAL_STEPS = 9;
 
 interface SubmitReportWizardModalProps {
   isOpen: boolean;
@@ -881,12 +885,17 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
   const [isFullScreenMapOpen, setIsFullScreenMapOpen] = useState(false);
 
   // Step 5: الحي أو القطاع + اسم الشارع + أقرب نقطة دالة
-  const [neighborhood, setNeighborhood] = useState<string>('مركز باعدرى');
+  const [neighborhood, setNeighborhood] = useState<string>('');
   const [isOtherNeighborhood, setIsOtherNeighborhood] = useState(false);
   const [customNeighborhood, setCustomNeighborhood] = useState('');
   const [showNeighborhoodSuggestions, setShowNeighborhoodSuggestions] = useState(false);
+  const [showAllNeighborhoods, setShowAllNeighborhoods] = useState(false);
   const [street, setStreet] = useState('');
+  const [showAllStreets, setShowAllStreets] = useState(false);
+  const [showStreetSuggestions, setShowStreetSuggestions] = useState(false);
   const [landmark, setLandmark] = useState('');
+  const [showAllLandmarks, setShowAllLandmarks] = useState(false);
+  const [showLandmarkSuggestions, setShowLandmarkSuggestions] = useState(false);
 
   // Step 6: اسم المواطن الكامل + رقم الهاتف / واتساب للتنبيه
   const [citizenName, setCitizenName] = useState('');
@@ -922,7 +931,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       setDescription(editingReport.description || '');
       setLatitude(editingReport.latitude ?? BAADRE_CENTER_COORDS.lat);
       setLongitude(editingReport.longitude ?? BAADRE_CENTER_COORDS.lng);
-      setNeighborhood(editingReport.neighborhood || 'مركز باعدرى');
+      setNeighborhood(editingReport.neighborhood || '');
       setIsOtherNeighborhood(false);
       setCustomNeighborhood('');
       setStreet(editingReport.street || '');
@@ -942,11 +951,17 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       setDescription('');
       setLatitude(BAADRE_CENTER_COORDS.lat);
       setLongitude(BAADRE_CENTER_COORDS.lng);
-      setNeighborhood('مركز باعدرى');
+      setNeighborhood('');
       setIsOtherNeighborhood(false);
       setCustomNeighborhood('');
+      setShowNeighborhoodSuggestions(false);
+      setShowAllNeighborhoods(false);
       setStreet('');
+      setShowAllStreets(false);
+      setShowStreetSuggestions(false);
       setLandmark('');
+      setShowAllLandmarks(false);
+      setShowLandmarkSuggestions(false);
       setCitizenName(profile?.fullName || currentUser?.displayName || '');
       setCitizenPhone(profile?.phone || '');
       setCreatedReport(null);
@@ -1175,22 +1190,13 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       playClickSound();
       setStep(5);
     } else if (step === 5) {
+      // Step 5: الحي أو الزقاق (گەڕەکەکانی شارەوانی باعەدری)
       if (!finalNeighborhoodVal) {
         setValidationError(
           tr(
-            'يرجى تحديد الحي أو القطاع.',
-            'تکایە گەڕەک یان کەرتەکە بنووسە.',
-            'Please specify the neighborhood.'
-          )
-        );
-        return;
-      }
-      if (!street.trim()) {
-        setValidationError(
-          tr(
-            'يرجى إدخال اسم الشارع.',
-            'تکایە ناوی شەقام بنووسە.',
-            'Please enter street name.'
+            'يرجى تحديد أو اختيار الحي / الزقاق.',
+            'تکایە گەڕەک یان تاخەکە دیاری بکە.',
+            'Please select or specify the neighborhood/quarter.'
           )
         );
         return;
@@ -1198,6 +1204,25 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
       playClickSound();
       setStep(6);
     } else if (step === 6) {
+      // Step 6: اسم الشارع (ناوی شەقام)
+      if (!street.trim()) {
+        setValidationError(
+          tr(
+            'يرجى إدخال أو اختيار اسم الشارع.',
+            'تکایە ناوی شەقام هەڵبژێرە یان بنووسە.',
+            'Please select or enter street name.'
+          )
+        );
+        return;
+      }
+      playClickSound();
+      setStep(7);
+    } else if (step === 7) {
+      // Step 7: أقرب نقطة دالة (اختياري)
+      playClickSound();
+      setStep(8);
+    } else if (step === 8) {
+      // Step 8: بيانات المواطن والتنبيه
       if (!citizenName.trim()) {
         setValidationError(
           tr(
@@ -1220,7 +1245,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
         return;
       }
       playClickSound();
-      setStep(7);
+      setStep(9);
     }
   };
 
@@ -1408,17 +1433,29 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                   )}
                 {step === 5 &&
                   tr(
-                    'الحي أو القطاع • اسم الشارع • أقرب نقطة',
-                    'گەڕەک • ناوی شەقام • نزیکترین خاڵ',
-                    'Neighborhood, Street & Nearest Point'
+                    'الحي أو الزقاق (گەڕەکەکانی شارەوانی)',
+                    'گەڕەک یان تاخ (شارەوانی باعەدری)',
+                    'Neighborhood / Quarter (Baadre)'
                   )}
                 {step === 6 &&
+                  tr(
+                    'اسم الشارع (اسماء الشوارع)',
+                    'ناوی شەقام (شەقامەکانی باعەدرێ)',
+                    'Street Name in Baadre'
+                  )}
+                {step === 7 &&
+                  tr(
+                    'أقرب نقطة دالة (اختياري)',
+                    'نزیکترین خاڵ (ئارەزوومەندانە)',
+                    'Nearest Landmark (Optional)'
+                  )}
+                {step === 8 &&
                   tr(
                     'بيانات المواطن والتنبيه',
                     'زانیاری هاووڵاتی و ئاگادارکردنەوە',
                     'Citizen Details & Contact'
                   )}
-                {step === 7 &&
+                {step === 9 &&
                   tr(
                     'مراجعة البيانات المدخلة وحفظ البلاغ',
                     'پێداچوونەوەی زانیارییەکان و پاشەکەوتکردن',
@@ -1438,12 +1475,12 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
 
           {/* Progress Bar */}
           <div className="w-full h-1.5 bg-[#E8F4EA] flex">
-            {[1, 2, 3, 4, 5, 6, 7].map((idx) => (
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => (
               <div
                 key={idx}
                 className={`flex-1 transition-all duration-300 ${
                   step >= idx
-                    ? 'bg-gradient-to-r from-[#46674D] to-[#88B793]'
+                    ? 'bg-gradient-to-r from-[#0D9488] to-[#14B8A6]'
                     : 'bg-transparent'
                 }`}
               />
@@ -1863,93 +1900,96 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════════
-                الخطوة 5: الحي أو القطاع • اسم الشارع • أقرب نقطة دالة (مدرسة، جامع، تقاطع)
+                الخطوة 5: الحي أو الزقاق (گەڕەکەکانی شارەوانی باعەدری)
                ═══════════════════════════════════════════════════════════════════════ */}
             {step === 5 && (
               <div className="p-4 sm:p-5 rounded-2xl bg-[#F4F9F5] border border-[#BBDDC6] space-y-4 shadow-2xs">
-                {/* الحي أو القطاع */}
-                <div className="space-y-2">
-                  <div className="relative">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <label className="block text-xs sm:text-sm font-black text-[#1E3725]">
-                          {tr(
-                            'الحي أو القطاع:',
-                            'گەڕەک یان کەرت:',
-                            'Neighborhood or Sector:'
-                          )}
-                        </label>
-                      </div>
-                      <FieldLimitBadge
-                        value={neighborhood}
-                        maxWords={FIELD_LIMITS.LOCATION.maxWords}
-                        maxChars={FIELD_LIMITS.LOCATION.maxChars}
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type="text"
-                        maxLength={FIELD_LIMITS.LOCATION.maxChars}
-                        value={neighborhood}
-                        onFocus={() => setShowNeighborhoodSuggestions(true)}
-                        onChange={(e) => {
-                          setValidationError(null);
-                          const val = enforceInputLimit(
-                            e.target.value,
-                            FIELD_LIMITS.LOCATION.maxWords,
-                            FIELD_LIMITS.LOCATION.maxChars
-                          );
-                          setNeighborhood(val);
-                          setShowNeighborhoodSuggestions(true);
-                          const lower = val.trim().toLowerCase();
-                          if (
-                            lower === 'أخرى' ||
-                            lower === 'اخرى' ||
-                            lower === 'other' ||
-                            lower === 'هیتر'
-                          ) {
-                            setIsOtherNeighborhood(true);
-                          } else if (isOtherNeighborhood && !customNeighborhood) {
-                            setIsOtherNeighborhood(false);
-                          }
-                        }}
-                        placeholder={tr(
-                          'اكتب اسم الحي أو القطاع في باعدرى...',
-                          'ناوی گەڕەک یان کەرت لە باعەدرێ بنووسە...',
-                          'Type neighborhood or sector in Baadre...'
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-xs sm:text-sm font-black text-[#1E3725]">
+                        {tr(
+                          'الحي / الزقاق (گەڕەکەکانی شارەوانی باعەدری):',
+                          'گەڕەک یان تاخ (شارەوانی باعەدری):',
+                          'Neighborhood / Quarter (Baadre Municipality):'
                         )}
-                        className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-[#46674D] focus:outline-none"
-                      />
-
-                      {neighborhood && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setValidationError(null);
-                            setNeighborhood('');
-                            setIsOtherNeighborhood(false);
-                          }}
-                          className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-[#46674D] hover:text-red-600 transition-colors cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      </label>
+                      <p className="text-[11px] text-teal-800 font-medium mt-0.5">
+                        {tr(
+                          'اختر الحي أو الزقاق من القائمة أدناه أو ابحث عنه مباشرة',
+                          'تاخ یان گەڕەک لە لیستەکەی خوارەوە هەڵبژێرە یان ڕاستەوخۆ بگەڕێ',
+                          'Select the neighborhood/quarter from the list below or search directly'
+                        )}
+                      </p>
                     </div>
+                    <FieldLimitBadge
+                      value={neighborhood}
+                      maxWords={FIELD_LIMITS.LOCATION.maxWords}
+                      maxChars={FIELD_LIMITS.LOCATION.maxChars}
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={FIELD_LIMITS.LOCATION.maxChars}
+                      value={neighborhood}
+                      onFocus={() => setShowNeighborhoodSuggestions(true)}
+                      onChange={(e) => {
+                        setValidationError(null);
+                        const val = enforceInputLimit(
+                          e.target.value,
+                          FIELD_LIMITS.LOCATION.maxWords,
+                          FIELD_LIMITS.LOCATION.maxChars
+                        );
+                        setNeighborhood(val);
+                        setShowNeighborhoodSuggestions(true);
+                        const lower = val.trim().toLowerCase();
+                        if (
+                          lower === 'أخرى' ||
+                          lower === 'اخرى' ||
+                          lower === 'other' ||
+                          lower === 'هیتر'
+                        ) {
+                          setIsOtherNeighborhood(true);
+                        } else if (isOtherNeighborhood && !customNeighborhood) {
+                          setIsOtherNeighborhood(false);
+                        }
+                      }}
+                      placeholder={tr(
+                        'اختر من القائمة أو اكتب اسم الحي / الزقاق...',
+                        'لە لیستەکە هەڵبژێرە یان ناوی تاخ / گەڕەک بنووسە...',
+                        'Select from list or type neighborhood / quarter...'
+                      )}
+                      className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20 focus:outline-none transition-all"
+                    />
+
+                    {neighborhood && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setValidationError(null);
+                          setNeighborhood('');
+                          setIsOtherNeighborhood(false);
+                        }}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-[#46674D] hover:text-red-600 transition-colors cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
 
                     {showNeighborhoodSuggestions && (
-                      <div className="absolute top-full mt-1.5 left-0 right-0 z-30 bg-white border border-[#BBDDC6] rounded-2xl shadow-[0_10px_30px_rgba(70,103,77,0.18)] max-h-48 overflow-y-auto p-1.5">
+                      <div className="absolute top-full mt-1.5 left-0 right-0 z-30 bg-white border border-[#BBDDC6] rounded-2xl shadow-[0_10px_30px_rgba(70,103,77,0.18)] max-h-56 overflow-y-auto p-1.5">
                         {BAADRE_NEIGHBORHOODS.filter((n) => {
                           const q = neighborhood.trim().toLowerCase();
                           if (!q) return true;
                           return (
-                            n.ar.toLowerCase().includes(q) ||
+                            n.name.toLowerCase().includes(q) ||
                             n.ku.toLowerCase().includes(q) ||
-                            n.en.toLowerCase().includes(q)
+                            n.ar.toLowerCase().includes(q)
                           );
                         }).map((n) => {
-                          const nName =
-                            language === 'ku' ? n.ku : language === 'en' ? n.en : n.ar;
+                          const nName = language === 'ku' ? n.ku : n.name;
                           return (
                             <button
                               key={n.id}
@@ -1961,11 +2001,11 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                                 setIsOtherNeighborhood(false);
                                 setShowNeighborhoodSuggestions(false);
                               }}
-                              className="w-full text-start px-3 py-2 rounded-xl text-xs font-bold text-[#1E3725] hover:bg-[#E8F4EA] hover:text-[#46674D] transition-colors flex items-center justify-between cursor-pointer"
+                              className="w-full text-start px-3 py-2 rounded-xl text-xs font-bold text-[#1E3725] hover:bg-teal-50 hover:text-teal-800 transition-colors flex items-center justify-between cursor-pointer"
                             >
                               <span>{nName}</span>
-                              <span className="text-[10px] text-[#46674D]/70 font-mono">
-                                {n.ar}
+                              <span className="text-[10px] text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-md font-mono">
+                                {tr('حي رسمي', 'تاخی فەرمی', 'Official')}
                               </span>
                             </button>
                           );
@@ -1998,10 +2038,12 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                   </div>
 
                   {/* أزرار سريعة للأحياء */}
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {BAADRE_NEIGHBORHOODS.slice(0, 6).map((n) => {
-                      const nName =
-                        language === 'ku' ? n.ku : language === 'en' ? n.en : n.ar;
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(showAllNeighborhoods
+                      ? BAADRE_NEIGHBORHOODS
+                      : BAADRE_NEIGHBORHOODS.slice(0, 5)
+                    ).map((n) => {
+                      const nName = language === 'ku' ? n.ku : n.name;
                       const isCurrent = neighborhood === nName;
                       return (
                         <button
@@ -2014,16 +2056,38 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                             setIsOtherNeighborhood(false);
                             setShowNeighborhoodSuggestions(false);
                           }}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                          className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                             isCurrent
-                              ? 'bg-[#46674D] text-white shadow-2xs'
-                              : 'bg-white hover:bg-[#E8F4EA] text-[#1E3725] border border-[#BBDDC6]'
+                              ? 'bg-teal-700 text-white shadow-xs border border-teal-800 ring-2 ring-teal-300'
+                              : 'bg-white hover:bg-teal-50 text-[#1E3725] border border-[#BBDDC6] hover:border-teal-400'
                           }`}
                         >
-                          {nName}
+                          {isCurrent && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          <span>{nName}</span>
                         </button>
                       );
                     })}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setShowAllNeighborhoods((prev) => !prev);
+                      }}
+                      className="px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 shadow-2xs hover:border-teal-500"
+                    >
+                      {!showAllNeighborhoods ? (
+                        <>
+                          <span>{tr('+ مزيد', '+ زێدەتر', '+ More')}</span>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          <span>{tr('عرض أقل', 'کەمتر نیشان بدە', 'Show less')}</span>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {(isOtherNeighborhood ||
@@ -2033,7 +2097,7 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                     <motion.div
                       initial={{ opacity: 0, y: -6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="p-3 rounded-2xl bg-[#E8F4EA] border border-[#88B793] space-y-1.5 shadow-2xs mt-2"
+                      className="p-3.5 rounded-2xl bg-[#E8F4EA] border border-[#88B793] space-y-1.5 shadow-2xs mt-2"
                     >
                       <input
                         type="text"
@@ -2054,19 +2118,37 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                           'ناوی گەڕەک یان گوندەکە بنووسە...',
                           'Type custom neighborhood or village...'
                         )}
-                        className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2 text-xs font-bold text-[#1E3725] focus:border-[#46674D] focus:outline-none"
+                        className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-teal-600 focus:outline-none"
                       />
                     </motion.div>
                   )}
                 </div>
+              </div>
+            )}
 
-                {/* اسم الشارع */}
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-1.5">
-                      <label className="block text-xs sm:text-sm font-black text-[#1E3725]">
-                        {tr('اسم الشارع:', 'ناوی شەقام:', 'Street Name:')}
-                      </label>
+            {/* ═══════════════════════════════════════════════════════════════════════
+                الخطوة 6: اسم الشارع في باعذرة (21 شارع معتمد: 5 جاهزة + زر مزيد)
+               ═══════════════════════════════════════════════════════════════════════ */}
+            {step === 6 && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#F4F9F5] border border-[#BBDDC6] space-y-4 shadow-2xs">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <label className="block text-xs sm:text-sm font-black text-[#1E3725]">
+                          {tr('اسم الشارع في باعذرة:', 'ناوی شەقام لە باعەدرێ:', 'Street Name in Baadre:')}
+                        </label>
+                        <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                          {tr('21 شارع معتمد', '21 شەقامی فەرمی', '21 Official Streets')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-teal-800 font-medium mt-0.5">
+                        {tr(
+                          'اختر اسم الشارع من الخيارات السريعة أدناه أو اكتبه في الحقل',
+                          'ناوی شەقام لە هەڵبژاردنە خێراکان هەڵبژێرە یان لە خانەکەدا بنووسە',
+                          'Select street name from quick options below or type it in'
+                        )}
+                      </p>
                     </div>
                     <FieldLimitBadge
                       value={street}
@@ -2074,43 +2156,151 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                       maxChars={FIELD_LIMITS.LOCATION.maxChars}
                     />
                   </div>
-                  <input
-                    type="text"
-                    maxLength={FIELD_LIMITS.LOCATION.maxChars}
-                    value={street}
-                    onChange={(e) => {
-                      setValidationError(null);
-                      setStreet(
-                        enforceInputLimit(
-                          e.target.value,
-                          FIELD_LIMITS.LOCATION.maxWords,
-                          FIELD_LIMITS.LOCATION.maxChars
-                        )
-                      );
-                    }}
-                    placeholder={tr(
-                      'مثال: الشارع العام / زقاق رقم 4',
-                      'نموونە: شەقامی گشتی / کۆڵانی ژمارە 4',
-                      'Example: Main Street / Alley 4'
-                    )}
-                    className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-[#46674D] focus:outline-none"
-                  />
-                </div>
 
-                {/* أقرب نقطة ( مدرسة ، دائرة بلدية ، مركز شرطة ، اسواق ) - اختياري */}
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <label className="block text-xs sm:text-sm font-black text-[#1E3725]">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={FIELD_LIMITS.LOCATION.maxChars}
+                      value={street}
+                      onFocus={() => setShowStreetSuggestions(true)}
+                      onChange={(e) => {
+                        setValidationError(null);
+                        setStreet(
+                          enforceInputLimit(
+                            e.target.value,
+                            FIELD_LIMITS.LOCATION.maxWords,
+                            FIELD_LIMITS.LOCATION.maxChars
+                          )
+                        );
+                        setShowStreetSuggestions(true);
+                      }}
+                      placeholder={tr(
+                        'اختر من القائمة أدناه أو اكتب اسم الشارع...',
+                        'لە لیستەکەی خوارەوە هەڵبژێرە یان ناوی شەقام بنووسە...',
+                        'Select from list below or type street name...'
+                      )}
+                      className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20 focus:outline-none transition-all"
+                    />
+
+                    {street && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setValidationError(null);
+                          setStreet('');
+                        }}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-[#46674D] hover:text-red-600 transition-colors cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {showStreetSuggestions && street.trim() && (
+                      <div className="absolute top-full mt-1.5 left-0 right-0 z-30 bg-white border border-[#BBDDC6] rounded-2xl shadow-[0_10px_30px_rgba(70,103,77,0.18)] max-h-48 overflow-y-auto p-1.5">
+                        {BAADRE_STREETS.filter((s) =>
+                          s.toLowerCase().includes(street.trim().toLowerCase())
+                        ).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              setValidationError(null);
+                              playClickSound();
+                              setStreet(s);
+                              setShowStreetSuggestions(false);
+                            }}
+                            className="w-full text-start px-3 py-2 rounded-xl text-xs font-bold text-[#1E3725] hover:bg-teal-50 hover:text-teal-800 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <span>{s}</span>
+                            <span className="text-[10px] text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-md">
+                              {tr('شارع', 'شەقام', 'Street')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 5 كلمات جاهزة + نص مزيد لعرض جميع الشوارع الـ 21 */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(showAllStreets ? BAADRE_STREETS : BAADRE_STREETS.slice(0, 5)).map(
+                      (streetName) => {
+                        const isCurrent = street === streetName;
+                        return (
+                          <button
+                            key={streetName}
+                            type="button"
+                            onClick={() => {
+                              setValidationError(null);
+                              playClickSound();
+                              setStreet(streetName);
+                              setShowStreetSuggestions(false);
+                            }}
+                            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isCurrent
+                                ? 'bg-teal-700 text-white shadow-xs border border-teal-800 ring-2 ring-teal-300'
+                                : 'bg-white hover:bg-teal-50 text-[#1E3725] border border-[#BBDDC6] hover:border-teal-400'
+                            }`}
+                          >
+                            {isCurrent && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            <span>{streetName}</span>
+                          </button>
+                        );
+                      }
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setShowAllStreets((prev) => !prev);
+                      }}
+                      className="px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 shadow-2xs hover:border-teal-500"
+                    >
+                      {!showAllStreets ? (
+                        <>
+                          <span>{tr('+ مزيد', '+ زێدەتر', '+ More')}</span>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          <span>{tr('عرض أقل', 'کەمتر نیشان بدە', 'Show less')}</span>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════════════
+                الخطوة 7: أقرب نقطة دالة (13 نقطة دالة: 5 جاهزة + زر مزيد) - اختياري
+               ═══════════════════════════════════════════════════════════════════════ */}
+            {step === 7 && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#F4F9F5] border border-[#BBDDC6] space-y-4 shadow-2xs">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <label className="block text-xs sm:text-sm font-black text-[#1E3725]">
+                          {tr(
+                            'أقرب نقطة دالة (مدرسة، دائرة، قاعة، مركز...):',
+                            'نزیکترین خاڵ (قوتابخانە، فەرمانگە، هۆڵ، سەنتەر...):',
+                            'Nearest Landmark (School, Dept, Hall, Center...):'
+                          )}
+                        </label>
+                        <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                          {tr('(اختياري)', '(ئارەزوومەندانە)', '(Optional)')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-teal-800 font-medium mt-0.5">
                         {tr(
-                          'أقرب نقطة ( مدرسة ، دائرة بلدية ، مركز شرطة ، اسواق )',
-                          'نزیکترین خاڵ ( قوتابخانە ، شارەوانی ، بنکەی پۆلیس ، بازاڕ )',
-                          'Nearest Point ( School, Municipality, Police Station, Markets )'
+                          'تساعد فرق الصيانة الميدانية في الوصول للموقع بسرعة وسهولة',
+                          'یارمەتی تیمەکانی چاککردنەوە دەدات بۆ گەیشتنی خێرا بە شوێنەکە',
+                          'Helps maintenance field teams reach the location promptly'
                         )}
-                      </label>
-                      <span className="text-[11px] font-bold text-[#46674D] bg-[#E8F4EA] px-2 py-0.5 rounded-full border border-[#BBDDC6]">
-                        {tr('(اختياري)', '(ئارەزوومەندانە)', '(Optional)')}
-                      </span>
+                      </p>
                     </div>
                     <FieldLimitBadge
                       value={landmark}
@@ -2118,31 +2308,128 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                       maxChars={FIELD_LIMITS.LOCATION.maxChars}
                     />
                   </div>
-                  <input
-                    type="text"
-                    maxLength={FIELD_LIMITS.LOCATION.maxChars}
-                    value={landmark}
-                    onChange={(e) => {
-                      setValidationError(null);
-                      setLandmark(
-                        enforceInputLimit(
-                          e.target.value,
-                          FIELD_LIMITS.LOCATION.maxWords,
-                          FIELD_LIMITS.LOCATION.maxChars
-                        )
-                      );
-                    }}
-                    placeholder=""
-                    className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-[#46674D] focus:outline-none"
-                  />
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={FIELD_LIMITS.LOCATION.maxChars}
+                      value={landmark}
+                      onFocus={() => setShowLandmarkSuggestions(true)}
+                      onChange={(e) => {
+                        setValidationError(null);
+                        setLandmark(
+                          enforceInputLimit(
+                            e.target.value,
+                            FIELD_LIMITS.LOCATION.maxWords,
+                            FIELD_LIMITS.LOCATION.maxChars
+                          )
+                        );
+                        setShowLandmarkSuggestions(true);
+                      }}
+                      placeholder={tr(
+                        'اختر من القائمة أدناه أو اكتب أقرب نقطة دالة...',
+                        'لە لیستەکەی خوارەوە هەڵبژێرە یان نزیکترین خاڵ بنووسە...',
+                        'Select from list below or type nearest point...'
+                      )}
+                      className="w-full bg-white border border-[#BBDDC6] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#1E3725] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20 focus:outline-none transition-all"
+                    />
+
+                    {landmark && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setValidationError(null);
+                          setLandmark('');
+                        }}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-[#46674D] hover:text-red-600 transition-colors cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {showLandmarkSuggestions && landmark.trim() && (
+                      <div className="absolute top-full mt-1.5 left-0 right-0 z-30 bg-white border border-[#BBDDC6] rounded-2xl shadow-[0_10px_30px_rgba(70,103,77,0.18)] max-h-48 overflow-y-auto p-1.5">
+                        {BAADRE_LANDMARKS.filter((lm) =>
+                          lm.toLowerCase().includes(landmark.trim().toLowerCase())
+                        ).map((lm) => (
+                          <button
+                            key={lm}
+                            type="button"
+                            onClick={() => {
+                              setValidationError(null);
+                              playClickSound();
+                              setLandmark(lm);
+                              setShowLandmarkSuggestions(false);
+                            }}
+                            className="w-full text-start px-3 py-2 rounded-xl text-xs font-bold text-[#1E3725] hover:bg-teal-50 hover:text-teal-800 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <span>{lm}</span>
+                            <span className="text-[10px] text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-md">
+                              {tr('نقطة دالة', 'خاڵی دیار', 'Landmark')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 5 كلمات جاهزة + نص مزيد لعرض جميع النقاط الـ 13 */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(showAllLandmarks ? BAADRE_LANDMARKS : BAADRE_LANDMARKS.slice(0, 5)).map(
+                      (lmName) => {
+                        const isCurrent = landmark === lmName;
+                        return (
+                          <button
+                            key={lmName}
+                            type="button"
+                            onClick={() => {
+                              setValidationError(null);
+                              playClickSound();
+                              setLandmark(lmName);
+                              setShowLandmarkSuggestions(false);
+                            }}
+                            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isCurrent
+                                ? 'bg-teal-700 text-white shadow-xs border border-teal-800 ring-2 ring-teal-300'
+                                : 'bg-white hover:bg-teal-50 text-[#1E3725] border border-[#BBDDC6] hover:border-teal-400'
+                            }`}
+                          >
+                            {isCurrent && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            <span>{lmName}</span>
+                          </button>
+                        );
+                      }
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setShowAllLandmarks((prev) => !prev);
+                      }}
+                      className="px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 shadow-2xs hover:border-teal-500"
+                    >
+                      {!showAllLandmarks ? (
+                        <>
+                          <span>{tr('+ مزيد', '+ زێدەتر', '+ More')}</span>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          <span>{tr('عرض أقل', 'کەمتر نیشان بدە', 'Show less')}</span>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════════
-                الخطوة 6: اسم المواطن الكامل • رقم الهاتف / واتساب للتنبيه
+                الخطوة 8: اسم المواطن الكامل • رقم الهاتف / واتساب للتنبيه
                ═══════════════════════════════════════════════════════════════════════ */}
-            {step === 6 && (
+            {step === 8 && (
               <div className="p-4 sm:p-5 rounded-2xl bg-[#F4F9F5] border border-[#BBDDC6] space-y-4 shadow-2xs">
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -2231,10 +2518,10 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════════
-                الخطوة 7: مراجعة البيانات المدخلة بالتسلسل من الأول إلى الأخير
+                الخطوة 9: مراجعة البيانات المدخلة بالتسلسل من الأول إلى الأخير
                 ثم إرسال رسالة واتساب ومعها يتم حفظ البلاغ
                ═══════════════════════════════════════════════════════════════════════ */}
-            {step === 7 && (
+            {step === 9 && (
               <div className="space-y-4">
                 <div className="p-4 sm:p-5 rounded-2xl bg-[#F4F9F5] border border-[#BBDDC6] space-y-3.5 text-xs">
                   <div className="flex items-center justify-between border-b border-[#E8F4EA] pb-2.5">
@@ -2324,27 +2611,42 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                     </span>
                   </div>
 
-                  {/* 5. الحي أو القطاع • اسم الشارع • أقرب نقطة */}
-                  <div className="p-3 rounded-xl bg-white border border-[#E8F4EA] space-y-1">
-                    <span className="font-black text-[#1E3725] block">
-                      {tr(
-                        '5. الحي أو القطاع • اسم الشارع • أقرب نقطة:',
-                        '5. گەڕەک • ناوی شەقام • نزیکترین خاڵ:',
-                        '5. Neighborhood, Street & Nearest Point:'
-                      )}
+                  {/* 5. الحي أو الزقاق */}
+                  <div className="p-3 rounded-xl bg-white border border-[#E8F4EA] flex items-center justify-between gap-2">
+                    <span className="font-black text-[#1E3725]">
+                      {tr('5. الحي أو الزقاق:', '5. تاخ یان گەڕەک:', '5. Neighborhood / Quarter:')}
                     </span>
-                    <p className="font-bold text-[#2D4833]">
-                      {finalNeighborhoodVal} — {street}
-                      {landmark.trim() ? ` (${landmark.trim()})` : ''}
-                    </p>
+                    <span className="font-bold text-teal-800">
+                      {finalNeighborhoodVal}
+                    </span>
                   </div>
 
-                  {/* 6. اسم المواطن الكامل • رقم الهاتف / واتساب للتنبيه */}
+                  {/* 6. اسم الشارع */}
+                  <div className="p-3 rounded-xl bg-white border border-[#E8F4EA] flex items-center justify-between gap-2">
+                    <span className="font-black text-[#1E3725]">
+                      {tr('6. اسم الشارع:', '6. ناوی شەقام:', '6. Street Name:')}
+                    </span>
+                    <span className="font-bold text-teal-800">
+                      {street}
+                    </span>
+                  </div>
+
+                  {/* 7. أقرب نقطة دالة */}
+                  <div className="p-3 rounded-xl bg-white border border-[#E8F4EA] flex items-center justify-between gap-2">
+                    <span className="font-black text-[#1E3725]">
+                      {tr('7. أقرب نقطة دالة:', '7. نزیکترین خاڵ:', '7. Nearest Landmark:')}
+                    </span>
+                    <span className="font-bold text-teal-800">
+                      {landmark.trim() || tr('لم تحدد (اختياري)', 'دیاری نەکراوە (ئارەزوومەندانە)', 'None specified (Optional)')}
+                    </span>
+                  </div>
+
+                  {/* 8. اسم المواطن الكامل • رقم الهاتف / واتساب للتنبيه */}
                   <div className="p-3 rounded-xl bg-white border border-[#E8F4EA] flex flex-wrap items-center justify-between gap-2">
                     <span className="font-black text-[#1E3725] inline-flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-[#46674D]" />
                       <span>
-                        {tr('6. بيانات المواطن:', '6. زانیاری هاووڵاتی:', '6. Citizen Info:')}
+                        {tr('8. بيانات المواطن:', '8. زانیاری هاووڵاتی:', '8. Citizen Info:')}
                       </span>
                       <span>{citizenName}</span>
                     </span>
@@ -2367,40 +2669,23 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
                   </p>
                 </div>
 
-                {/* زر إرسال رسالة واتساب ومعها يتم حفظ البلاغ */}
-                <div className="space-y-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSaveAndSendWhatsApp}
-                    className="w-full py-3.5 px-6 rounded-2xl bg-[#46674D] hover:bg-[#36593F] text-white font-black text-sm flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
+                {/* إشعار النجاح عند الإرسال */}
+                {isSent && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3 rounded-xl bg-[#E8F4EA] border border-[#88B793] text-xs font-black text-[#1E3725] flex items-center justify-center gap-2"
                   >
-                    <MessageCircle className="w-5 h-5 stroke-[2.2]" />
+                    <Check className="w-4 h-4 text-[#46674D]" />
                     <span>
                       {tr(
-                        'إرسال رسالة واتساب وحفظ البلاغ',
-                        'ناردنی پەیامی واتسئەپ و پاشەکەوتکردنی سکاڵا',
-                        'Send WhatsApp Message & Save Report'
+                        'تم حفظ البلاغ وإرسال الرسالة إلى واتساب بنجاح',
+                        'سکاڵاکە پاشەکەوتکرا و پەیامەکە بۆ واتسئەپ نێردرا',
+                        'Report saved and message dispatched to WhatsApp'
                       )}
                     </span>
-                  </button>
-
-                  {isSent && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-3 rounded-xl bg-[#E8F4EA] border border-[#88B793] text-xs font-black text-[#1E3725] flex items-center justify-center gap-2"
-                    >
-                      <Check className="w-4 h-4 text-[#46674D]" />
-                      <span>
-                        {tr(
-                          'تم حفظ البلاغ وإرسال الرسالة إلى واتساب بنجاح',
-                          'سکاڵاکە پاشەکەوتکرا و پەیامەکە بۆ واتسئەپ نێردرا',
-                          'Report saved and message dispatched to WhatsApp'
-                        )}
-                      </span>
-                    </motion.div>
-                  )}
-                </div>
+                  </motion.div>
+                )}
               </div>
             )}
           </div>
@@ -2476,11 +2761,26 @@ export const SubmitReportWizardModal: React.FC<SubmitReportWizardModalProps> = (
               <button
                 type="button"
                 onClick={handleResetAndClose}
-                className="px-6 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white font-black text-xs transition-all cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white font-black text-xs transition-all cursor-pointer shadow-xs"
               >
-                {tr('إنهاء', 'تەواوکردن', 'Done')}
+                {tr('إنهاء وإغلاق', 'تەواوکردن و داخستن', 'Done & Close')}
               </button>
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                onClick={handleSaveAndSendWhatsApp}
+                className="px-5 sm:px-6 py-2.5 rounded-xl bg-[#46674D] hover:bg-[#36593F] text-white font-black text-xs flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4 stroke-[2.2]" />
+                <span>
+                  {tr(
+                    'إرسال واتساب وحفظ البلاغ',
+                    'ناردنی واتسئەپ و پاشەکەوتکردن',
+                    'Save & Send WhatsApp'
+                  )}
+                </span>
+              </button>
+            )}
           </div>
         </motion.div>
 

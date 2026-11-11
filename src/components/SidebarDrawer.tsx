@@ -223,7 +223,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   React.useEffect(() => {
     setWaReportsNumberInput(contactSettings.whatsappReportsNumber || '9647749019911');
     setContactPhoneInput(contactSettings.contactPhone || '9647749019911');
-    setContactEmailInput(contactSettings.contactEmail || 'info@cavebaadre.org');
+    setContactEmailInput(contactSettings.contactEmail || 'cavebaadre@gmail.com');
   }, [contactSettings.whatsappReportsNumber, contactSettings.contactPhone, contactSettings.contactEmail]);
 
   // Expanded Accordion Sections State - مغلق افتراضياً لجميع الأقسام
@@ -313,35 +313,40 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 }}
               />
 
-              {/* Header — رأس السايدبار تركوازي متناسق وغني وبدون أي إطارات مع نص ÇAVÊ BAADRÊ فقط */}
+              {/* Header — رأس السايدبار ديناميكي متناسق مع السمة اللونية وشفاف قليلاً ولطيف */}
               <div
                 dir={isRTL ? 'rtl' : 'ltr'}
-                className="px-5 py-4 relative flex items-center justify-center bg-gradient-to-r from-[#1E8E93]/80 via-[#2BB3B6]/60 to-[#247CB4]/80 backdrop-blur-2xl border-0 shadow-none select-none overflow-hidden shrink-0"
+                className="px-5 py-4 relative flex items-center justify-center backdrop-blur-2xl border-b border-white/25 shadow-none select-none overflow-hidden shrink-0 transition-colors duration-300"
+                style={{
+                  background: `linear-gradient(135deg, ${palette.primaryHex}B3 0%, ${palette.gradientToHex}99 50%, ${palette.accentHex}B3 100%)`,
+                }}
               >
                 {/* إضاءة مركزية متوهجة ناعمة بدون إطارات */}
                 <div
-                  className="pointer-events-none absolute inset-0 opacity-60"
+                  className="pointer-events-none absolute inset-0 opacity-40"
                   style={{
                     background:
-                      'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.40) 0%, rgba(255,255,255,0.08) 50%, transparent 80%)',
+                      'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.50) 0%, rgba(255,255,255,0.12) 60%, transparent 80%)',
                   }}
                 />
 
-                {/* نص ÇAVÊ BAADRÊ فقط في المنتصف باللون البترولي العميق والأنيق */}
+                {/* نص ÇAVÊ BAADRÊ فقط في المنتصف متناغم مع السمة */}
                 <span
                   dir="ltr"
-                  className="relative z-10 font-black text-base sm:text-lg tracking-widest text-center text-[#0E3544] drop-shadow-[0_1px_2px_rgba(255,255,255,0.6)]"
+                  className="relative z-10 font-black text-base sm:text-lg tracking-widest text-center transition-colors duration-300 drop-shadow-[0_1px_2px_rgba(255,255,255,0.55)]"
+                  style={{ color: palette.primaryTextHex }}
                 >
                   ÇAVÊ BAADRÊ
                 </span>
 
-                {/* زر الإغلاق X بدون إطار */}
+                {/* زر الإغلاق X بدون إطار متناسق مع السمة */}
                 <button
                   type="button"
                   onClick={onClose}
                   className={`absolute top-1/2 -translate-y-1/2 ${
                     isRTL ? 'left-4' : 'right-4'
-                  } z-10 w-9 h-9 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/35 text-[#0E3544] border-0 shadow-none transition-all active:scale-95 cursor-pointer`}
+                  } z-10 w-9 h-9 flex items-center justify-center rounded-xl bg-white/25 hover:bg-white/40 border-0 shadow-none transition-all active:scale-95 cursor-pointer`}
+                  style={{ color: palette.primaryTextHex }}
                   aria-label="Close"
                 >
                   <X className="w-5 h-5 stroke-[2.3]" />
@@ -874,21 +879,22 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                                   </div>
 
                                   <div>
-                                    <label className="block text-[10px] font-black text-[#3B6878] mb-1">
-                                      {tr(
-                                        'البريد الإلكتروني الظاهر في القائمة الجانبية',
-                                        'ئیمەیڵی ناو لیستەکە',
-                                        'Sidebar Display Email'
-                                      )}
-                                    </label>
-                                    <input
-                                      type="email"
-                                      dir="ltr"
-                                      value={contactEmailInput}
-                                      onChange={(e) => setContactEmailInput(e.target.value)}
-                                      placeholder="info@cavebaadre.org"
-                                      className="w-full px-3 py-2 rounded-xl bg-white border-0 shadow-2xs text-xs font-mono font-bold text-[#1B3A46] focus:outline-none"
-                                    />
+                                    <div className="flex items-center justify-between mb-1">
+                                      <label className="block text-[10px] font-black text-[#3B6878]">
+                                        {tr(
+                                          'البريد الإلكتروني الظاهر في القائمة الجانبية',
+                                          'ئیمەیڵی ناو لیستەکە',
+                                          'Sidebar Display Email'
+                                        )}
+                                      </label>
+                                      <span className="text-[9px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                                        {tr('ثابت غير قابل للتغيير', 'جێگیرە و ناگۆڕدرێت', 'Fixed / Unchangeable')}
+                                      </span>
+                                    </div>
+                                    <div className="w-full px-3 py-2 rounded-xl bg-white/70 border border-[#D0E2E8] shadow-2xs text-xs font-mono font-bold text-[#1B3A46] flex items-center justify-between">
+                                      <span dir="ltr">cavebaadre@gmail.com</span>
+                                      <Mail className="w-3.5 h-3.5 text-[#467586]" />
+                                    </div>
                                   </div>
 
                                   <button
@@ -906,7 +912,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                                         await updateContactSettings({
                                           whatsappReportsNumber: waReportsNumberInput.trim() || '9647749019911',
                                           contactPhone: contactPhoneInput.trim() || '9647749019911',
-                                          contactEmail: contactEmailInput.trim() || 'info@cavebaadre.org',
+                                          contactEmail: contactEmailInput.trim() || 'cavebaadre@gmail.com',
                                         });
                                         playSuccessSound();
                                         setContactSuccess(
@@ -1137,9 +1143,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                               </bdi>
                             </a>
 
-                            {/* البريد الإلكتروني */}
+                            {/* البريد الإلكتروني الرسمي الثابت غير القابل للتغيير */}
                             <a
-                              href={`mailto:${contactSettings.contactEmail || 'info@cavebaadre.org'}`}
+                              href="mailto:cavebaadre@gmail.com"
                               className="flex items-center justify-start gap-2 p-2.5 rounded-xl bg-[#F4F9FB] hover:bg-[#E3EFF3] transition-colors text-xs font-bold text-[#1B3A46] border-0"
                             >
                               <Mail className="w-3.5 h-3.5 text-[#467586] shrink-0" />
@@ -1147,7 +1153,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                                 {tr('الإيميل:', 'ئیمەیڵ:', 'Email:')}
                               </span>
                               <bdi className="font-mono font-black text-[#1B3A46] text-[11px] truncate" dir="ltr">
-                                {contactSettings.contactEmail || 'info@cavebaadre.org'}
+                                cavebaadre@gmail.com
                               </bdi>
                             </a>
                           </div>
@@ -1485,10 +1491,26 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   </ul>
                 </div>
 
-                {/* تواصل منظمة RABA */}
-                <div className="pt-2 border-t border-[#DAE9EE] flex flex-wrap items-center justify-between gap-2 text-xs text-[#3B6878] font-bold">
-                  <span>{tr('منظمة RABA • ناحية باعذرة', 'ڕێکخراوی RABA • ناحیەی باعەدرێ', 'RABA Organization • Baadre District')}</span>
-                  <span dir="ltr" className="font-mono text-[#1B3A46]">9647749019911</span>
+                {/* تواصل منظمة RABA والبريد الرسمي */}
+                <div className="pt-2 border-t border-[#DAE9EE] space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#3B6878] font-bold">
+                    <span>{tr('منظمة RABA • ناحية باعذرة', 'ڕێکخراوی RABA • ناحیەی باعەدرێ', 'RABA Organization • Baadre District')}</span>
+                    <span dir="ltr" className="font-mono text-[#1B3A46]">9647749019911</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-[#E8F4F8] border border-[#C5DFE8] flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-[#1B3A46]">
+                      <Mail className="w-4 h-4 text-[#467586] shrink-0" />
+                      <span>{tr('البريد الإلكتروني الرسمي للتواصل:', 'ئیمەیڵی فەرمی بۆ پەیوەندی:', 'Official Contact Email:')}</span>
+                    </div>
+                    <a
+                      href="mailto:cavebaadre@gmail.com"
+                      dir="ltr"
+                      className="font-mono font-black text-[#205569] hover:text-[#133c4b] hover:underline"
+                    >
+                      cavebaadre@gmail.com
+                    </a>
+                  </div>
                 </div>
 
                 {/* زر الإغلاق */}

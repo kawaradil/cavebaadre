@@ -80,7 +80,7 @@ export interface CloudContactSettings {
 export const DEFAULT_CLOUD_CONTACT_SETTINGS: CloudContactSettings = {
   whatsappReportsNumber: '9647749019911',
   contactPhone: '9647749019911',
-  contactEmail: 'info@cavebaadre.org',
+  contactEmail: 'cavebaadre@gmail.com',
 };
 
 export interface StatusUpdateToastPayload {

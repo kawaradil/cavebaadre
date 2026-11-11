@@ -177,11 +177,11 @@ export const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({
               </h3>
               <div className="flex flex-wrap items-center gap-2.5 text-xs font-bold text-[#153450]">
                 <a
-                  href="mailto:info@cavebaadre.org"
+                  href="mailto:cavebaadre@gmail.com"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F4F9FD] border border-[#CCE3F5] hover:bg-[#E2EEF7] transition-colors"
                 >
                   <Mail className="w-3.5 h-3.5 text-[#256BA6]" />
-                  <span dir="ltr">info@cavebaadre.org</span>
+                  <span dir="ltr">cavebaadre@gmail.com</span>
                 </a>
                 <a
                   href="tel:+9647504738358"

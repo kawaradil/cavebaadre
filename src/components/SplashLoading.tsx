@@ -109,14 +109,11 @@ export const SplashLoading: React.FC<SplashLoadingProps> = ({
             >
               <div className="absolute -inset-6 rounded-full bg-white/75 blur-2xl pointer-events-none" />
               <img
-                src="/assets/aistudio/cave_baadre_logo.png"
+                src="/assets/aistudio/cave_baadre_logo_original_optimized.png"
                 alt="ÇAVÊ BAADRÊ"
                 className="relative w-44 sm:w-52 md:w-56 h-auto object-contain select-none pointer-events-none"
                 style={{
-                  filter:
-                    palette.logoFilter && palette.logoFilter !== 'none'
-                      ? `${palette.logoFilter} drop-shadow(0 14px 28px rgba(${palette.shadowRgb}, 0.24))`
-                      : `drop-shadow(0 14px 28px rgba(${palette.shadowRgb}, 0.24))`,
+                  filter: 'drop-shadow(0 14px 28px rgba(27, 58, 70, 0.22))',
                 }}
                 loading="eager"
               />

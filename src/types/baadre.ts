@@ -414,16 +414,68 @@ export const URGENCY_META: Record<
   },
 };
 
-export const BAADRE_NEIGHBORHOODS = [
-  { id: 'center', ar: 'مركز باعدرى', ku: 'سەنتەری باعەدرێ', en: 'Baadre Center' },
-  { id: 'ashti', ar: 'حي آشتي', ku: 'گەڕەکی ئاشتی', en: 'Ashti District' },
-  { id: 'nergiz', ar: 'حي نيرگز', ku: 'گەڕەکی نێرگز', en: 'Nergiz District' },
-  { id: 'gulan', ar: 'حي كولان', ku: 'گەڕەکی گوڵان', en: 'Gulan District' },
-  { id: 'zozan', ar: 'حي زوزان', ku: 'گەڕەکی زۆزان', en: 'Zozan District' },
-  { id: 'bahar', ar: 'حي بهار', ku: 'گەڕەکی بەهار', en: 'Bahar District' },
-  { id: 'main_road', ar: 'الشارع العام', ku: 'شەقامی گشتی', en: 'Main Street' },
-  { id: 'complex', ar: 'المجمع السكني', ku: 'کۆمەڵگەی نیشتەجێبوون', en: 'Residential Complex' },
-  { id: 'shuhada', ar: 'حي الشهداء', ku: 'گەڕەکی شەهیدان', en: 'Shuhada District' },
+export interface BaadreNeighborhoodItem {
+  id: string;
+  name: string;
+  ar: string;
+  ku: string;
+  en: string;
+}
+
+// گەڕەکەکانی شارەوانی باعەدری (10 گەڕەک / أحياء بلدية باعدرى)
+export const BAADRE_NEIGHBORHOODS: BaadreNeighborhoodItem[] = [
+  { id: 'khaltia', name: 'تاخێ خالتیا / باعەدرا کەڤن', ar: 'تاخێ خالتیا / باعەدرا کەڤن', ku: 'تاخێ خالتیا / باعەدرا کەڤن', en: 'Khaltia / Old Baadre' },
+  { id: 'haweria', name: 'تاخێ هەوێریا', ar: 'تاخێ هەوێریا', ku: 'تاخێ هەوێریا', en: 'Haweria' },
+  { id: 'shingalia', name: 'تاخێ شنگالیا', ar: 'تاخێ شنگالیا', ku: 'تاخێ شنگالیا', en: 'Shingalia' },
+  { id: 'mlachapara', name: 'تاخێ ملاچەپەرا', ar: 'تاخێ ملاچەپەرا', ku: 'تاخێ ملاچەپەرا', en: 'Mlachapara' },
+  { id: 'qasre', name: 'تاخێ قەسرێ', ar: 'تاخێ قەسرێ', ku: 'تاخێ قەسرێ', en: 'Qasre' },
+  { id: 'miri', name: 'تاخێ میری', ar: 'تاخێ میری', ku: 'تاخێ میری', en: 'Miri' },
+  { id: 'bedara', name: 'تاخێ بێدەرا', ar: 'تاخێ بێدەرا', ku: 'تاخێ بێدەرا', en: 'Bedara' },
+  { id: 'garazalal', name: 'تاخێ گەڕەزەلال (تعاونیە)', ar: 'تاخێ گەڕەزەلال (تعاونیە)', ku: 'تاخێ گەڕەزەلال (تعاونیە)', en: 'Garazalal (Cooperative)' },
+  { id: 'corniche', name: 'تاخێ کورنیش', ar: 'تاخێ کورنیش', ku: 'تاخێ کورنیش', en: 'Corniche' },
+  { id: 'pira', name: 'تاخێ پیرا', ar: 'تاخێ پیرا', ku: 'تاخێ پیرا', en: 'Pira' },
+];
+
+// أسماء الشوارع الرسمية في باعذرة (21 شارع)
+export const BAADRE_STREETS: string[] = [
+  'بەڕخودان',
+  'ئازادی',
+  'گەڕەزەلال',
+  'شەهید ئەڕجان',
+  'قەشەمی',
+  'کانی سارک',
+  'شۆڕەش',
+  'شەهید ڕەشید',
+  'باژێڤانی',
+  'برایەتی',
+  'تووقەسەپ',
+  'مەیان خاتوون',
+  'شەهید مەحمود ئێزدی',
+  'خدر حسون',
+  'ڕاپەڕین',
+  'نەورۆز',
+  'مەم و زین',
+  'داسن',
+  'گولانی',
+  'حەسنی شەڕەف',
+  'شارعا دووسایدی',
+];
+
+// أسماء أقرب نقطة دالة في باعذرة (13 نقطة دالة)
+export const BAADRE_LANDMARKS: string[] = [
+  'شەقاما دوو سایدی',
+  'قوتابخانا زوهێرا',
+  'قوتابخانا مێترا',
+  'قوتابخانا ئامادەییا باعەدرێ',
+  'قوتابخانا شەهید مەحمود',
+  'قوتابخانا باعەدرێ',
+  'ڕێڤەبەریا باژێرڤانیا باعەدرێ',
+  'ڕێڤەبەریا ناحیا باعەدرێ',
+  'سەنتەرێ باعەدرێ یێ رەوشەنبیری',
+  'مەزارێ حەجی عەلی',
+  'هۆلا خەیری بەگ',
+  'هۆلا باعەدرێ یا هەلکەفتان',
+  'سەنتەرێ باعەدرێ یێ ساخلەمیێ',
 ];
 
 export const FIELD_TEAMS = [

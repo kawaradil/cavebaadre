@@ -36,7 +36,7 @@ export interface ColorThemeTokens {
 
 export type GreenColorTokens = ColorThemeTokens;
 
-const STORAGE_THEME_KEY = 'cave_baadre_theme_palette_v6';
+const STORAGE_THEME_KEY = 'cave_baadre_theme_palette_v7';
 
 /**
  * 1. سمة تركوازي (Turquoise) - الافتراضية
@@ -233,7 +233,7 @@ interface ColorContextType {
 const ColorContext = createContext<ColorContextType | undefined>(undefined);
 
 export const ColorProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // السمة الافتراضية هي سمة شعار رابه (تركوازي وأزرق RABA) مع سهولة التبديل عبر Context
+  // السمة الافتراضية هي سمة أزرق ملكي (Royal Blue)
   const [activePaletteName, setActivePaletteName] = useState<ColorPaletteName>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_THEME_KEY) as ColorPaletteName | null;
@@ -241,10 +241,10 @@ export const ColorProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return saved;
       }
     } catch {}
-    return 'raba';
+    return 'royal';
   });
 
-  const palette = COLOR_PALETTES[activePaletteName] || RABA_LOGO_THEME;
+  const palette = COLOR_PALETTES[activePaletteName] || ROYAL_BLUE_THEME;
 
   const setPalette = (name: ColorPaletteName) => {
     if (!COLOR_PALETTES[name]) return;
