@@ -159,23 +159,20 @@ export const AppStartOverviewScreen: React.FC<AppStartOverviewScreenProps> = ({
                 }}
               />
               <img
-                src="/assets/aistudio/cave_baadre_logo.png"
+                src="/assets/aistudio/cave_baadre_logo_original_optimized.png"
                 alt="ÇAVÊ BAADRÊ"
                 className="relative w-32 sm:w-36 h-auto object-contain select-none pointer-events-none"
                 style={{
-                  filter:
-                    palette.logoFilter && palette.logoFilter !== 'none'
-                      ? `${palette.logoFilter} drop-shadow(0 10px 22px rgba(${palette.shadowRgb}, 0.22))`
-                      : `drop-shadow(0 10px 22px rgba(${palette.shadowRgb}, 0.22))`,
+                  filter: 'drop-shadow(0 10px 22px rgba(15, 49, 74, 0.22))',
                 }}
               />
             </div>
 
             <div className="space-y-1 pt-0.5">
-              <h1 className="text-base sm:text-lg font-black text-[#1B3A46]">
+              <h1 className="text-base sm:text-lg font-black text-[#0F314A]">
                 {t.localTitle}
               </h1>
-              <p className="text-xs sm:text-sm font-bold text-[#285060] max-w-md mx-auto leading-relaxed">
+              <p className="text-xs sm:text-sm font-bold text-[#185A80] max-w-md mx-auto leading-relaxed">
                 {t.subtitle}
               </p>
             </div>

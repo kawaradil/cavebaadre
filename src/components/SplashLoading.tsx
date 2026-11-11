@@ -60,7 +60,7 @@ export const SplashLoading: React.FC<SplashLoadingProps> = ({
           initial={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 1.03, filter: 'blur(8px)' }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#E7F2F5] text-[#1B3A46] overflow-hidden select-none px-6"
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#F0F8FC] text-[#0F314A] overflow-hidden select-none px-6"
         >
           {/* Full-Screen Splash Background Image harmonized with active ColorContext palette */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -119,27 +119,27 @@ export const SplashLoading: React.FC<SplashLoadingProps> = ({
               />
             </motion.div>
 
-            {/* Typography 1: ÇAVÊ BAADRÊ (Harmonized with ColorContext Palette) */}
+            {/* Typography 1: ÇAVÊ BAADRÊ (الأزرق الملكي الأصلي الفاخر) */}
             <motion.h1
               dir="ltr"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.18, duration: 0.6 }}
-              className="text-3xl sm:text-4xl md:text-[42px] font-black tracking-[0.09em] font-['Montserrat',sans-serif] text-transparent bg-clip-text bg-gradient-to-b from-[#1B3A46] via-[#3B6878] to-[#58899A]"
+              className="text-3xl sm:text-4xl md:text-[42px] font-black tracking-[0.09em] font-['Montserrat',sans-serif] text-transparent bg-clip-text bg-gradient-to-b from-[#0F314A] via-[#1A5276] to-[#247CB4] drop-shadow-[0_2px_12px_rgba(36,124,180,0.18)]"
             >
               ÇAVÊ BAADRÊ
             </motion.h1>
 
-            {/* Typography 2: چاڤێ باعدرێ • عين باعذرة */}
+            {/* Typography 2: چاڤێ باعدرێ • عين باعذرة بالأزرق الملكي */}
             <motion.h2
               dir="rtl"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.6 }}
-              className="mt-2.5 sm:mt-3 text-lg sm:text-xl md:text-2xl font-black text-[#285060] tracking-wide font-['Noto_Kufi_Arabic','Cairo',sans-serif] flex items-center justify-center gap-2.5 drop-shadow-[0_1px_4px_rgba(255,255,255,0.9)]"
+              className="mt-2.5 sm:mt-3 text-lg sm:text-xl md:text-2xl font-black text-[#133F5E] tracking-wide font-['Noto_Kufi_Arabic','Cairo',sans-serif] flex items-center justify-center gap-2.5 drop-shadow-[0_1px_4px_rgba(255,255,255,0.9)]"
             >
               <bdi>چاڤێ باعدرێ</bdi>
-              <span className="text-[#58899A] text-base leading-none">•</span>
+              <span className="text-[#247CB4] text-base leading-none">•</span>
               <bdi>عين باعذرة</bdi>
             </motion.h2>
 
