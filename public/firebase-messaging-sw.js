@@ -6,7 +6,7 @@
  */
 
 const SW_BUILD_ID = '__SW_BUILD_ID__';
-const APP_ICON = '/pwa-icon-192.png';
+const APP_ICON = '/pwa-icon-192.png?v=raba2026';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

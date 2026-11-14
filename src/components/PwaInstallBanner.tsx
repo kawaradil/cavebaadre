@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, X, Share } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../context/LanguageContext';
-import { useColorTheme } from '../context/ColorContext';
 
 interface PwaInstallBannerProps {
   installPrompt?: any;
@@ -14,7 +13,6 @@ export const PwaInstallBanner: React.FC<PwaInstallBannerProps> = ({
   isSplashActive = false,
 }) => {
   const { language, isRTL } = useLanguage();
-  const { palette } = useColorTheme();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(installPrompt || null);
   const [isIOS, setIsIOS] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
@@ -139,17 +137,16 @@ export const PwaInstallBanner: React.FC<PwaInstallBannerProps> = ({
             <X className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
 
-          {/* شعار التطبيق */}
+          {/* شعار وأيقونة التطبيق الأصلية كما ستظهر على شاشة الهاتف */}
           <div className="mt-1 flex flex-col items-center gap-1">
-            <div className="w-11 h-11 rounded-2xl bg-rose-50/80 border border-rose-100 flex items-center justify-center p-1.5 shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200/90 flex items-center justify-center p-1 shadow-sm overflow-hidden">
               <img
-                src="/assets/aistudio/cave_baadre_logo.png"
+                src="/pwa-icon-192.png?v=raba2026"
                 alt="ÇAVÊ BAADRÊ"
                 className="w-full h-full object-contain"
-                style={{ filter: palette.logoFilter }}
               />
             </div>
-            <span className="text-[10px] font-black text-[#1E3725] tracking-tight line-clamp-1">
+            <span className="text-[10px] font-black text-[#0F314A] tracking-tight line-clamp-1">
               ÇAVÊ BAADRÊ
             </span>
           </div>

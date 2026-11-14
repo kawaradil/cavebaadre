@@ -102,7 +102,7 @@ app.get(['/version.json', '/api/app-version'], (_req, res) => {
   res.json(getActiveBuildMetadata());
 });
 
-// Prevent mobile browsers / WebAPK / iOS WebClip from HTTP-caching entry HTML, Manifest, or Service Workers
+// Prevent mobile browsers / WebAPK / iOS WebClip from HTTP-caching entry HTML, Manifest, Icons, or Service Workers
 app.use((req, res, next) => {
   const reqPath = req.path || '';
   if (
@@ -110,7 +110,16 @@ app.use((req, res, next) => {
     reqPath === '/index.html' ||
     reqPath === '/sw.js' ||
     reqPath === '/firebase-messaging-sw.js' ||
-    reqPath === '/manifest.json'
+    reqPath === '/manifest.json' ||
+    reqPath === '/apple-touch-icon.png' ||
+    reqPath === '/pwa-icon-192.png' ||
+    reqPath === '/pwa-icon-512.png' ||
+    reqPath === '/pwa-maskable-512.png' ||
+    reqPath === '/pwa-192.png' ||
+    reqPath === '/pwa-512.png' ||
+    reqPath === '/app-store-icon-1024.png' ||
+    reqPath === '/favicon.png' ||
+    reqPath === '/favicon.ico'
   ) {
     setNoCacheHeaders(res);
   }

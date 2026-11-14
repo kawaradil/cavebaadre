@@ -1,15 +1,16 @@
 const SW_BUILD_ID = '__SW_BUILD_ID__';
 const CACHE_NAME = `baadre-cave-pwa-${SW_BUILD_ID}`;
 const ASSETS_TO_CACHE = [
-  '/manifest.json',
-  '/pwa-icon-192.png',
-  '/pwa-icon-512.png',
-  '/pwa-maskable-512.png',
-  '/pwa-192.png',
-  '/pwa-512.png',
+  '/manifest.json?v=raba2026',
+  '/pwa-icon-192.png?v=raba2026',
+  '/pwa-icon-512.png?v=raba2026',
+  '/pwa-maskable-512.png?v=raba2026',
+  '/pwa-192.png?v=raba2026',
+  '/pwa-512.png?v=raba2026',
+  '/apple-touch-icon.png?v=raba2026',
   '/apple-touch-icon.png',
-  '/favicon.png',
-  '/assets/aistudio/cave_baadre_logo.png'
+  '/favicon.png?v=raba2026',
+  '/assets/aistudio/cave_baadre_logo_original_optimized.png'
 ];
 
 // Install event - Fetch fresh core icons bypassing HTTP cache and activate immediately
@@ -222,8 +223,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(notifTitle, {
       body: notifBody,
-      icon: '/pwa-icon-192.png',
-      badge: '/pwa-icon-192.png',
+      icon: '/pwa-icon-192.png?v=raba2026',
+      badge: '/pwa-icon-192.png?v=raba2026',
       dir: 'rtl',
       lang: 'ar',
       tag: reportId ? `baadre-report-${reportId}` : 'baadre-admin-report',
