@@ -184,11 +184,11 @@ export const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({
                   <span dir="ltr">cavebaadre@gmail.com</span>
                 </a>
                 <a
-                  href="tel:+9647504738358"
+                  href="tel:+9647502138853"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EAF4EC] border border-[#BBDDC6] text-[#1E3725] hover:bg-[#D8ECDB] transition-colors"
                 >
                   <Phone className="w-3.5 h-3.5 text-[#3E6E4A]" />
-                  <span dir="ltr">+964 750 473 8358</span>
+                  <span dir="ltr">07502138853</span>
                 </a>
               </div>
             </div>

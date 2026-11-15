@@ -4,7 +4,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import {
   generateSecureRecoveryCode,
-  generateDeterministicRecoveryCode,
   encryptRecoveryCode,
 } from '../security/encryption';
 import {
@@ -15,6 +14,7 @@ import {
   getActiveAppCheckToken,
 } from '../firestoreRest';
 import { UserProfileDocument, UserRole } from '../../src/types/auth';
+import { OFFICIAL_PHONE_LOCAL } from '../../src/constants/officialContact';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -120,7 +120,7 @@ export async function ensureDesignatedSuperAdminProvisioned(params: {
 
   const resolvedName =
     fullName?.trim() || existingData.fullName?.trim() || DESIGNATED_SUPER_ADMIN_NAME;
-  const resolvedPhone = phone?.trim() || existingData.phone?.trim() || '07504738358';
+  const resolvedPhone = phone?.trim() || existingData.phone?.trim() || OFFICIAL_PHONE_LOCAL;
   const resolvedBirthDate = birthDate || existingData.birthDate || '1990-01-01';
 
   const superAdminProfile: UserProfileDocument = {
@@ -172,18 +172,11 @@ export async function ensureDesignatedSuperAdminProvisioned(params: {
   store.users[uid] = superAdminProfile;
   store.super_admins[uid] = superMarker;
   store.admins[uid] = adminMarker;
+  store.citizens[uid] = citizenRecord;
 
   if (!store.admin_recovery_vault[uid]) {
-    const remoteVault = idToken ? await restGetDoc('admin_recovery_vault', uid, idToken) : null;
-    if (remoteVault && (remoteVault.encryptedData || remoteVault.encryptedCode || remoteVault.plainRecoveryCode)) {
-      store.admin_recovery_vault[uid] = remoteVault;
-    } else {
-      const recoveryCode = generateDeterministicRecoveryCode(cleanEmail);
-      store.admin_recovery_vault[uid] = {
-        ...encryptRecoveryCode(recoveryCode, 'super_admin'),
-        plainRecoveryCode: recoveryCode,
-      };
-    }
+    const recoveryCode = generateSecureRecoveryCode();
+    store.admin_recovery_vault[uid] = encryptRecoveryCode(recoveryCode, 'super_admin');
   }
 
   writeLocalStore(store);
@@ -193,7 +186,7 @@ export async function ensureDesignatedSuperAdminProvisioned(params: {
       restSetDoc('users', uid, superAdminProfile, idToken, true),
       restSetDoc('super_admins', uid, superMarker, idToken, true),
       restSetDoc('admins', uid, adminMarker, idToken, true),
-      restSetDoc('admin_recovery_vault', uid, store.admin_recovery_vault[uid], idToken, true),
+      restSetDoc('citizens', uid, citizenRecord, idToken, true),
     ]);
   }
 
@@ -394,10 +387,6 @@ export async function isEmailRegisteredOnPlatform(
       if (data.registered === true) {
         return true;
       }
-    } else if (res.status === 401 || res.status === 403) {
-      // Identity Toolkit requires App Check token which may not be on backend;
-      // treat as valid format candidate and delegate verification to the next secure step
-      return true;
     }
   } catch {}
 

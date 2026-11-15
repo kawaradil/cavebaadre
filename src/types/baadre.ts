@@ -487,7 +487,7 @@ export const FIELD_TEAMS = [
   { id: 'team-emergency', ar: 'فرقة التدخل السريع والطوارئ', ku: 'تیمی فریاکەوتنی خێرا', en: 'Rapid Emergency Response Team' },
 ];
 
-export const MUNICIPAL_WHATSAPP_NUMBER = '9647749019911';
+export const MUNICIPAL_WHATSAPP_NUMBER = '9647502138853';
 export const BAADRE_CENTER_COORDS = { lat: 36.7186, lng: 43.2614 };
 
 export interface SurveyOption {

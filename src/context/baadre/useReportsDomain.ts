@@ -22,7 +22,6 @@ import {
   syncReportStatusAndCompletedWorkToFirestore,
   executeCitizenReportEditTransaction,
   executeCitizenReportDeleteTransaction,
-  deleteReportMediaFromStorage,
   OperationType,
   handleFirestoreError,
   maskPhoneNumber,
@@ -55,29 +54,31 @@ import {
   CACHE_KEY_PROJECTS,
 } from './types';
 
-export function useReportsAndProjectsDomain(params: {
+interface UseReportsDomainParams {
+  activeRole: 'citizen' | 'admin';
+  setActiveRoleDirect: (role: 'citizen' | 'admin') => void;
+  setIsSurveysViewOpen: (open: boolean) => void;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  canAccessAdmin: boolean;
-  hasFirestoreAdminAuth: boolean;
-  activeRole: 'citizen' | 'admin';
-  currentUserUid?: string;
+  currentUser: { uid: string; email?: string | null } | null;
+  projects: OrganizationProject[];
+  setProjects: React.Dispatch<React.SetStateAction<OrganizationProject[]>>;
   rawCitizens: RegisteredCitizen[];
   setCitizens: React.Dispatch<React.SetStateAction<RegisteredCitizen[]>>;
-  onActivateAdminView: () => void;
-}) {
-  const {
-    isAdmin,
-    isSuperAdmin,
-    canAccessAdmin,
-    hasFirestoreAdminAuth,
-    activeRole,
-    currentUserUid,
-    rawCitizens,
-    setCitizens,
-    onActivateAdminView,
-  } = params;
+}
 
+export function useReportsDomain({
+  activeRole,
+  setActiveRoleDirect,
+  setIsSurveysViewOpen,
+  isAdmin,
+  isSuperAdmin,
+  currentUser,
+  projects,
+  setProjects,
+  rawCitizens,
+  setCitizens,
+}: UseReportsDomainParams) {
   const [reports, setReports] = useState<CivicReport[]>(() => {
     try {
       const raw = localStorage.getItem(CACHE_KEY_REPORTS);
@@ -88,23 +89,13 @@ export function useReportsAndProjectsDomain(params: {
     } catch {}
     return [];
   });
+
   const [reportsLimitCount, setReportsLimitCount] = useState<number>(80);
   const [hasMoreReports, setHasMoreReports] = useState<boolean>(true);
 
   const loadMoreReports = useCallback(() => {
     setReportsLimitCount((prev) => prev + 40);
   }, []);
-
-  const [projects, setProjects] = useState<OrganizationProject[]>(() => {
-    try {
-      const raw = localStorage.getItem(CACHE_KEY_PROJECTS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [];
-  });
 
   const [myReportIds, setMyReportIds] = useState<string[]>(() => {
     try {
@@ -128,18 +119,6 @@ export function useReportsAndProjectsDomain(params: {
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
   const [statusUpdateToast, setStatusUpdateToast] = useState<StatusUpdateToastPayload | null>(null);
   const [newAdminReportAlert, setNewAdminReportAlert] = useState<CivicReport | null>(null);
-
-  // Refs for referentially stable callbacks
-  const reportsRef = useRef(reports);
-  reportsRef.current = reports;
-  const projectsRef = useRef(projects);
-  projectsRef.current = projects;
-  const citizensRef = useRef(rawCitizens);
-  citizensRef.current = rawCitizens;
-  const selectedReportRef = useRef(selectedReport);
-  selectedReportRef.current = selectedReport;
-  const editingCitizenReportRef = useRef(editingCitizenReport);
-  editingCitizenReportRef.current = editingCitizenReport;
 
   const hasLoadedInitialReportsRef = useRef<boolean>(false);
   const knownReportIdsRef = useRef<Set<string>>(new Set());
@@ -231,8 +210,10 @@ export function useReportsAndProjectsDomain(params: {
     return () => clearTimeout(timer);
   }, [statusUpdateToast]);
 
-  // Firestore listeners for reports and CompletedWork
+  // Real-time Firestore listener for reports
   useEffect(() => {
+    const hasFirestoreAdminAuth = Boolean(currentUser && (isAdmin || isSuperAdmin));
+
     const reportsQuery = query(
       collection(db, COLLECTIONS.REPORTS),
       orderBy('createdAt', 'desc'),
@@ -255,15 +236,17 @@ export function useReportsAndProjectsDomain(params: {
         const remoteReports = numericDocs.map((d) => {
           const data = d.data() as CivicReport;
           const isOwner = Boolean(
-            currentUserUid &&
-              ((data.ownerUid && data.ownerUid === currentUserUid) ||
-                (data.citizenId && data.citizenId === currentUserUid))
+            currentUser?.uid &&
+              ((data.ownerUid && data.ownerUid === currentUser.uid) ||
+                (data.citizenId && data.citizenId === currentUser.uid))
           );
           const shouldMaskPhone = !hasFirestoreAdminAuth && !isOwner;
           return {
             ...data,
             id: String(d.id),
-            citizenPhone: shouldMaskPhone ? maskPhoneNumber(data.citizenPhone) : data.citizenPhone,
+            citizenPhone: shouldMaskPhone
+              ? maskPhoneNumber(data.citizenPhone)
+              : data.citizenPhone,
             citizenWhatsapp: shouldMaskPhone
               ? maskPhoneNumber(data.citizenWhatsapp)
               : data.citizenWhatsapp,
@@ -337,84 +320,10 @@ export function useReportsAndProjectsDomain(params: {
       () => {}
     );
 
-    const completedWorkQuery = query(collection(db, COLLECTIONS.COMPLETED_WORK), limit(100));
-    const unsubCompletedWork = onSnapshot(
-      completedWorkQuery,
-      (snapshot) => {
-        const nonNumericDocs = snapshot.docs.filter((d) => !isPureNumericId(d.id));
-        const numericDocs = snapshot.docs.filter((d) => isPureNumericId(d.id));
-
-        const seenReportKeys = new Set<string>();
-        const duplicateDocs: typeof numericDocs = [];
-        const uniqueRemoteWorks: OrganizationProject[] = [];
-
-        for (const d of numericDocs) {
-          const data = d.data() as OrganizationProject;
-          const workItem: OrganizationProject = { ...data, id: String(d.id) };
-          const reportKey = workItem.reportId
-            ? `rep:${String(workItem.reportId)}`
-            : workItem.trackingCode
-            ? `code:${workItem.trackingCode}`
-            : null;
-
-          if (reportKey) {
-            if (seenReportKeys.has(reportKey)) {
-              duplicateDocs.push(d);
-              continue;
-            }
-            seenReportKeys.add(reportKey);
-          }
-
-          uniqueRemoteWorks.push(workItem);
-        }
-
-        if ((nonNumericDocs.length > 0 || duplicateDocs.length > 0) && hasFirestoreAdminAuth) {
-          const cleanupBatch = writeBatch(db);
-          nonNumericDocs.forEach((d) => cleanupBatch.delete(d.ref));
-          duplicateDocs.forEach((d) => cleanupBatch.delete(d.ref));
-          cleanupBatch.commit().catch(() => {});
-        }
-
-        syncNumericCounterWithItems(COLLECTIONS.COMPLETED_WORK, uniqueRemoteWorks);
-        setProjects(uniqueRemoteWorks);
-        try {
-          localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(uniqueRemoteWorks.slice(0, 100)));
-        } catch {}
-      },
-      () => {}
-    );
-
     return () => {
       unsubReports();
-      unsubCompletedWork();
     };
-  }, [hasFirestoreAdminAuth, currentUserUid, reportsLimitCount]);
-
-  // Automatic cleanup of non-resolved works from CompletedWork
-  useEffect(() => {
-    if (!hasFirestoreAdminAuth || reports.length === 0 || projects.length === 0) return;
-
-    const nonResolvedWorks = projects.filter((p) => {
-      if (!p.reportId && !p.trackingCode) return false;
-      const linkedReport = reports.find(
-        (r) =>
-          (p.reportId && String(r.id) === String(p.reportId)) ||
-          (p.trackingCode && r.trackingCode === p.trackingCode)
-      );
-      return linkedReport && linkedReport.status !== 'resolved';
-    });
-
-    if (nonResolvedWorks.length === 0) return;
-
-    const removeIds = new Set(nonResolvedWorks.map((w) => w.id));
-    setProjects((prev) => prev.filter((p) => !removeIds.has(p.id)));
-
-    const batch = writeBatch(db);
-    nonResolvedWorks.forEach((w) => {
-      batch.delete(doc(db, COLLECTIONS.COMPLETED_WORK, w.id));
-    });
-    batch.commit().catch(() => {});
-  }, [reports, projects, hasFirestoreAdminAuth]);
+  }, [isAdmin, isSuperAdmin, activeRole, currentUser?.uid, reportsLimitCount]);
 
   useEffect(() => {
     try {
@@ -431,9 +340,10 @@ export function useReportsAndProjectsDomain(params: {
       const cleanId = String(targetReportId || '').trim();
       if (!cleanId) return;
 
-      onActivateAdminView();
+      setActiveRoleDirect('admin');
+      setIsSurveysViewOpen(false);
 
-      const existing = reportsRef.current.find(
+      const existing = reports.find(
         (r) => String(r.id) === cleanId || (trackingCode && r.trackingCode === trackingCode)
       );
       if (existing) {
@@ -449,9 +359,10 @@ export function useReportsAndProjectsDomain(params: {
         }
       } catch {}
     },
-    [isAdmin, isSuperAdmin, onActivateAdminView, setSelectedReport]
+    [isAdmin, isSuperAdmin, reports, setSelectedReport, setActiveRoleDirect, setIsSurveysViewOpen]
   );
 
+  // Foreground FCM notifications & deep-link ?reportId=
   useEffect(() => {
     if (!isAdmin && !isSuperAdmin) return;
 
@@ -472,7 +383,7 @@ export function useReportsAndProjectsDomain(params: {
         openReportDetailsForVerifiedAdmin(reportId, trackingCode);
       },
       onForegroundReportNotification: (payload) => {
-        const match = reportsRef.current.find((r) => String(r.id) === String(payload.reportId));
+        const match = reports.find((r) => String(r.id) === String(payload.reportId));
         if (match && !isReportSentToDepartment(match)) {
           setNewAdminReportAlert(match);
         }
@@ -491,7 +402,7 @@ export function useReportsAndProjectsDomain(params: {
     return () => {
       unsubscribeFcm();
     };
-  }, [isAdmin, isSuperAdmin, openReportDetailsForVerifiedAdmin]);
+  }, [isAdmin, isSuperAdmin, openReportDetailsForVerifiedAdmin, reports]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -509,14 +420,23 @@ export function useReportsAndProjectsDomain(params: {
   }, []);
 
   const myReports = useMemo(() => {
-    if (!currentUserUid) return [];
-    return reports.filter(
-      (r) =>
-        myReportIds.includes(r.id) ||
-        r.citizenId === currentUserUid ||
-        r.ownerUid === currentUserUid
-    );
-  }, [reports, myReportIds, currentUserUid]);
+    if (!currentUser) return [];
+    const currentEffectiveRole: 'citizen' | 'admin' | 'super_admin' = isSuperAdmin
+      ? 'super_admin'
+      : isAdmin
+      ? 'admin'
+      : 'citizen';
+
+    return reports.filter((r) => {
+      const isOwnedByCurrentUser =
+        r.ownerUid === currentUser.uid || r.citizenId === currentUser.uid;
+      if (!isOwnedByCurrentUser) return false;
+      if (r.creatorRole) {
+        return r.creatorRole === currentEffectiveRole;
+      }
+      return true;
+    });
+  }, [reports, currentUser, isSuperAdmin, isAdmin]);
 
   const resetFilters = useCallback(() => {
     setSearchQuery('');
@@ -602,11 +522,10 @@ export function useReportsAndProjectsDomain(params: {
         throw new Error('يرجى تسجيل الدخول.');
       }
       const resolvedOwnerUid = auth.currentUser.uid;
-      const currentReports = reportsRef.current;
 
       if (!isAdmin && !isSuperAdmin) {
         const todayStr = new Date().toDateString();
-        const todayCitizenReportsCount = currentReports.filter((r) => {
+        const todayCitizenReportsCount = reports.filter((r) => {
           if (r.ownerUid !== resolvedOwnerUid && r.citizenId !== resolvedOwnerUid) return false;
           if (!r.createdAt) return false;
           const reportDate = new Date(r.createdAt);
@@ -617,7 +536,7 @@ export function useReportsAndProjectsDomain(params: {
         }
       }
 
-      const reportNumericId = generateAutoNumericId(COLLECTIONS.REPORTS, currentReports);
+      const reportNumericId = generateAutoNumericId(COLLECTIONS.REPORTS, reports);
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const trackingCode = `BDR-2026-${randomNum}`;
       const now = new Date().toISOString();
@@ -649,11 +568,9 @@ export function useReportsAndProjectsDomain(params: {
           latitude: latVal,
           longitude: lngVal,
           images: validImages,
-          videoUrl: input.videoUrl || '',
-          videoThumbnail: input.videoThumbnail || '',
-          videoDurationSeconds: input.videoDurationSeconds || 0,
           citizenId: resolvedOwnerUid,
           ownerUid: resolvedOwnerUid,
+          creatorRole: isSuperAdmin ? 'super_admin' : isAdmin ? 'admin' : 'citizen',
           citizenName: (input.citizenName.trim() || 'مواطن من باعدرى').slice(0, 200),
           citizenPhone: (input.citizenPhone.trim() || '07500000000').slice(0, 40),
           citizenWhatsapp: (input.citizenPhone.trim() || '07500000000').slice(0, 40),
@@ -686,19 +603,24 @@ export function useReportsAndProjectsDomain(params: {
         })
         .catch((err) => {
           try {
-            handleFirestoreError(
-              err,
-              OperationType.CREATE,
-              `${COLLECTIONS.REPORTS}/${newReport.id}`
-            );
+            handleFirestoreError(err, OperationType.CREATE, `${COLLECTIONS.REPORTS}/${newReport.id}`);
           } catch {}
         });
 
       if (auth.currentUser?.uid && auth.currentUser?.email) {
         const authUid = auth.currentUser.uid;
         const nextSubmittedCount =
-          currentReports.filter((r) => r.ownerUid === authUid || r.citizenId === authUid).length +
-          1;
+          reports.filter((r) => r.ownerUid === authUid || r.citizenId === authUid).length + 1;
+        setDoc(
+          doc(db, COLLECTIONS.CITIZENS, authUid),
+          {
+            id: authUid,
+            email: auth.currentUser.email,
+            reportsSubmittedCount: nextSubmittedCount,
+            lastActiveAt: now,
+          },
+          { merge: true }
+        ).catch(() => {});
         setDoc(
           doc(db, 'users', authUid),
           {
@@ -712,27 +634,29 @@ export function useReportsAndProjectsDomain(params: {
 
       return newReport;
     },
-    [isAdmin, isSuperAdmin]
+    [reports, isAdmin, isSuperAdmin]
   );
 
   const updateCitizenReport = useCallback(
     (reportId: string, input: SubmitReportInput): CivicReport | undefined => {
-      const currentReports = reportsRef.current;
-      const currentSelected = selectedReportRef.current;
-      const currentEditing = editingCitizenReportRef.current;
-
       const targetReport =
-        currentReports.find((r) => r.id === reportId) ||
-        (currentSelected && currentSelected.id === reportId ? currentSelected : undefined) ||
-        (currentEditing && currentEditing.id === reportId ? currentEditing : undefined);
+        reports.find((r) => r.id === reportId) ||
+        (selectedReport && selectedReport.id === reportId ? selectedReport : undefined) ||
+        (editingCitizenReport && editingCitizenReport.id === reportId
+          ? editingCitizenReport
+          : undefined);
 
       if (!targetReport) return undefined;
 
-      if (
-        targetReport.status !== 'pending' ||
-        isReportSentToDepartment(targetReport) ||
-        isReportUrgencyConfirmed(targetReport)
-      ) {
+      const callerUid = auth.currentUser?.uid || currentUser?.uid;
+      if (!callerUid) return undefined;
+      const isReportCreator =
+        targetReport.ownerUid === callerUid || targetReport.citizenId === callerUid;
+      if (!isReportCreator) {
+        return undefined;
+      }
+
+      if (targetReport.status !== 'pending' || isReportSentToDepartment(targetReport)) {
         return undefined;
       }
 
@@ -757,13 +681,6 @@ export function useReportsAndProjectsDomain(params: {
         latitude: latVal,
         longitude: lngVal,
         images: validImages,
-        videoUrl: input.videoUrl !== undefined ? input.videoUrl : targetReport.videoUrl,
-        videoThumbnail:
-          input.videoThumbnail !== undefined ? input.videoThumbnail : targetReport.videoThumbnail,
-        videoDurationSeconds:
-          input.videoDurationSeconds !== undefined
-            ? input.videoDurationSeconds
-            : targetReport.videoDurationSeconds,
         citizenName: (input.citizenName.trim() || targetReport.citizenName).slice(0, 200),
         citizenPhone: (input.citizenPhone.trim() || targetReport.citizenPhone).slice(0, 40),
         citizenWhatsapp: (input.citizenPhone.trim() || targetReport.citizenPhone).slice(0, 40),
@@ -811,13 +728,16 @@ export function useReportsAndProjectsDomain(params: {
 
       return updatedReport;
     },
-    []
+    [reports, selectedReport, editingCitizenReport, currentUser?.uid]
   );
 
-  const findReportByTrackingCode = useCallback((code: string): CivicReport | undefined => {
-    const normalized = code.trim().toUpperCase();
-    return reportsRef.current.find((r) => r.trackingCode.toUpperCase() === normalized);
-  }, []);
+  const findReportByTrackingCode = useCallback(
+    (code: string): CivicReport | undefined => {
+      const normalized = code.trim().toUpperCase();
+      return reports.find((r) => r.trackingCode.toUpperCase() === normalized);
+    },
+    [reports]
+  );
 
   const claimReportByTrackingCode = useCallback(
     (code: string): CivicReport | undefined => {
@@ -842,14 +762,9 @@ export function useReportsAndProjectsDomain(params: {
       assignedRecipient?: string
     ) => {
       const now = new Date().toISOString();
-      const currentReports = reportsRef.current;
-      const currentProjects = projectsRef.current;
-      const currentCitizens = citizensRef.current;
-      const currentSelected = selectedReportRef.current;
-
       const targetReport =
-        currentReports.find((r) => r.id === reportId) ||
-        (currentSelected && currentSelected.id === reportId ? currentSelected : undefined);
+        reports.find((r) => r.id === reportId) ||
+        (selectedReport && selectedReport.id === reportId ? selectedReport : undefined);
 
       if (!targetReport) return;
 
@@ -927,7 +842,7 @@ export function useReportsAndProjectsDomain(params: {
             : [SECTOR_ILLUSTRATIONS[targetReport.sector] || SECTOR_ILLUSTRATIONS.other]
           : targetReport.resolvedImages;
 
-      const matchingWorks = currentProjects.filter(
+      const matchingWorks = projects.filter(
         (p) =>
           (targetReport.completedWorkId && String(p.id) === String(targetReport.completedWorkId)) ||
           (p.reportId && String(p.reportId) === String(targetReport.id)) ||
@@ -940,7 +855,7 @@ export function useReportsAndProjectsDomain(params: {
           : targetReport.completedWorkId && isPureNumericId(targetReport.completedWorkId)
           ? String(targetReport.completedWorkId)
           : status === 'resolved'
-          ? generateAutoNumericId(COLLECTIONS.COMPLETED_WORK, currentProjects)
+          ? generateAutoNumericId(COLLECTIONS.COMPLETED_WORK, projects)
           : targetReport.completedWorkId;
 
       const updatedReport = prepareDocumentWithId<CivicReport>(
@@ -1051,7 +966,7 @@ export function useReportsAndProjectsDomain(params: {
 
       let updatedCitizenDoc: RegisteredCitizen | null = null;
       if (status === 'resolved' && !wasAlreadyResolved) {
-        const targetCitizen = currentCitizens.find(
+        const targetCitizen = rawCitizens.find(
           (c) =>
             (targetReport.citizenId && c.id === targetReport.citizenId) ||
             c.phone.replace(/\D/g, '') === (targetReport.citizenPhone || '').replace(/\D/g, '')
@@ -1080,155 +995,152 @@ export function useReportsAndProjectsDomain(params: {
         updatedCitizenDoc,
       }).catch(() => {});
     },
-    [setCitizens]
+    [reports, projects, rawCitizens, selectedReport, setProjects, setCitizens]
   );
 
-  const revertReportResolution = useCallback((reportId: string) => {
-    const now = new Date().toISOString();
-    const currentReports = reportsRef.current;
-    const currentProjects = projectsRef.current;
-    const currentSelected = selectedReportRef.current;
+  const revertReportResolution = useCallback(
+    (reportId: string) => {
+      const now = new Date().toISOString();
+      const targetReport =
+        reports.find((r) => r.id === reportId) ||
+        (selectedReport && selectedReport.id === reportId ? selectedReport : undefined);
 
-    const targetReport =
-      currentReports.find((r) => r.id === reportId) ||
-      (currentSelected && currentSelected.id === reportId ? currentSelected : undefined);
+      if (!targetReport) return;
 
-    if (!targetReport) return;
+      const nextStatusNotes: Partial<Record<ReportStatus, string>> = {
+        ...(targetReport.statusNotes || {}),
+        resolved: '',
+      };
 
-    const nextStatusNotes: Partial<Record<ReportStatus, string>> = {
-      ...(targetReport.statusNotes || {}),
-      resolved: '',
-    };
+      const nextStatusTimestamps: Partial<Record<ReportStatus, string>> = {
+        ...(targetReport.statusTimestamps || {}),
+        resolved: '',
+      };
 
-    const nextStatusTimestamps: Partial<Record<ReportStatus, string>> = {
-      ...(targetReport.statusTimestamps || {}),
-      resolved: '',
-    };
+      const fallbackStatus: ReportStatus =
+        nextStatusTimestamps.in_progress || nextStatusNotes.in_progress
+          ? 'in_progress'
+          : 'pending';
 
-    const fallbackStatus: ReportStatus =
-      nextStatusTimestamps.in_progress || nextStatusNotes.in_progress
-        ? 'in_progress'
-        : 'pending';
+      const fallbackNote =
+        fallbackStatus === 'in_progress' ? nextStatusNotes.in_progress || '' : '';
 
-    const fallbackNote =
-      fallbackStatus === 'in_progress' ? nextStatusNotes.in_progress || '' : '';
+      const matchingWorks = projects.filter(
+        (p) =>
+          (targetReport.completedWorkId && String(p.id) === String(targetReport.completedWorkId)) ||
+          (p.reportId && String(p.reportId) === String(targetReport.id)) ||
+          (p.trackingCode && p.trackingCode === targetReport.trackingCode)
+      );
 
-    const matchingWorks = currentProjects.filter(
-      (p) =>
-        (targetReport.completedWorkId && String(p.id) === String(targetReport.completedWorkId)) ||
-        (p.reportId && String(p.reportId) === String(targetReport.id)) ||
-        (p.trackingCode && p.trackingCode === targetReport.trackingCode)
-    );
+      const removedCompletedWorkIds: string[] = matchingWorks.map((w) => w.id);
+      if (
+        targetReport.completedWorkId &&
+        !removedCompletedWorkIds.includes(targetReport.completedWorkId)
+      ) {
+        removedCompletedWorkIds.push(targetReport.completedWorkId);
+      }
 
-    const removedCompletedWorkIds: string[] = matchingWorks.map((w) => w.id);
-    if (
-      targetReport.completedWorkId &&
-      !removedCompletedWorkIds.includes(targetReport.completedWorkId)
-    ) {
-      removedCompletedWorkIds.push(targetReport.completedWorkId);
-    }
+      const updatedReport = prepareDocumentWithId<CivicReport>(
+        COLLECTIONS.REPORTS,
+        {
+          ...targetReport,
+          id: targetReport.id,
+          status: fallbackStatus,
+          updatedAt: now,
+          resolvedAt: '',
+          completedWorkId: '',
+          adminNotes: fallbackNote,
+          officialNote: fallbackNote,
+          statusNotes: nextStatusNotes,
+          statusTimestamps: nextStatusTimestamps,
+          resolvedImages: [],
+        },
+        targetReport.id
+      );
 
-    const updatedReport = prepareDocumentWithId<CivicReport>(
-      COLLECTIONS.REPORTS,
-      {
-        ...targetReport,
-        id: targetReport.id,
-        status: fallbackStatus,
-        updatedAt: now,
-        resolvedAt: '',
-        completedWorkId: '',
-        adminNotes: fallbackNote,
-        officialNote: fallbackNote,
-        statusNotes: nextStatusNotes,
-        statusTimestamps: nextStatusTimestamps,
-        resolvedImages: [],
-      },
-      targetReport.id
-    );
-
-    setReports((prev) => {
-      const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
-      try {
-        localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
-      } catch {}
-      return next;
-    });
-    setSelectedReportState(updatedReport);
-
-    if (removedCompletedWorkIds.length > 0) {
-      setProjects((prevProjs) => {
-        const next = prevProjs.filter(
-          (p) =>
-            !removedCompletedWorkIds.includes(p.id) &&
-            (!p.reportId || String(p.reportId) !== String(targetReport.id)) &&
-            (!p.trackingCode || p.trackingCode !== targetReport.trackingCode)
-        );
+      setReports((prev) => {
+        const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
         try {
-          localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(next.slice(0, 100)));
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
         } catch {}
         return next;
       });
-    }
+      setSelectedReportState(updatedReport);
 
-    syncReportStatusAndCompletedWorkToFirestore({
-      updatedReport,
-      completedWorkDoc: null,
-      removedCompletedWorkIds,
-      updatedCitizenDoc: null,
-    }).catch(() => {});
-  }, []);
-
-  const updateReportUrgency = useCallback((reportId: string, urgency: ReportUrgency) => {
-    const now = new Date().toISOString();
-    const currentReports = reportsRef.current;
-    const currentSelected = selectedReportRef.current;
-
-    const targetReport =
-      currentReports.find((r) => r.id === reportId) ||
-      (currentSelected && currentSelected.id === reportId ? currentSelected : undefined);
-
-    if (!targetReport) return;
-
-    const updatedReport = prepareDocumentWithId<CivicReport>(
-      COLLECTIONS.REPORTS,
-      {
-        ...targetReport,
-        id: targetReport.id,
-        urgency,
-        isUrgencySet: true,
-        urgencySetAt: now,
-        updatedAt: now,
-      },
-      targetReport.id
-    );
-
-    setReports((prev) => {
-      const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
-      try {
-        localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
-      } catch {}
-      return next;
-    });
-    setSelectedReportState(updatedReport);
-
-    setDoc(doc(db, COLLECTIONS.REPORTS, updatedReport.id), updatedReport, { merge: true }).catch(
-      (err) => {
-        try {
-          handleFirestoreError(
-            err,
-            OperationType.UPDATE,
-            `${COLLECTIONS.REPORTS}/${updatedReport.id}`
+      if (removedCompletedWorkIds.length > 0) {
+        setProjects((prevProjs) => {
+          const next = prevProjs.filter(
+            (p) =>
+              !removedCompletedWorkIds.includes(p.id) &&
+              (!p.reportId || String(p.reportId) !== String(targetReport.id)) &&
+              (!p.trackingCode || p.trackingCode !== targetReport.trackingCode)
           );
-        } catch {}
+          try {
+            localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(next.slice(0, 100)));
+          } catch {}
+          return next;
+        });
       }
-    );
-  }, []);
+
+      syncReportStatusAndCompletedWorkToFirestore({
+        updatedReport,
+        completedWorkDoc: null,
+        removedCompletedWorkIds,
+        updatedCitizenDoc: null,
+      }).catch(() => {});
+    },
+    [reports, projects, selectedReport, setProjects]
+  );
+
+  const updateReportUrgency = useCallback(
+    (reportId: string, urgency: ReportUrgency) => {
+      const now = new Date().toISOString();
+      const targetReport =
+        reports.find((r) => r.id === reportId) ||
+        (selectedReport && selectedReport.id === reportId ? selectedReport : undefined);
+
+      if (!targetReport) return;
+
+      const updatedReport = prepareDocumentWithId<CivicReport>(
+        COLLECTIONS.REPORTS,
+        {
+          ...targetReport,
+          id: targetReport.id,
+          urgency,
+          isUrgencySet: true,
+          urgencySetAt: now,
+          updatedAt: now,
+        },
+        targetReport.id
+      );
+
+      setReports((prev) => {
+        const next = prev.map((r) => (r.id === reportId ? updatedReport : r));
+        try {
+          localStorage.setItem(CACHE_KEY_REPORTS, JSON.stringify(next.slice(0, 100)));
+        } catch {}
+        return next;
+      });
+      setSelectedReportState(updatedReport);
+
+      setDoc(doc(db, COLLECTIONS.REPORTS, updatedReport.id), updatedReport, { merge: true }).catch(
+        (err) => {
+          try {
+            handleFirestoreError(
+              err,
+              OperationType.UPDATE,
+              `${COLLECTIONS.REPORTS}/${updatedReport.id}`
+            );
+          } catch {}
+        }
+      );
+    },
+    [reports, selectedReport]
+  );
 
   const deleteReport = useCallback(
     (reportId: string) => {
-      const currentReports = reportsRef.current;
-      const currentProjects = projectsRef.current;
-      const targetReport = currentReports.find((r) => r.id === reportId);
+      const targetReport = reports.find((r) => r.id === reportId);
       const hasAdminPrivileges = isAdmin || isSuperAdmin || activeRole === 'admin';
 
       if (
@@ -1239,7 +1151,7 @@ export function useReportsAndProjectsDomain(params: {
         return;
       }
 
-      const linkedWorks = currentProjects.filter(
+      const linkedWorks = projects.filter(
         (p) =>
           (p.reportId && String(p.reportId) === String(reportId)) ||
           (targetReport?.completedWorkId && String(p.id) === String(targetReport.completedWorkId)) ||
@@ -1266,11 +1178,7 @@ export function useReportsAndProjectsDomain(params: {
         });
       }
 
-      executeCitizenReportDeleteTransaction(
-        reportId,
-        auth.currentUser?.uid,
-        hasAdminPrivileges
-      )
+      executeCitizenReportDeleteTransaction(reportId, auth.currentUser?.uid, hasAdminPrivileges)
         .then(() => {
           if (hasAdminPrivileges && (linkedWorks.length > 0 || targetReport?.completedWorkId)) {
             const batch = writeBatch(db);
@@ -1282,10 +1190,6 @@ export function useReportsAndProjectsDomain(params: {
             }
             batch.commit().catch(() => {});
           }
-          // حذف جميع صور وفيديوهات البلاغ من ستوريج أيضاً
-          if (targetReport) {
-            deleteReportMediaFromStorage(targetReport).catch(() => {});
-          }
         })
         .catch((err) => {
           if (targetReport) {
@@ -1296,7 +1200,7 @@ export function useReportsAndProjectsDomain(params: {
           } catch {}
         });
     },
-    [isAdmin, isSuperAdmin, activeRole]
+    [projects, reports, isAdmin, isSuperAdmin, activeRole, setProjects]
   );
 
   const upvoteReport = useCallback((reportId: string) => {
@@ -1331,32 +1235,6 @@ export function useReportsAndProjectsDomain(params: {
     });
   }, []);
 
-  const addProject = useCallback(
-    (proj: Omit<OrganizationProject, 'id'>) => {
-      if (!canAccessAdmin) return;
-      const numericId = generateAutoNumericId(COLLECTIONS.COMPLETED_WORK, projectsRef.current);
-      const newProj = prepareDocumentWithId<OrganizationProject>(
-        COLLECTIONS.COMPLETED_WORK,
-        {
-          ...proj,
-          id: numericId,
-        },
-        numericId
-      );
-      setProjects((prev) => [newProj, ...prev]);
-      setDoc(doc(db, COLLECTIONS.COMPLETED_WORK, newProj.id), newProj).catch((err) => {
-        try {
-          handleFirestoreError(
-            err,
-            OperationType.CREATE,
-            `${COLLECTIONS.COMPLETED_WORK}/${newProj.id}`
-          );
-        } catch {}
-      });
-    },
-    [canAccessAdmin]
-  );
-
   return {
     reports,
     myReports,
@@ -1364,7 +1242,6 @@ export function useReportsAndProjectsDomain(params: {
     reportsLimitCount,
     loadMoreReports,
     hasMoreReports,
-    projects,
     metrics,
     searchQuery,
     setSearchQuery,
@@ -1398,6 +1275,5 @@ export function useReportsAndProjectsDomain(params: {
     updateReportUrgency,
     deleteReport,
     upvoteReport,
-    addProject,
   };
 }

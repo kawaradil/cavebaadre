@@ -7,6 +7,11 @@ import {
   restDeleteDoc,
 } from '../firestoreRest';
 import { toNewReportNotificationPayloadDTO } from '../../src/types/dto';
+import {
+  OFFICIAL_PHONE_LOCAL,
+  OFFICIAL_CONTACT_EMAIL,
+  resolveActiveOfficialPhone,
+} from '../../src/constants/officialContact';
 import { appendAuditLog, authenticateUser } from './authMiddleware';
 
 export const surveyAndNotificationRoutes = Router();
@@ -34,7 +39,8 @@ surveyAndNotificationRoutes.post(
       const existingResp = await restGetDoc('SurveyResponses', deterministicId, caller.idToken);
       if (existingResp) {
         res.status(409).json({
-          error: 'لقد قمت بالمشاركة والإجابة على هذا الاستبيان مسبقاً. لا يُسمح بالإجابة أكثر من مرة.',
+          error:
+            'لقد قمت بالمشاركة والإجابة على هذا الاستبيان مسبقاً. لا يُسمح بالإجابة أكثر من مرة.',
         });
         return;
       }
@@ -112,7 +118,7 @@ surveyAndNotificationRoutes.post(
 );
 
 /**
- * 12. Register or Refresh FCM Device Token (Admin & Super Admin Only, Multi-Device Support)
+ * 12. Register or Refresh FCM Device Token (Admin & Super Admin Only)
  */
 surveyAndNotificationRoutes.post(
   '/notifications/register-token',
@@ -121,7 +127,8 @@ surveyAndNotificationRoutes.post(
     const caller = (req as any).user;
     if (caller.role !== 'admin' && caller.role !== 'super_admin') {
       res.status(403).json({
-        error: 'غير مصرح: تسجيل إشعارات البلاغات الجديدة مخصص لحسابات الإدارة (Admin / Super Admin) فقط.',
+        error:
+          'غير مصرح: تسجيل إشعارات البلاغات الجديدة مخصص لحسابات الإدارة (Admin / Super Admin) فقط.',
       });
       return;
     }
@@ -251,7 +258,13 @@ surveyAndNotificationRoutes.post(
       };
       store.notification_dispatch_locks[cleanReportId] = lockDoc;
       writeLocalStore(store);
-      await restSetDoc('notification_dispatch_locks', cleanReportId, lockDoc, caller.idToken, true);
+      await restSetDoc(
+        'notification_dispatch_locks',
+        cleanReportId,
+        lockDoc,
+        caller.idToken,
+        true
+      );
 
       const sanitizedPayload = toNewReportNotificationPayloadDTO({
         id: cleanReportId,
@@ -270,7 +283,12 @@ surveyAndNotificationRoutes.post(
         }
       });
 
-      const validTargetTokens: Array<{ docId: string; uid: string; fcmToken: string; deviceId: string }> = [];
+      const validTargetTokens: Array<{
+        docId: string;
+        uid: string;
+        fcmToken: string;
+        deviceId: string;
+      }> = [];
       const invalidTokenDocIds: string[] = [];
       const seenTokens = new Set<string>();
 
@@ -343,19 +361,20 @@ surveyAndNotificationRoutes.post(
  * 16. Cloud Contact Settings (Read by all, Updated only by Admin & Super Admin)
  */
 const DEFAULT_CONTACT_SETTINGS = {
-  whatsappReportsNumber: '9647749019911',
-  contactPhone: '9647749019911',
-  contactEmail: 'cavebaadre@gmail.com',
+  whatsappReportsNumber: OFFICIAL_PHONE_LOCAL,
+  contactPhone: OFFICIAL_PHONE_LOCAL,
+  contactEmail: OFFICIAL_CONTACT_EMAIL,
 };
 
 surveyAndNotificationRoutes.get('/settings/contact', async (_req: Request, res: Response) => {
   try {
     const store = readLocalStore();
+    const existing = store.system_config?.contact_settings || {};
     const settings = {
-      whatsappReportsNumber: '9647749019911',
-      contactPhone: '9647749019911',
-      contactEmail: 'cavebaadre@gmail.com',
-      updatedAt: null,
+      whatsappReportsNumber: resolveActiveOfficialPhone(existing.whatsappReportsNumber),
+      contactPhone: resolveActiveOfficialPhone(existing.contactPhone),
+      contactEmail: OFFICIAL_CONTACT_EMAIL,
+      updatedAt: existing.updatedAt || null,
     };
 
     store.system_config.contact_settings = settings;
@@ -377,13 +396,15 @@ surveyAndNotificationRoutes.post(
       return;
     }
 
-    const fixedWa = '9647749019911';
+    const body = req.body || {};
+    const cleanWa = resolveActiveOfficialPhone(body.whatsappReportsNumber);
+    const cleanPhone = resolveActiveOfficialPhone(body.contactPhone);
     const nowIso = new Date().toISOString();
     const updatedSettings = {
       id: 'contact_settings',
-      whatsappReportsNumber: fixedWa,
-      contactPhone: fixedWa,
-      contactEmail: 'cavebaadre@gmail.com',
+      whatsappReportsNumber: cleanWa,
+      contactPhone: cleanPhone,
+      contactEmail: OFFICIAL_CONTACT_EMAIL,
       updatedBy: caller.uid,
       updatedAt: nowIso,
     };
@@ -402,9 +423,9 @@ surveyAndNotificationRoutes.post(
           actorEmail: caller.email,
           actorRole: caller.role,
           settings: {
-            whatsappReportsNumber: fixedWa,
-            contactPhone: fixedWa,
-            contactEmail: cleanEmail,
+            whatsappReportsNumber: cleanWa,
+            contactPhone: cleanPhone,
+            contactEmail: OFFICIAL_CONTACT_EMAIL,
           },
           timestamp: nowIso,
         },

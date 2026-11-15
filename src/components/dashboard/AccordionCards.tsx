@@ -18,19 +18,12 @@ import {
   Calendar,
   UserPlus,
   ChevronDown,
-  Pencil,
+  Edit2,
 } from 'lucide-react';
 import { AdminCitizenDTO } from '../../types/dto';
 import { MunicipalDepartment } from '../../types/baadre';
+import { OFFICIAL_PHONE_LOCAL, toWhatsAppIntlNumber, toTelHref } from '../../constants/officialContact';
 import { playClickSound } from '../../lib/sound';
-
-export const formatWaNumberHelper = (phoneStr?: string) => {
-  if (!phoneStr) return '9647504738358';
-  const digits = phoneStr.replace(/\D/g, '');
-  if (digits.startsWith('964')) return digits;
-  if (digits.startsWith('0')) return `964${digits.slice(1)}`;
-  return `964${digits}`;
-};
 
 export interface CitizenAccordionCardProps {
   cit: AdminCitizenDTO;
@@ -44,10 +37,10 @@ export interface CitizenAccordionCardProps {
   onRevertCitizenDirect: (cit: AdminCitizenDTO) => void;
   onSelectForRecovery: (cit: AdminCitizenDTO) => void;
   onToggleBlock: (citId: string) => void;
-  onDeleteCitizen?: (cit: AdminCitizenDTO) => void;
+  onDeleteCitizen: (cit: AdminCitizenDTO) => void;
 }
 
-export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.memo(({
+export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = ({
   cit,
   currentUser,
   isAdmin,
@@ -81,7 +74,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
         isRTL ? 'text-right' : 'text-left'
       }`}
     >
-      {/* 1. رأس الأكورديون (Accordion Header): يحمل فقط الإيميل والدور والزر التفاعلي */}
       <button
         type="button"
         onClick={() => {
@@ -94,7 +86,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          {/* أيقونة الدور */}
           <div
             className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-xs transition-colors ${
               cit.role === 'super_admin'
@@ -114,7 +105,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
           </div>
 
           <div className="min-w-0 flex-1">
-            {/* البريد الإلكتروني */}
             <div className="flex items-center gap-1.5 truncate">
               <Mail className="w-3.5 h-3.5 text-[#46674D] shrink-0" />
               <bdi
@@ -125,12 +115,10 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
               </bdi>
             </div>
 
-            {/* الاسم الثلاثي بشكل لطيف تحت الإيميل */}
             <p className="text-xs font-bold text-[#2D4833] truncate mt-0.5">
               <bdi>{displayName}</bdi>
             </p>
 
-            {/* الدور والحالة بدون إطارات */}
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-black border-0 ${
@@ -148,13 +136,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
                   : tr('مواطن مسجل', 'هاووڵاتی تۆمارکراو', 'Registered Citizen')}
               </span>
 
-              {(cit.role === 'admin' || cit.role === 'super_admin') && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1 shadow-2xs">
-                  <span>📌</span>
-                  <span>{tr('مثبّت', 'جێگیرکراو', 'Pinned')}</span>
-                </span>
-              )}
-
               {cit.isBlocked && (
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-600 border-0">
                   {tr('محظور', 'بلۆککراو', 'Blocked')}
@@ -164,7 +145,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
           </div>
         </div>
 
-        {/* سهم فتح وإغلاق الأكورديون */}
         <div className="flex items-center gap-1 shrink-0">
           <div
             className={`w-7 h-7 rounded-xl flex items-center justify-center transition-transform duration-300 ${
@@ -178,10 +158,8 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
         </div>
       </button>
 
-      {/* 2. تفاصيل الحساب: لا تظهر ولا تُحمّل إلا بعد فتح الأكورديون */}
       {isOpen && (
         <div className="p-4 pt-2 border-t border-[#E8F4EA] space-y-3.5 bg-white">
-          {/* الاسم وأزرار الاتصال المباشر */}
           <div className="flex items-center justify-between gap-3 pt-1">
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-[#46674D] block">
@@ -195,14 +173,14 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
             {cit.phone && (
               <div className="flex items-center gap-1.5 shrink-0">
                 <a
-                  href={`tel:${cit.phone}`}
+                  href={toTelHref(cit.phone)}
                   className="p-2 rounded-xl bg-[#F4F9F5] text-[#46674D] hover:bg-[#E8F4EA] transition-all"
                   title={tr('اتصال هاتفي', 'پەیوەندیکردن', 'Call Citizen')}
                 >
                   <Phone className="w-4 h-4" />
                 </a>
                 <a
-                  href={`https://wa.me/${formatWaNumberHelper(cit.phone)}`}
+                  href={`https://wa.me/${toWhatsAppIntlNumber(cit.phone)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 rounded-xl bg-[#E8F4EA] text-[#46674D] hover:bg-[#46674D] hover:text-white transition-all"
@@ -218,14 +196,12 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
             )}
           </div>
 
-          {/* صندوق تفاصيل الحساب الكاملة */}
           <div
             dir={isRTL ? 'rtl' : 'ltr'}
             className={`p-3.5 rounded-2xl bg-[#F4F9F5]/95 border border-[#E8F4EA] space-y-2 text-xs ${
               isRTL ? 'text-right' : 'text-left'
             }`}
           >
-            {/* الموبايل */}
             <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
               <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
                 <Phone className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
@@ -239,7 +215,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
               </bdi>
             </div>
 
-            {/* تاريخ الميلاد */}
             <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
               <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
                 <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
@@ -253,7 +228,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
               </bdi>
             </div>
 
-            {/* تاريخ التسجيل */}
             <div className="flex items-center justify-start gap-2 pb-1.5 border-b border-[#E2EFE5]">
               <span className="text-[11px] font-bold text-[#46674D] inline-flex items-center gap-1.5 shrink-0">
                 <Calendar className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
@@ -267,7 +241,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
               </bdi>
             </div>
 
-            {/* الموقع وملخص البلاغات */}
             <div className="pt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-[#1E3725]">
               <span className="inline-flex items-center gap-1.5 text-[#46674D] truncate">
                 <MapPin className="w-3.5 h-3.5 shrink-0 text-[#46674D]" />
@@ -286,7 +259,6 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
             </div>
           </div>
 
-          {/* إدارة الدور والصلاحيات والحظر والحذف */}
           {(isSuperAdmin || isAdmin) && (
             <div className="space-y-2 pt-1">
               {cit.role === 'citizen' && (
@@ -300,11 +272,7 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>
-                    {tr(
-                      'منح صلاحية أدمن',
-                      'پێدانی دەسەڵاتی ئەدمین',
-                      'Grant Admin Role'
-                    )}
+                    {tr('منح صلاحية أدمن', 'پێدانی دەسەڵاتی ئەدمین', 'Grant Admin Role')}
                   </span>
                 </button>
               )}
@@ -320,11 +288,7 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
                 >
                   <UserCog className="w-4 h-4 text-[#46674D]" />
                   <span>
-                    {tr(
-                      'استرجاع إلى مواطن',
-                      'گەڕاندنەوە بۆ هاووڵاتی',
-                      'Revert to Citizen'
-                    )}
+                    {tr('استرجاع إلى مواطن', 'گەڕاندنەوە بۆ هاووڵاتی', 'Revert to Citizen')}
                   </span>
                 </button>
               )}
@@ -374,7 +338,7 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
 
                 {!isProtectedSuperAdmin &&
                   cit.role !== 'super_admin' &&
-                  (isSuperAdmin || isAdmin || cit.role === 'citizen') && (
+                  (isSuperAdmin || cit.role === 'citizen') && (
                     <button
                       type="button"
                       onClick={() => {
@@ -404,8 +368,7 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
                 {!isProtectedSuperAdmin &&
                   cit.role !== 'super_admin' &&
                   currentUser?.uid !== citId &&
-                  (isSuperAdmin || isAdmin || cit.role === 'citizen') &&
-                  onDeleteCitizen && (
+                  (isSuperAdmin || cit.role === 'citizen') && (
                     <button
                       type="button"
                       onClick={() => {
@@ -425,7 +388,7 @@ export const CitizenAccordionCard: React.FC<CitizenAccordionCardProps> = React.m
       )}
     </div>
   );
-});
+};
 
 export interface DepartmentAccordionCardProps {
   dept: MunicipalDepartment;
@@ -438,7 +401,7 @@ export interface DepartmentAccordionCardProps {
   onEditDept?: (dept: MunicipalDepartment) => void;
 }
 
-export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = React.memo(({
+export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = ({
   dept,
   isRTL,
   tr,
@@ -450,21 +413,24 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // رقم هاتف الدائرة ومسؤول التواصل
-  const phone1 = dept.phone1 || dept.engineerPhone || dept.phone || '07504738358';
+  const phone1 = dept.phone1 || dept.engineerPhone || dept.phone || OFFICIAL_PHONE_LOCAL;
   const owner1 =
     dept.phone1Owner ||
     dept.engineerName ||
     dept.headName ||
-    tr('مسؤول التواصل', 'بەرپرسی پەیوەندی', 'Contact Officer');
+    tr('مسؤول التواصل', 'بەرپرسی پەیوەندی', 'Contact Official');
 
-  // الرقم الثاني ومسؤول التواصل الثاني إن وجد
-  const phone2 = dept.phone2 || dept.managerPhone || dept.deputyPhone || '';
+  const phone2 =
+    dept.phone2 ||
+    dept.managerPhone ||
+    dept.emergencyPhone ||
+    dept.deputyPhone ||
+    OFFICIAL_PHONE_LOCAL;
   const owner2 =
     dept.phone2Owner ||
     dept.managerName ||
     dept.deputyName ||
-    tr('مسؤول إضافي', 'بەرپرسی تر', 'Secondary Officer');
+    tr('مسؤول إضافي', 'بەرپرسی تر', 'Secondary Official');
 
   return (
     <div
@@ -473,7 +439,6 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
         isRTL ? 'text-right' : 'text-left'
       }`}
     >
-      {/* 1. رأس الأكورديون (Accordion Header): اسم الدائرة وعدد الأعمال والسهم */}
       <button
         type="button"
         onClick={() => {
@@ -515,18 +480,14 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
         </div>
       </button>
 
-      {/* 2. تفاصيل الدائرة: مسؤول التواصل والهاتف */}
       {isOpen && (
         <div className="p-4 pt-2 border-t border-[#E8F4EA] space-y-3 bg-white">
-          {/* مسؤول التواصل وهاتف الدائرة */}
-          <div className="p-3 rounded-2xl bg-[#F4F9F5] border border-[#E8F4EA] flex items-center justify-between gap-3">
+          <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
             <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#E8F4EA] text-[#2D4833]">
-                  {tr('المسؤول', 'بەرپرس', 'Officer in charge')}
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-1">
+              <span className="text-[10px] font-black text-[#46674D] block">
+                {tr('المسؤول', 'بەرپرس', 'Officer')}
+              </span>
+              <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
                 <bdi>{owner1}</bdi>
               </p>
               <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
@@ -535,8 +496,8 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <a
-                href={`tel:${phone1}`}
-                className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors shadow-2xs"
+                href={toTelHref(phone1)}
+                className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
                 title={tr('اتصال هاتفي', 'پەیوەندی تەلەفۆنی', 'Call')}
               >
                 <Phone className="w-4 h-4" />
@@ -545,7 +506,7 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
                 href={`https://wa.me/${formatWaNumber(phone1)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors shadow-2xs"
+                className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
                 title={tr('واتساب', 'واتسئەپ', 'WhatsApp')}
               >
                 <MessageCircle className="w-4 h-4" />
@@ -553,16 +514,13 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
             </div>
           </div>
 
-          {/* رقم إضافي إن وجد */}
           {phone2 && (
-            <div className="p-3 rounded-2xl bg-[#F4F9F5] border border-[#E8F4EA] flex items-center justify-between gap-3">
+            <div className="p-3 rounded-2xl bg-[#F4F9F5] flex items-center justify-between gap-3">
               <div className={`min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#E8F4EA] text-[#2D4833]">
-                    {tr('رقم إضافي', 'ژمارەی تر', 'Secondary Number')}
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-1">
+                <span className="text-[10px] font-black text-[#46674D] block">
+                  {tr('رقم إضافي', 'ژمارەی تر', 'Secondary Number')}
+                </span>
+                <p className="text-xs sm:text-sm font-black text-[#1E3725] truncate mt-0.5">
                   <bdi>{owner2}</bdi>
                 </p>
                 <bdi className="text-xs font-mono font-bold text-[#2D4833] block mt-0.5" dir="ltr">
@@ -571,8 +529,8 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <a
-                  href={`tel:${phone2}`}
-                  className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors shadow-2xs"
+                  href={toTelHref(phone2)}
+                  className="p-2 rounded-xl bg-white text-[#46674D] hover:bg-[#E8F4EA] transition-colors"
                   title={tr('اتصال هاتفي', 'پەیوەندی تەلەفۆنی', 'Call')}
                 >
                   <Phone className="w-4 h-4" />
@@ -581,7 +539,7 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
                   href={`https://wa.me/${formatWaNumber(phone2)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors shadow-2xs"
+                  className="p-2 rounded-xl bg-[#46674D] text-white hover:bg-[#36593F] transition-colors"
                   title={tr('واتساب', 'واتسئەپ', 'WhatsApp')}
                 >
                   <MessageCircle className="w-4 h-4" />
@@ -590,29 +548,24 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
             </div>
           )}
 
-          {/* أزرار تعديل وحذف الدائرة */}
-          <div className="flex items-center justify-between pt-2 border-t border-[#E8F4EA]">
-            {onEditDept && (
+          <div className="flex items-center justify-between pt-1 gap-2">
+            {onEditDept ? (
               <button
                 type="button"
-                onClick={() => {
-                  playClickSound();
-                  onEditDept(dept);
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#1E3725] text-xs font-black inline-flex items-center gap-1.5 transition-colors cursor-pointer border-0 shadow-2xs"
+                onClick={() => onEditDept(dept)}
+                className="px-3.5 py-1.5 rounded-xl bg-[#E8F4EA] hover:bg-[#D4EADB] text-[#2D4833] text-xs font-black inline-flex items-center gap-1.5 transition-colors cursor-pointer border-0"
               >
-                <Pencil className="w-3.5 h-3.5 text-[#46674D]" />
-                <span>{tr('تعديل الدائرة', 'دەستکاری فەرمانگە', 'Edit Department')}</span>
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>{tr('تعديل الدائرة', 'دەستکاریکردنی فەرمانگە', 'Edit Department')}</span>
               </button>
+            ) : (
+              <div />
             )}
 
             <button
               type="button"
-              onClick={() => {
-                playClickSound();
-                onDeleteDept(dept);
-              }}
-              className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-black inline-flex items-center gap-1.5 transition-colors cursor-pointer border-0 shadow-2xs ms-auto"
+              onClick={() => onDeleteDept(dept)}
+              className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-black inline-flex items-center gap-1.5 transition-colors cursor-pointer border-0"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>{tr('حذف الدائرة', 'سڕینەوەی فەرمانگە', 'Delete Department')}</span>
@@ -622,4 +575,4 @@ export const DepartmentAccordionCard: React.FC<DepartmentAccordionCardProps> = R
       )}
     </div>
   );
-});
+};

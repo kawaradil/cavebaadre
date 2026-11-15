@@ -1,8 +1,5 @@
-import {
-  generateDeterministicRecoveryCode,
-  decryptRecoveryCode,
-  timingSafeMatch,
-} from '../security/encryption';
+import { Router, Request, Response } from 'express';
+import { decryptRecoveryCode, timingSafeMatch } from '../security/encryption';
 import { checkRateLimit, resetRateLimit } from '../security/rateLimiter';
 import {
   readLocalStore,
@@ -17,6 +14,7 @@ import {
   toAdminCitizenDTO,
 } from '../../src/types/dto';
 import { UserProfileDocument, UserRole } from '../../src/types/auth';
+import { OFFICIAL_PHONE_LOCAL } from '../../src/constants/officialContact';
 import {
   firebaseConfig,
   DESIGNATED_SUPER_ADMIN_EMAIL,
@@ -96,7 +94,6 @@ authRoutes.post('/auth/register-citizen', async (req: Request, res: Response) =>
     const cleanBirthDate = birthDate ? String(birthDate).trim() : '';
     const isDesignatedSuperAdmin = isDesignatedSuperAdminEmail(cleanEmail);
 
-    // Prevent duplicate email registration for another uid
     if (!isDesignatedSuperAdmin) {
       const storeCheck = readLocalStore();
       const duplicateInUsers = Object.entries(storeCheck.users || {}).some(
@@ -147,7 +144,6 @@ authRoutes.post('/auth/register-citizen', async (req: Request, res: Response) =>
       phone: cleanPhone,
       birthDate: cleanBirthDate,
       role: assignedRole,
-      neighborhood: 'ناحية باعدرى',
       reportsSubmittedCount: 0,
       resolvedReportsCount: 0,
       isBlocked: false,
@@ -155,12 +151,31 @@ authRoutes.post('/auth/register-citizen', async (req: Request, res: Response) =>
       updatedAt: nowIso,
     };
 
+    const citizenDoc = {
+      id: uid,
+      name: cleanFullName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      birthDate: cleanBirthDate,
+      role: assignedRole,
+      neighborhood: 'ناحية باعدرى',
+      reportsSubmittedCount: 0,
+      resolvedReportsCount: 0,
+      joinedAt: nowIso,
+      verified: true,
+      isBlocked: false,
+    };
+
     const store = readLocalStore();
     store.users[uid] = profileDoc;
+    store.citizens[uid] = citizenDoc;
     writeLocalStore(store);
 
     if (idToken) {
-      await restSetDoc('users', uid, profileDoc, idToken, true);
+      await Promise.all([
+        restSetDoc('users', uid, profileDoc, idToken, true),
+        restSetDoc('citizens', uid, citizenDoc, idToken, true),
+      ]);
     }
 
     const responseDto: CitizenProfileDTO = toCitizenProfileDTO(profileDoc);
@@ -278,11 +293,33 @@ authRoutes.post('/auth/update-account', authenticateUser, async (req: Request, r
       updatedAt: nowIso,
     };
 
+    const existingCitizen = store.citizens[caller.uid] || {};
+    const updatedCitizenDoc = {
+      ...existingCitizen,
+      id: caller.uid,
+      name: cleanName,
+      email: updatedUserDoc.email,
+      phone: cleanPhone,
+      birthDate: resolvedBirthDate,
+      role: effectiveRole,
+      neighborhood: updatedUserDoc.neighborhood || 'ناحية باعدرى',
+      reportsSubmittedCount: updatedUserDoc.reportsSubmittedCount,
+      resolvedReportsCount: updatedUserDoc.resolvedReportsCount,
+      joinedAt: existingCitizen.joinedAt || updatedUserDoc.createdAt,
+      verified: true,
+      isBlocked: updatedUserDoc.isBlocked,
+      updatedAt: nowIso,
+    };
+
     store.users[caller.uid] = updatedUserDoc;
+    store.citizens[caller.uid] = updatedCitizenDoc;
     writeLocalStore(store);
 
     if (caller.idToken) {
-      await restSetDoc('users', caller.uid, updatedUserDoc, caller.idToken, true);
+      await Promise.all([
+        restSetDoc('users', caller.uid, updatedUserDoc, caller.idToken, true),
+        restSetDoc('citizens', caller.uid, updatedCitizenDoc, caller.idToken, true),
+      ]);
     }
 
     res.json({
@@ -299,7 +336,7 @@ authRoutes.post('/auth/update-account', authenticateUser, async (req: Request, r
 });
 
 /**
- * 2c. Delete Current User Account WITHOUT Deleting Data (reports, completed works, surveys stay intact)
+ * 2c. Delete Current User Account WITHOUT Deleting Data
  */
 authRoutes.post('/auth/delete-account', authenticateUser, async (req: Request, res: Response) => {
   try {
@@ -357,7 +394,6 @@ authRoutes.post('/auth/citizen-password-recovery', async (req: Request, res: Res
   const nowIso = new Date(now).toISOString();
   const wrongRecord = store.password_reset_wrong_attempts[callerKey];
 
-  // 1. Check if caller is currently locked out for 1 hour due to 3 wrong email attempts
   if (wrongRecord && wrongRecord.lockedUntilMs && now < wrongRecord.lockedUntilMs) {
     const remainingMinutes = Math.max(1, Math.ceil((wrongRecord.lockedUntilMs - now) / 60000));
     res.status(429).json({
@@ -374,7 +410,6 @@ authRoutes.post('/auth/citizen-password-recovery', async (req: Request, res: Res
   const isValidFormat = Boolean(cleanEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail));
   const isRegistered = isValidFormat ? await isEmailRegisteredOnPlatform(cleanEmail) : false;
 
-  // 2. If email is invalid or not registered in the system -> record wrong email attempt
   if (!isValidFormat || !isRegistered) {
     const isExpiredWindow =
       !wrongRecord ||
@@ -385,7 +420,7 @@ authRoutes.post('/auth/citizen-password-recovery', async (req: Request, res: Res
     const windowStart = isExpiredWindow ? now : wrongRecord.windowStartMs;
 
     if (nextCount >= 3) {
-      const lockedUntilMs = now + PASSWORD_RESET_WINDOW_MS; // 1 hour lock
+      const lockedUntilMs = now + PASSWORD_RESET_WINDOW_MS;
       store.password_reset_wrong_attempts[callerKey] = {
         count: nextCount,
         windowStartMs: windowStart,
@@ -428,13 +463,11 @@ authRoutes.post('/auth/citizen-password-recovery', async (req: Request, res: Res
     return;
   }
 
-  // Valid registered email -> reset wrong email attempts counter for this caller
   if (store.password_reset_wrong_attempts[callerKey]) {
     delete store.password_reset_wrong_attempts[callerKey];
     writeLocalStore(store);
   }
 
-  // Check backend-protected 3-times-per-1-hour limit for sending reset links
   if (!canSendPasswordResetLink(cleanEmail)) {
     res.status(429).json({
       error: 'تجاوزت الحد المسموح (3 مرات بالساعة).',
@@ -641,7 +674,7 @@ authRoutes.post('/auth/admin-verify-recovery', async (req: Request, res: Respons
         uid: 'designated_super_admin',
         fullName: DESIGNATED_SUPER_ADMIN_NAME,
         email: DESIGNATED_SUPER_ADMIN_EMAIL,
-        phone: '07504738358',
+        phone: OFFICIAL_PHONE_LOCAL,
         birthDate: '1990-01-01',
         role: 'super_admin',
         reportsSubmittedCount: 0,
@@ -666,26 +699,14 @@ authRoutes.post('/auth/admin-verify-recovery', async (req: Request, res: Respons
     }
 
     let storedCode = '';
-    const vaultItem = targetUser.uid ? store.admin_recovery_vault[targetUser.uid] : null;
-    if (vaultItem) {
-      if (vaultItem.plainRecoveryCode) {
-        storedCode = String(vaultItem.plainRecoveryCode);
-      } else if (vaultItem.encryptedData || vaultItem.encryptedCode) {
-        try {
-          storedCode = decryptRecoveryCode(vaultItem as any);
-        } catch {}
-      }
+    if (targetUser.uid && store.admin_recovery_vault[targetUser.uid]) {
+      try {
+        storedCode = decryptRecoveryCode(store.admin_recovery_vault[targetUser.uid] as any);
+      } catch {}
     }
-
-    const deterministicCode = generateDeterministicRecoveryCode(cleanEmail);
-    const deterministicUidCode = targetUser.uid ? generateDeterministicRecoveryCode(targetUser.uid) : '';
 
     let isMatch = false;
     if (storedCode && timingSafeMatch(cleanCode, storedCode)) {
-      isMatch = true;
-    } else if (timingSafeMatch(cleanCode, deterministicCode)) {
-      isMatch = true;
-    } else if (deterministicUidCode && timingSafeMatch(cleanCode, deterministicUidCode)) {
       isMatch = true;
     }
 
@@ -722,21 +743,17 @@ authRoutes.post('/auth/admin-verify-recovery', async (req: Request, res: Respons
     resetRateLimit(`admin_rec_${cleanEmail}`);
     recordPasswordResetLinkSent(cleanEmail);
 
-    let backendSent = false;
-    try {
-      const oobRes = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseConfig.apiKey}`,
-        {
-          method: 'POST',
-          headers: buildIdentityToolkitHeaders(),
-          body: JSON.stringify({
-            requestType: 'PASSWORD_RESET',
-            email: cleanEmail,
-          }),
-        }
-      );
-      backendSent = oobRes.ok;
-    } catch {}
+    await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseConfig.apiKey}`,
+      {
+        method: 'POST',
+        headers: buildIdentityToolkitHeaders(),
+        body: JSON.stringify({
+          requestType: 'PASSWORD_RESET',
+          email: cleanEmail,
+        }),
+      }
+    );
 
     appendAuditLog({
       action:
@@ -752,7 +769,6 @@ authRoutes.post('/auth/admin-verify-recovery', async (req: Request, res: Respons
     res.json({
       success: true,
       role: effectiveRole,
-      sendClientResetEmail: true,
       message: 'تم إرسال رابط آمن لإعادة تعيين كلمة المرور إلى بريدك.',
     });
   } catch {

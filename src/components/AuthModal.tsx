@@ -18,6 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useBaadre } from '../context/BaadreContext';
 import { MUNICIPAL_WHATSAPP_NUMBER } from '../types/baadre';
+import { toWhatsAppIntlNumber } from '../constants/officialContact';
 import {
   authService,
   getPasswordResetLockoutStatus,
@@ -69,14 +70,11 @@ export const AuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
-  const adminWhatsappRaw = (
+  const adminWhatsappIntl = toWhatsAppIntlNumber(
     contactSettings?.whatsappReportsNumber ||
-    contactSettings?.contactPhone ||
-    MUNICIPAL_WHATSAPP_NUMBER
-  ).replace(/\D/g, '');
-  const adminWhatsappIntl = adminWhatsappRaw.startsWith('0')
-    ? `964${adminWhatsappRaw.slice(1)}`
-    : adminWhatsappRaw;
+      contactSettings?.contactPhone ||
+      MUNICIPAL_WHATSAPP_NUMBER
+  );
 
   const toShortError = (
     err: any,

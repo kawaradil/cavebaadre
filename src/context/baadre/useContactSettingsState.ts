@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { db, auth, withAppCheckHeaders } from '../../lib/firebase';
+import { db, auth } from '../../lib/firebase';
+import {
+  OFFICIAL_PHONE_LOCAL,
+  OFFICIAL_CONTACT_EMAIL,
+  resolveActiveOfficialPhone,
+} from '../../constants/officialContact';
 import {
   CloudContactSettings,
   DEFAULT_CLOUD_CONTACT_SETTINGS,
@@ -9,50 +14,75 @@ import {
 
 export function useContactSettingsState(canAccessAdmin: boolean) {
   const [contactSettings, setContactSettings] = useState<CloudContactSettings>(() => {
-    return {
-      whatsappReportsNumber: '9647749019911',
-      contactPhone: '9647749019911',
-      contactEmail: 'cavebaadre@gmail.com',
-    };
+    try {
+      const cached = localStorage.getItem(CACHE_KEY_CONTACT);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          whatsappReportsNumber: resolveActiveOfficialPhone(parsed.whatsappReportsNumber),
+          contactPhone: resolveActiveOfficialPhone(parsed.contactPhone),
+          contactEmail: OFFICIAL_CONTACT_EMAIL,
+        };
+      }
+    } catch {}
+    return DEFAULT_CLOUD_CONTACT_SETTINGS;
   });
 
   useEffect(() => {
-    const fixedSettings: CloudContactSettings = {
-      whatsappReportsNumber: '9647749019911',
-      contactPhone: '9647749019911',
-      contactEmail: 'cavebaadre@gmail.com',
-    };
-    try {
-      localStorage.setItem(CACHE_KEY_CONTACT, JSON.stringify(fixedSettings));
-    } catch {}
-
-    withAppCheckHeaders().then((headers) =>
-      fetch('/api/settings/contact', { headers })
-        .then((r) => (r.ok ? r.json() : null))
-        .then(() => {
-          setContactSettings(fixedSettings);
-        })
-        .catch(() => {})
-    );
+    fetch('/api/settings/contact')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.settings) {
+          const synced: CloudContactSettings = {
+            whatsappReportsNumber: resolveActiveOfficialPhone(
+              data.settings.whatsappReportsNumber
+            ),
+            contactPhone: resolveActiveOfficialPhone(data.settings.contactPhone),
+            contactEmail: OFFICIAL_CONTACT_EMAIL,
+          };
+          setContactSettings(synced);
+          try {
+            localStorage.setItem(CACHE_KEY_CONTACT, JSON.stringify(synced));
+          } catch {}
+        }
+      })
+      .catch(() => {});
 
     const unsubContact = onSnapshot(
       doc(db, 'system_config', 'contact_settings'),
       (snap) => {
         if (snap.exists()) {
           const d = snap.data() as Record<string, any>;
-          if (d.contactEmail !== 'cavebaadre@gmail.com') {
-            setDoc(
-              doc(db, 'system_config', 'contact_settings'),
-              {
-                contactEmail: 'cavebaadre@gmail.com',
-                whatsappReportsNumber: '9647749019911',
-                contactPhone: '9647749019911',
-              },
-              { merge: true }
-            ).catch(() => {});
+          const resolvedWa = resolveActiveOfficialPhone(d.whatsappReportsNumber);
+          const resolvedPhone = resolveActiveOfficialPhone(d.contactPhone);
+          const next: CloudContactSettings = {
+            whatsappReportsNumber: resolvedWa,
+            contactPhone: resolvedPhone,
+            contactEmail: OFFICIAL_CONTACT_EMAIL,
+          };
+          setContactSettings(next);
+          try {
+            localStorage.setItem(CACHE_KEY_CONTACT, JSON.stringify(next));
+          } catch {}
+
+          if (
+            d.contactEmail !== OFFICIAL_CONTACT_EMAIL ||
+            d.whatsappReportsNumber !== resolvedWa ||
+            d.contactPhone !== resolvedPhone
+          ) {
+            if (auth.currentUser) {
+              setDoc(
+                doc(db, 'system_config', 'contact_settings'),
+                {
+                  contactEmail: OFFICIAL_CONTACT_EMAIL,
+                  whatsappReportsNumber: resolvedWa,
+                  contactPhone: resolvedPhone,
+                },
+                { merge: true }
+              ).catch(() => {});
+            }
           }
         }
-        setContactSettings(fixedSettings);
       },
       () => {}
     );
@@ -65,25 +95,22 @@ export function useContactSettingsState(canAccessAdmin: boolean) {
       if (!canAccessAdmin) {
         throw new Error('غير مصرح: هذه الصلاحية مخصصة لإدارة المنظمة فقط.');
       }
-      const fixedNumber = '9647749019911';
-      const cleanEmail = String(input.contactEmail || '').trim();
 
-      if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-        throw new Error('البريد الإلكتروني غير صالح.');
-      }
+      const nextSettings: CloudContactSettings = {
+        whatsappReportsNumber:
+          String(input.whatsappReportsNumber || '').trim() || OFFICIAL_PHONE_LOCAL,
+        contactPhone: String(input.contactPhone || '').trim() || OFFICIAL_PHONE_LOCAL,
+        contactEmail: OFFICIAL_CONTACT_EMAIL,
+      };
 
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const res = await fetch('/api/settings/contact', {
         method: 'POST',
-        headers: await withAppCheckHeaders({
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        }),
-        body: JSON.stringify({
-          whatsappReportsNumber: fixedNumber,
-          contactPhone: fixedNumber,
-          contactEmail: cleanEmail,
-        }),
+        },
+        body: JSON.stringify(nextSettings),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -91,13 +118,10 @@ export function useContactSettingsState(canAccessAdmin: boolean) {
         throw new Error(data.error || 'فشل حفظ الإعدادات.');
       }
 
-      const nextSettings: CloudContactSettings = {
-        whatsappReportsNumber: fixedNumber,
-        contactPhone: fixedNumber,
-        contactEmail: cleanEmail,
-      };
-
       setContactSettings(nextSettings);
+      try {
+        localStorage.setItem(CACHE_KEY_CONTACT, JSON.stringify(nextSettings));
+      } catch {}
 
       try {
         await setDoc(

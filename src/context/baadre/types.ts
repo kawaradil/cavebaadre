@@ -11,6 +11,10 @@ import {
   CommunitySurvey,
   CitizenSurveyResponse,
 } from '../../types/baadre';
+import {
+  OFFICIAL_PHONE_LOCAL,
+  OFFICIAL_CONTACT_EMAIL,
+} from '../../constants/officialContact';
 
 export const STORAGE_MY_REPORT_IDS_KEY = 'cave_baadre_my_report_ids_v3';
 export const STORAGE_ROLE_KEY = 'cave_baadre_active_role_v3';
@@ -78,9 +82,9 @@ export interface CloudContactSettings {
 }
 
 export const DEFAULT_CLOUD_CONTACT_SETTINGS: CloudContactSettings = {
-  whatsappReportsNumber: '9647749019911',
-  contactPhone: '9647749019911',
-  contactEmail: 'cavebaadre@gmail.com',
+  whatsappReportsNumber: OFFICIAL_PHONE_LOCAL,
+  contactPhone: OFFICIAL_PHONE_LOCAL,
+  contactEmail: OFFICIAL_CONTACT_EMAIL,
 };
 
 export interface StatusUpdateToastPayload {
@@ -93,7 +97,8 @@ export interface StatusUpdateToastPayload {
   note?: string;
 }
 
-export interface BaadreNavigationContextType {
+export interface BaadreContextType {
+  // Role & Navigation
   activeRole: 'citizen' | 'admin';
   setActiveRole: (role: 'citizen' | 'admin') => void;
   toggleRole: () => void;
@@ -105,19 +110,26 @@ export interface BaadreNavigationContextType {
   setIsSurveysViewOpen: (open: boolean) => void;
   isStartScreenActive: boolean;
   dismissStartScreen: () => void;
-  contactSettings: CloudContactSettings;
-  updateContactSettings: (input: CloudContactSettings) => Promise<void>;
-}
 
-export interface BaadreReportsContextType {
+  // Data
   reports: CivicReport[];
   myReports: CivicReport[];
   myReportIds: string[];
   reportsLimitCount: number;
   loadMoreReports: () => void;
   hasMoreReports: boolean;
+  departments: MunicipalDepartment[];
+  citizens: RegisteredCitizen[];
   projects: OrganizationProject[];
+  surveys: CommunitySurvey[];
+  surveyResponses: CitizenSurveyResponse[];
+  answeredSurveyIds: string[];
+  dismissedSurveyIds: string[];
   metrics: BaadreMetrics;
+  contactSettings: CloudContactSettings;
+  updateContactSettings: (input: CloudContactSettings) => Promise<void>;
+
+  // Filters & Search (Admin use)
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   selectedSector: 'all' | 'ALL' | ReportSector;
@@ -128,6 +140,8 @@ export interface BaadreReportsContextType {
   setSelectedNeighborhood: (n: string) => void;
   filteredReports: CivicReport[];
   resetFilters: () => void;
+
+  // Modals & Active Selections
   selectedReport: CivicReport | null;
   setSelectedReport: (rep: CivicReport | null) => void;
   editingCitizenReport: CivicReport | null;
@@ -140,6 +154,8 @@ export interface BaadreReportsContextType {
   clearStatusUpdateToast: () => void;
   newAdminReportAlert: CivicReport | null;
   dismissNewAdminReportAlert: () => void;
+
+  // Actions
   submitReport: (input: SubmitReportInput) => CivicReport;
   submitNewReport: (input: SubmitReportInput) => CivicReport;
   updateCitizenReport: (reportId: string, input: SubmitReportInput) => CivicReport | undefined;
@@ -159,27 +175,18 @@ export interface BaadreReportsContextType {
   updateReportUrgency: (reportId: string, urgency: ReportUrgency) => void;
   deleteReport: (reportId: string) => void;
   upvoteReport: (reportId: string) => void;
-  addProject: (proj: Omit<OrganizationProject, 'id'>) => void;
-}
-
-export interface BaadreDirectoryContextType {
-  departments: MunicipalDepartment[];
-  citizens: RegisteredCitizen[];
   addDepartment: (dept: Omit<MunicipalDepartment, 'id'>) => void;
   updateDepartment: (deptId: string, updates: Partial<MunicipalDepartment>) => void;
   deleteDepartment: (deptId: string) => void;
   toggleBlockCitizen: (citizenId: string) => void;
+  deleteCitizen: (citizenId: string) => Promise<boolean>;
+  addProject: (proj: Omit<OrganizationProject, 'id'>) => void;
   updateDepartmentAvailability: (
     deptId: string,
     availability: 'available' | 'on_mission' | 'standby'
   ) => void;
-}
 
-export interface BaadreSurveysContextType {
-  surveys: CommunitySurvey[];
-  surveyResponses: CitizenSurveyResponse[];
-  answeredSurveyIds: string[];
-  dismissedSurveyIds: string[];
+  // Survey Actions
   createSurvey: (input: CreateSurveyInput) => CommunitySurvey;
   updateSurvey: (surveyId: string, input: CreateSurveyInput) => void;
   togglePublishSurveyToCitizens: (surveyId: string, forceState?: boolean) => void;
@@ -191,8 +198,3 @@ export interface BaadreSurveysContextType {
   dismissSurveyPopup: (surveyId: string) => void;
   reopenPublishedSurveysPopup: () => void;
 }
-
-export type BaadreContextType = BaadreNavigationContextType &
-  BaadreReportsContextType &
-  BaadreDirectoryContextType &
-  BaadreSurveysContextType;

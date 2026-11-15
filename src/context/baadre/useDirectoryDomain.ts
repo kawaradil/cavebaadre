@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   collection,
   doc,
   setDoc,
   deleteDoc,
+  getDocs,
   onSnapshot,
   query,
+  where,
   limit,
   writeBatch,
 } from 'firebase/firestore';
@@ -19,17 +21,23 @@ import {
   prepareDocumentWithId,
   OperationType,
   handleFirestoreError,
-  withAppCheckHeaders,
 } from '../../lib/firebase';
 import { MunicipalDepartment, RegisteredCitizen } from '../../types/baadre';
 import { CACHE_KEY_DEPTS, CACHE_KEY_CITIZENS } from './types';
 
-export function useDirectoryDomain(params: {
+interface UseDirectoryDomainParams {
   canAccessAdmin: boolean;
-  hasFirestoreAdminAuth: boolean;
-}) {
-  const { canAccessAdmin, hasFirestoreAdminAuth } = params;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  currentUserUid?: string;
+}
 
+export function useDirectoryDomain({
+  canAccessAdmin,
+  isAdmin,
+  isSuperAdmin,
+  currentUserUid,
+}: UseDirectoryDomainParams) {
   const [departments, setDepartments] = useState<MunicipalDepartment[]>(() => {
     try {
       const raw = localStorage.getItem(CACHE_KEY_DEPTS);
@@ -52,155 +60,10 @@ export function useDirectoryDomain(params: {
     return [];
   });
 
-  const departmentsRef = useRef(departments);
-  departmentsRef.current = departments;
-
   useEffect(() => {
-    let unsubDepts = () => {};
-    let unsubCitizens = () => {};
-    let unsubUsers = () => {};
+    const hasFirestoreAdminAuth = Boolean(currentUserUid && (isAdmin || isSuperAdmin));
 
-    if (hasFirestoreAdminAuth) {
-      const deptsQuery = query(collection(db, COLLECTIONS.DEPARTMENTS), limit(50));
-      unsubDepts = onSnapshot(
-        deptsQuery,
-        (snapshot) => {
-          const numericDocs = snapshot.docs.filter((d) => isPureNumericId(d.id));
-          const remoteDepts = numericDocs.map((d) => {
-            const data = d.data() as MunicipalDepartment;
-            return { ...data, id: String(d.id) };
-          });
-          syncNumericCounterWithItems(COLLECTIONS.DEPARTMENTS, remoteDepts);
-          setDepartments(remoteDepts);
-          try {
-            localStorage.setItem(CACHE_KEY_DEPTS, JSON.stringify(remoteDepts));
-          } catch {}
-        },
-        () => {}
-      );
-
-      let latestCitizensDocs: Array<{ id: string; data: Record<string, any> }> = [];
-      let latestUsersDocs: Array<{ id: string; data: Record<string, any> }> = [];
-
-      const rebuildMergedCitizens = () => {
-        const mergedMap = new Map<string, RegisteredCitizen>();
-
-        for (const { id, data } of latestCitizensDocs) {
-          const cleanEmail = String(data.email || '').trim().toLowerCase();
-          if (isPureNumericId(id) || !cleanEmail.includes('@')) {
-            continue;
-          }
-          const isDesig = cleanEmail === '11kattak11@gmail.com';
-          mergedMap.set(id, {
-            id,
-            name: isDesig ? 'كاوار عادل طاهر' : data.name || data.fullName || 'مواطن مسجل',
-            email: data.email || '',
-            phone: data.phone || '',
-            birthDate: data.birthDate || '',
-            neighborhood: data.neighborhood || 'ناحية باعدرى',
-            role: isDesig ? 'super_admin' : data.role || 'citizen',
-            reportsSubmittedCount: Number(data.reportsSubmittedCount || 0),
-            resolvedReportsCount: Number(data.resolvedReportsCount || 0),
-            joinedAt: data.joinedAt || data.createdAt || new Date().toISOString(),
-            lastActiveAt: data.lastActiveAt || data.updatedAt,
-            avatar: data.avatar,
-            verified: data.verified !== false,
-            isBlocked: Boolean(data.isBlocked),
-          });
-        }
-
-        for (const { id, data } of latestUsersDocs) {
-          const existing = mergedMap.get(id);
-          const cleanEmail = String(data.email || existing?.email || '').trim().toLowerCase();
-          if (isPureNumericId(id) || !cleanEmail.includes('@')) {
-            continue;
-          }
-          const isDesig = cleanEmail === '11kattak11@gmail.com';
-          mergedMap.set(id, {
-            id,
-            name: isDesig
-              ? 'كاوار عادل طاهر'
-              : data.fullName || data.name || existing?.name || 'مواطن مسجل',
-            email: data.email || existing?.email || '',
-            phone: data.phone || existing?.phone || '',
-            birthDate: data.birthDate || existing?.birthDate || '',
-            neighborhood: data.neighborhood || existing?.neighborhood || 'ناحية باعدرى',
-            role: isDesig ? 'super_admin' : data.role || existing?.role || 'citizen',
-            reportsSubmittedCount: Math.max(
-              Number(data.reportsSubmittedCount || 0),
-              Number(existing?.reportsSubmittedCount || 0)
-            ),
-            resolvedReportsCount: Math.max(
-              Number(data.resolvedReportsCount || 0),
-              Number(existing?.resolvedReportsCount || 0)
-            ),
-            joinedAt:
-              data.createdAt || data.joinedAt || existing?.joinedAt || new Date().toISOString(),
-            lastActiveAt: data.updatedAt || existing?.lastActiveAt,
-            avatar: existing?.avatar,
-            verified: true,
-            isBlocked: Boolean(data.isBlocked ?? existing?.isBlocked ?? false),
-          });
-        }
-
-        const list = Array.from(mergedMap.values()).sort(
-          (a, b) => new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime()
-        );
-        setCitizens(list);
-        try {
-          localStorage.setItem(CACHE_KEY_CITIZENS, JSON.stringify(list.slice(0, 100)));
-        } catch {}
-      };
-
-      const citizensQuery = query(collection(db, COLLECTIONS.CITIZENS), limit(100));
-      unsubCitizens = onSnapshot(
-        citizensQuery,
-        (snapshot) => {
-          const tempDocs = snapshot.docs.filter((d) => {
-            const dData = d.data() as Record<string, any>;
-            const emailStr = String(dData.email || '').trim();
-            return isPureNumericId(d.id) || !emailStr.includes('@');
-          });
-          if (tempDocs.length > 0 && hasFirestoreAdminAuth) {
-            const cleanupBatch = writeBatch(db);
-            tempDocs.forEach((d) => cleanupBatch.delete(d.ref));
-            cleanupBatch.commit().catch(() => {});
-          }
-
-          latestCitizensDocs = snapshot.docs
-            .filter((d) => {
-              const dData = d.data() as Record<string, any>;
-              const emailStr = String(dData.email || '').trim();
-              return !isPureNumericId(d.id) && emailStr.includes('@');
-            })
-            .map((d) => ({
-              id: String(d.id),
-              data: d.data() as Record<string, any>,
-            }));
-          rebuildMergedCitizens();
-        },
-        () => {}
-      );
-
-      const usersQuery = query(collection(db, 'users'), limit(100));
-      unsubUsers = onSnapshot(
-        usersQuery,
-        (snapshot) => {
-          latestUsersDocs = snapshot.docs
-            .filter((d) => {
-              const dData = d.data() as Record<string, any>;
-              const emailStr = String(dData.email || '').trim();
-              return !isPureNumericId(d.id) && emailStr.includes('@');
-            })
-            .map((d) => ({
-              id: String(d.id),
-              data: d.data() as Record<string, any>,
-            }));
-          rebuildMergedCitizens();
-        },
-        () => {}
-      );
-    } else {
+    if (!hasFirestoreAdminAuth) {
       setDepartments([]);
       setCitizens([]);
       try {
@@ -208,19 +71,160 @@ export function useDirectoryDomain(params: {
         localStorage.removeItem(CACHE_KEY_CITIZENS);
         localStorage.removeItem('cave_baadre_persisted_registered_users_v1');
       } catch {}
+      return;
     }
+
+    const deptsQuery = query(collection(db, COLLECTIONS.DEPARTMENTS), limit(50));
+    const unsubDepts = onSnapshot(
+      deptsQuery,
+      (snapshot) => {
+        const numericDocs = snapshot.docs.filter((d) => isPureNumericId(d.id));
+        const remoteDepts = numericDocs.map((d) => {
+          const data = d.data() as MunicipalDepartment;
+          return { ...data, id: String(d.id) };
+        });
+        syncNumericCounterWithItems(COLLECTIONS.DEPARTMENTS, remoteDepts);
+        setDepartments(remoteDepts);
+        try {
+          localStorage.setItem(CACHE_KEY_DEPTS, JSON.stringify(remoteDepts));
+        } catch {}
+      },
+      () => {}
+    );
+
+    let latestCitizensDocs: Array<{ id: string; data: Record<string, any> }> = [];
+    let latestUsersDocs: Array<{ id: string; data: Record<string, any> }> = [];
+
+    const rebuildMergedCitizens = () => {
+      const mergedMap = new Map<string, RegisteredCitizen>();
+
+      for (const { id, data } of latestCitizensDocs) {
+        const cleanEmail = String(data.email || '').trim().toLowerCase();
+        if (isPureNumericId(id) || !cleanEmail.includes('@')) {
+          continue;
+        }
+        const isDesig = cleanEmail === '11kattak11@gmail.com';
+        mergedMap.set(id, {
+          id,
+          name: isDesig ? 'كاوار عادل طاهر' : data.name || data.fullName || 'مواطن مسجل',
+          email: data.email || '',
+          phone: data.phone || '',
+          birthDate: data.birthDate || '',
+          neighborhood: data.neighborhood || 'ناحية باعدرى',
+          role: isDesig ? 'super_admin' : data.role || 'citizen',
+          reportsSubmittedCount: Number(data.reportsSubmittedCount || 0),
+          resolvedReportsCount: Number(data.resolvedReportsCount || 0),
+          joinedAt: data.joinedAt || data.createdAt || new Date().toISOString(),
+          lastActiveAt: data.lastActiveAt || data.updatedAt,
+          avatar: data.avatar,
+          verified: data.verified !== false,
+          isBlocked: Boolean(data.isBlocked),
+        });
+      }
+
+      for (const { id, data } of latestUsersDocs) {
+        const existing = mergedMap.get(id);
+        const cleanEmail = String(data.email || existing?.email || '').trim().toLowerCase();
+        if (isPureNumericId(id) || !cleanEmail.includes('@')) {
+          continue;
+        }
+        const isDesig = cleanEmail === '11kattak11@gmail.com';
+        mergedMap.set(id, {
+          id,
+          name: isDesig
+            ? 'كاوار عادل طاهر'
+            : data.fullName || data.name || existing?.name || 'مواطن مسجل',
+          email: data.email || existing?.email || '',
+          phone: data.phone || existing?.phone || '',
+          birthDate: data.birthDate || existing?.birthDate || '',
+          neighborhood: data.neighborhood || existing?.neighborhood || 'ناحية باعدرى',
+          role: isDesig ? 'super_admin' : data.role || existing?.role || 'citizen',
+          reportsSubmittedCount: Math.max(
+            Number(data.reportsSubmittedCount || 0),
+            Number(existing?.reportsSubmittedCount || 0)
+          ),
+          resolvedReportsCount: Math.max(
+            Number(data.resolvedReportsCount || 0),
+            Number(existing?.resolvedReportsCount || 0)
+          ),
+          joinedAt:
+            data.createdAt || data.joinedAt || existing?.joinedAt || new Date().toISOString(),
+          lastActiveAt: data.updatedAt || existing?.lastActiveAt,
+          avatar: existing?.avatar,
+          verified: true,
+          isBlocked: Boolean(data.isBlocked ?? existing?.isBlocked ?? false),
+        });
+      }
+
+      const list = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime()
+      );
+      setCitizens(list);
+      try {
+        localStorage.setItem(CACHE_KEY_CITIZENS, JSON.stringify(list.slice(0, 100)));
+      } catch {}
+    };
+
+    const citizensQuery = query(collection(db, COLLECTIONS.CITIZENS), limit(100));
+    const unsubCitizens = onSnapshot(
+      citizensQuery,
+      (snapshot) => {
+        const tempDocs = snapshot.docs.filter((d) => {
+          const dData = d.data() as Record<string, any>;
+          const emailStr = String(dData.email || '').trim();
+          return isPureNumericId(d.id) || !emailStr.includes('@');
+        });
+        if (tempDocs.length > 0 && hasFirestoreAdminAuth) {
+          const cleanupBatch = writeBatch(db);
+          tempDocs.forEach((d) => cleanupBatch.delete(d.ref));
+          cleanupBatch.commit().catch(() => {});
+        }
+
+        latestCitizensDocs = snapshot.docs
+          .filter((d) => {
+            const dData = d.data() as Record<string, any>;
+            const emailStr = String(dData.email || '').trim();
+            return !isPureNumericId(d.id) && emailStr.includes('@');
+          })
+          .map((d) => ({
+            id: String(d.id),
+            data: d.data() as Record<string, any>,
+          }));
+        rebuildMergedCitizens();
+      },
+      () => {}
+    );
+
+    const usersQuery = query(collection(db, 'users'), limit(100));
+    const unsubUsers = onSnapshot(
+      usersQuery,
+      (snapshot) => {
+        latestUsersDocs = snapshot.docs
+          .filter((d) => {
+            const dData = d.data() as Record<string, any>;
+            const emailStr = String(dData.email || '').trim();
+            return !isPureNumericId(d.id) && emailStr.includes('@');
+          })
+          .map((d) => ({
+            id: String(d.id),
+            data: d.data() as Record<string, any>,
+          }));
+        rebuildMergedCitizens();
+      },
+      () => {}
+    );
 
     return () => {
       unsubDepts();
       unsubCitizens();
       unsubUsers();
     };
-  }, [hasFirestoreAdminAuth]);
+  }, [currentUserUid, isAdmin, isSuperAdmin]);
 
   const addDepartment = useCallback(
     (dept: Omit<MunicipalDepartment, 'id'>) => {
       if (!canAccessAdmin) return;
-      const numericId = generateAutoNumericId(COLLECTIONS.DEPARTMENTS, departmentsRef.current);
+      const numericId = generateAutoNumericId(COLLECTIONS.DEPARTMENTS, departments);
       const newDept = prepareDocumentWithId<MunicipalDepartment>(
         COLLECTIONS.DEPARTMENTS,
         {
@@ -246,7 +250,7 @@ export function useDirectoryDomain(params: {
         } catch {}
       });
     },
-    [canAccessAdmin]
+    [departments, canAccessAdmin]
   );
 
   const updateDepartment = useCallback(
@@ -317,10 +321,10 @@ export function useDirectoryDomain(params: {
           const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
           const res = await fetch('/api/admin/toggle-block', {
             method: 'POST',
-            headers: await withAppCheckHeaders({
+            headers: {
               'Content-Type': 'application/json',
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            }),
+            },
             body: JSON.stringify({ targetUid: citizenId, isBlocked: finalBlocked }),
           });
           if (!res.ok) {
@@ -344,6 +348,59 @@ export function useDirectoryDomain(params: {
       })();
     },
     [canAccessAdmin]
+  );
+
+  const deleteCitizen = useCallback(
+    async (citizenId: string): Promise<boolean> => {
+      if (!canAccessAdmin || !citizenId) return false;
+      const cleanId = citizenId.trim();
+      if (auth.currentUser?.uid === cleanId) return false;
+
+      const targetCit = citizens.find((c) => c.id === cleanId);
+      const targetEmail = String(targetCit?.email || '').trim().toLowerCase();
+
+      setCitizens((prev) =>
+        prev.filter(
+          (c) =>
+            c.id !== cleanId &&
+            (!targetEmail || String(c.email || '').trim().toLowerCase() !== targetEmail)
+        )
+      );
+
+      const firestoreDeletions: Promise<any>[] = [
+        deleteDoc(doc(db, COLLECTIONS.CITIZENS, cleanId)).catch(() => {}),
+        deleteDoc(doc(db, 'users', cleanId)).catch(() => {}),
+        deleteDoc(doc(db, 'admins', cleanId)).catch(() => {}),
+      ];
+
+      if (targetEmail) {
+        firestoreDeletions.push(
+          getDocs(query(collection(db, COLLECTIONS.CITIZENS), where('email', '==', targetEmail)))
+            .then((snap) => Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {}))))
+            .catch(() => {}),
+          getDocs(query(collection(db, 'users'), where('email', '==', targetEmail)))
+            .then((snap) => Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {}))))
+            .catch(() => {})
+        );
+      }
+
+      await Promise.all(firestoreDeletions);
+
+      try {
+        const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+        await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ targetUid: cleanId, targetEmail }),
+        });
+      } catch {}
+
+      return true;
+    },
+    [canAccessAdmin, citizens]
   );
 
   const updateDepartmentAvailability = useCallback(
@@ -382,6 +439,7 @@ export function useDirectoryDomain(params: {
     updateDepartment,
     deleteDepartment,
     toggleBlockCitizen,
+    deleteCitizen,
     updateDepartmentAvailability,
   };
 }

@@ -1,6 +1,6 @@
+import { Router, Request, Response } from 'express';
 import {
   generateSecureRecoveryCode,
-  generateDeterministicRecoveryCode,
   encryptRecoveryCode,
   decryptRecoveryCode,
 } from '../security/encryption';
@@ -13,12 +13,9 @@ import {
   restSetDoc,
   restDeleteDoc,
 } from '../firestoreRest';
-import {
-  AdminCitizenDTO,
-  toAdminCitizenDTO,
-  toReportDTO,
-} from '../../src/types/dto';
+import { AdminCitizenDTO, toAdminCitizenDTO, toReportDTO } from '../../src/types/dto';
 import { UserProfileDocument, UserRole } from '../../src/types/auth';
+import { OFFICIAL_PHONE_LOCAL } from '../../src/constants/officialContact';
 import {
   DESIGNATED_SUPER_ADMIN_NAME,
   isDesignatedSuperAdminEmail,
@@ -30,7 +27,6 @@ export const adminRoutes = Router();
 
 /**
  * 5. List Registered Users for Admin (AdminCitizenDTO)
- * Strictly excludes: passwords, recovery codes, encryption keys, and temporary citizens!
  */
 adminRoutes.get('/admin/citizens', authenticateUser, async (req: Request, res: Response) => {
   const caller = (req as any).user;
@@ -41,7 +37,6 @@ adminRoutes.get('/admin/citizens', authenticateUser, async (req: Request, res: R
 
   try {
     const store = readLocalStore();
-    const remoteUsers = await restListDocs('users', caller.idToken, 100);
 
     const isTempRecord = (id: string, emailVal?: string) => {
       const cleanId = String(id || '').trim();
@@ -49,24 +44,42 @@ adminRoutes.get('/admin/citizens', authenticateUser, async (req: Request, res: R
       return /^[0-9]+$/.test(cleanId) || cleanId.startsWith('visitor_') || !cleanEmail.includes('@');
     };
 
+    let storeDirty = false;
+    for (const [uid, u] of Object.entries(store.users)) {
+      if (isTempRecord(uid, u.email)) {
+        delete store.users[uid];
+        storeDirty = true;
+      }
+    }
+    for (const [id, c] of Object.entries(store.citizens)) {
+      if (isTempRecord(id, c.email)) {
+        delete store.citizens[id];
+        storeDirty = true;
+      }
+    }
+    if (storeDirty) {
+      writeLocalStore(store);
+    }
+
     const mergedUsersMap = new Map<string, Record<string, any>>();
     for (const [uid, u] of Object.entries(store.users)) {
       if (!isTempRecord(uid, u.email)) {
         mergedUsersMap.set(uid, { ...u, uid });
       }
     }
-    for (const { id: uid, data: u } of remoteUsers) {
-      if (!isTempRecord(uid, u.email)) {
-        mergedUsersMap.set(uid, { ...(mergedUsersMap.get(uid) || {}), ...u, uid });
-        store.users[uid] = { ...(store.users[uid] || {}), ...u, uid };
+
+    const citizensMap = new Map<string, Record<string, any>>();
+    for (const [id, c] of Object.entries(store.citizens)) {
+      if (!isTempRecord(id, c.email)) {
+        citizensMap.set(id, { ...c, id });
       }
     }
-    writeLocalStore(store);
 
     const dtoMap = new Map<string, AdminCitizenDTO>();
 
     mergedUsersMap.forEach((uData, uid) => {
-      const emailStr = String(uData.email || '').trim();
+      const cExtra = citizensMap.get(uid);
+      const emailStr = String(uData.email || cExtra?.email || '').trim();
       if (isTempRecord(uid, emailStr)) return;
       const isDesig = isDesignatedSuperAdminEmail(emailStr);
       const role: UserRole = isDesig ? 'super_admin' : (uData.role as UserRole) || 'citizen';
@@ -76,20 +89,51 @@ adminRoutes.get('/admin/citizens', authenticateUser, async (req: Request, res: R
         uid,
         fullName: isDesig
           ? DESIGNATED_SUPER_ADMIN_NAME
-          : uData.fullName || 'مواطن مسجل',
+          : uData.fullName || cExtra?.name || 'مواطن مسجل',
         email: emailStr,
-        phone: uData.phone || '',
-        birthDate: uData.birthDate || '',
-        neighborhood: uData.neighborhood || 'ناحية باعدرى',
+        phone: uData.phone || cExtra?.phone || '',
+        birthDate: uData.birthDate || cExtra?.birthDate || '',
+        neighborhood: uData.neighborhood || cExtra?.neighborhood || 'ناحية باعدرى',
         role,
-        reportsSubmittedCount: uData.reportsSubmittedCount || 0,
-        resolvedReportsCount: uData.resolvedReportsCount || 0,
-        isBlocked: Boolean(uData.isBlocked),
-        createdAt: uData.createdAt || new Date().toISOString(),
+        reportsSubmittedCount: Math.max(
+          uData.reportsSubmittedCount || 0,
+          cExtra?.reportsSubmittedCount || 0
+        ),
+        resolvedReportsCount: Math.max(
+          uData.resolvedReportsCount || 0,
+          cExtra?.resolvedReportsCount || 0
+        ),
+        isBlocked: Boolean(uData.isBlocked ?? cExtra?.isBlocked ?? false),
+        createdAt: uData.createdAt || cExtra?.joinedAt || new Date().toISOString(),
         updatedAt: uData.updatedAt || new Date().toISOString(),
       };
 
       dtoMap.set(uid, toAdminCitizenDTO(mergedDoc, role === 'admin' || role === 'super_admin'));
+    });
+
+    citizensMap.forEach((c, uid) => {
+      if (!dtoMap.has(uid)) {
+        const emailStr = String(c.email || '').trim();
+        if (isTempRecord(uid, emailStr)) return;
+        const isDesig = isDesignatedSuperAdminEmail(emailStr);
+        const role: UserRole = isDesig ? 'super_admin' : (c.role as UserRole) || 'citizen';
+        dtoMap.set(uid, {
+          uid,
+          fullName: isDesig
+            ? DESIGNATED_SUPER_ADMIN_NAME
+            : c.name || c.fullName || 'مواطن مسجل',
+          email: emailStr,
+          phone: c.phone || '',
+          birthDate: c.birthDate || '',
+          role,
+          neighborhood: c.neighborhood || 'ناحية باعدرى',
+          reportsSubmittedCount: c.reportsSubmittedCount || 0,
+          resolvedReportsCount: c.resolvedReportsCount || 0,
+          joinedAt: c.joinedAt || c.createdAt || new Date().toISOString(),
+          isBlocked: Boolean(c.isBlocked),
+          hasRecoveryCodeConfigured: role === 'admin' || role === 'super_admin',
+        });
+      }
     });
 
     const dtoList = Array.from(dtoMap.values()).sort(
@@ -108,7 +152,9 @@ adminRoutes.get('/admin/citizens', authenticateUser, async (req: Request, res: R
 adminRoutes.post('/admin/change-role', authenticateUser, async (req: Request, res: Response) => {
   const caller = (req as any).user;
   if (caller.role !== 'admin' && caller.role !== 'super_admin') {
-    res.status(403).json({ error: 'غير مصرح: تعديل الأدوار محصور بحسابات الإدارة (Admin / Super Admin).' });
+    res.status(403).json({
+      error: 'غير مصرح: تعديل الأدوار محصور بحسابات الإدارة (Admin / Super Admin).',
+    });
     return;
   }
 
@@ -141,8 +187,27 @@ adminRoutes.post('/admin/change-role', authenticateUser, async (req: Request, re
   try {
     const store = readLocalStore();
     const remoteTargetUser = await restGetDoc('users', targetUid, caller.idToken);
+    const remoteTargetCitizen = !remoteTargetUser
+      ? await restGetDoc('citizens', targetUid, caller.idToken)
+      : null;
 
-    const existingUser = (remoteTargetUser || store.users[targetUid] || null) as UserProfileDocument | null;
+    const existingUser = (remoteTargetUser ||
+      store.users[targetUid] ||
+      (remoteTargetCitizen
+        ? {
+            uid: targetUid,
+            fullName: remoteTargetCitizen.name || remoteTargetCitizen.fullName || 'مواطن مسجل',
+            email: remoteTargetCitizen.email || '',
+            phone: remoteTargetCitizen.phone || '',
+            birthDate: remoteTargetCitizen.birthDate || '',
+            role: remoteTargetCitizen.role || 'citizen',
+            reportsSubmittedCount: remoteTargetCitizen.reportsSubmittedCount || 0,
+            resolvedReportsCount: remoteTargetCitizen.resolvedReportsCount || 0,
+            isBlocked: Boolean(remoteTargetCitizen.isBlocked),
+            createdAt: remoteTargetCitizen.joinedAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }
+        : null)) as UserProfileDocument | null;
 
     if (!existingUser) {
       res.status(404).json({ error: 'المستخدم المستهدف غير موجود.' });
@@ -188,7 +253,21 @@ adminRoutes.post('/admin/change-role', authenticateUser, async (req: Request, re
     };
 
     store.users[targetUid] = updatedUserDoc;
-    await restSetDoc('users', targetUid, updatedUserDoc, caller.idToken, true);
+    store.citizens[targetUid] = {
+      ...(store.citizens[targetUid] || {}),
+      id: targetUid,
+      name: updatedUserDoc.fullName,
+      email: updatedUserDoc.email,
+      phone: updatedUserDoc.phone,
+      birthDate: updatedUserDoc.birthDate,
+      role: newRole,
+      updatedAt: nowIso,
+    };
+
+    await Promise.all([
+      restSetDoc('users', targetUid, updatedUserDoc, caller.idToken, true),
+      restSetDoc('citizens', targetUid, store.citizens[targetUid], caller.idToken, true),
+    ]);
 
     if (newRole === 'admin' || newRole === 'super_admin') {
       const adminMarker = {
@@ -218,18 +297,8 @@ adminRoutes.post('/admin/change-role', authenticateUser, async (req: Request, re
       }
 
       if (!store.admin_recovery_vault[targetUid]) {
-        const remoteVault = await restGetDoc('admin_recovery_vault', targetUid, caller.idToken);
-        if (remoteVault && (remoteVault.encryptedData || remoteVault.encryptedCode || remoteVault.plainRecoveryCode)) {
-          store.admin_recovery_vault[targetUid] = remoteVault;
-        } else {
-          generatedRecoveryCode = generateDeterministicRecoveryCode(updatedUserDoc.email || targetUid);
-          const vaultEntry = {
-            ...encryptRecoveryCode(generatedRecoveryCode, newRole),
-            plainRecoveryCode: generatedRecoveryCode,
-          };
-          store.admin_recovery_vault[targetUid] = vaultEntry;
-          await restSetDoc('admin_recovery_vault', targetUid, vaultEntry, caller.idToken, true);
-        }
+        generatedRecoveryCode = generateSecureRecoveryCode();
+        store.admin_recovery_vault[targetUid] = encryptRecoveryCode(generatedRecoveryCode, newRole);
       }
     } else {
       delete store.admins[targetUid];
@@ -238,7 +307,6 @@ adminRoutes.post('/admin/change-role', authenticateUser, async (req: Request, re
       await Promise.all([
         restDeleteDoc('admins', targetUid, caller.idToken),
         restDeleteDoc('super_admins', targetUid, caller.idToken),
-        restDeleteDoc('admin_recovery_vault', targetUid, caller.idToken),
       ]);
     }
 
@@ -333,33 +401,18 @@ adminRoutes.post(
         return;
       }
 
-      let vaultData =
-        store.admin_recovery_vault[targetAdminUid] ||
-        (await restGetDoc('admin_recovery_vault', targetAdminUid, caller.idToken));
-
-      let decrypted = '';
-      if (vaultData && vaultData.plainRecoveryCode) {
-        decrypted = String(vaultData.plainRecoveryCode);
-      } else if (vaultData && (vaultData.encryptedData || vaultData.encryptedCode)) {
-        try {
-          decrypted = decryptRecoveryCode(vaultData as any);
-        } catch {}
-      }
-      
-      if (!decrypted) {
-        const freshCode = generateDeterministicRecoveryCode(targetUser.email || targetAdminUid);
-        vaultData = {
-          ...encryptRecoveryCode(
-            freshCode,
-            targetRole === 'super_admin' ? 'super_admin' : 'admin'
-          ),
-          plainRecoveryCode: freshCode,
-        };
-        decrypted = freshCode;
+      let vaultData = store.admin_recovery_vault[targetAdminUid];
+      if (!vaultData) {
+        const freshCode = generateSecureRecoveryCode();
+        vaultData = encryptRecoveryCode(
+          freshCode,
+          targetRole === 'super_admin' ? 'super_admin' : 'admin'
+        );
         store.admin_recovery_vault[targetAdminUid] = vaultData;
         writeLocalStore(store);
-        await restSetDoc('admin_recovery_vault', targetAdminUid, vaultData, caller.idToken, true);
       }
+
+      const decrypted = decryptRecoveryCode(vaultData as any);
 
       appendAuditLog(
         {
@@ -442,7 +495,7 @@ adminRoutes.post('/admin/bootstrap-first-super-admin', async (req: Request, res:
       uid: adminUid,
       email: cleanEmail,
       fullName: cleanName,
-      phone: adminPhone || '07504738358',
+      phone: adminPhone || OFFICIAL_PHONE_LOCAL,
       birthDate: '1990-01-01',
       role: 'super_admin',
       reportsSubmittedCount: 0,
@@ -535,18 +588,28 @@ adminRoutes.post(
     const caller = (req as any).user;
     if (caller.role !== 'admin' && caller.role !== 'super_admin') {
       res.status(403).json({
-        error: 'غير مصرح: إدارة البلاغات وتغيير حالتها محصورة بحسابات الإدارة (Admin / Super Admin).',
+        error:
+          'غير مصرح: إدارة البلاغات وتغيير حالتها محصورة بحسابات الإدارة (Admin / Super Admin).',
       });
       return;
     }
 
-    const { reportId, status, assignedTeam, officialNote, urgency, resolvedImages } = req.body || {};
+    const { reportId, status, assignedTeam, officialNote, urgency, resolvedImages } =
+      req.body || {};
     if (!reportId || !status) {
       res.status(400).json({ error: 'معرّف البلاغ والحالة الجديدة مطلوبان.' });
       return;
     }
 
-    const allowedStatuses = ['pending', 'new', 'in_progress', 'sent', 'resolved', 'completed', 'rejected'];
+    const allowedStatuses = [
+      'pending',
+      'new',
+      'in_progress',
+      'sent',
+      'resolved',
+      'completed',
+      'rejected',
+    ];
     if (!allowedStatuses.includes(status)) {
       res.status(400).json({ error: 'حالة البلاغ غير صالحة.' });
       return;
@@ -662,17 +725,26 @@ adminRoutes.post(
 
     try {
       const store = readLocalStore();
-      const remoteUser = await restGetDoc('users', cleanUid, caller.idToken);
+      const [remoteUser, remoteCitizen] = await Promise.all([
+        restGetDoc('users', cleanUid, caller.idToken),
+        restGetDoc('citizens', cleanUid, caller.idToken),
+      ]);
 
       const existingUser = remoteUser || store.users[cleanUid] || {};
-      const targetEmail = String(existingUser.email || '')
+      const existingCitizen = remoteCitizen || store.citizens[cleanUid] || {};
+      const targetEmail = String(existingUser.email || existingCitizen.email || '')
         .trim()
         .toLowerCase();
 
       const targetRole: UserRole = isDesignatedSuperAdminEmail(targetEmail)
         ? 'super_admin'
         : (existingUser.role as UserRole) ||
-          (store.super_admins[cleanUid] ? 'super_admin' : store.admins[cleanUid] ? 'admin' : 'citizen');
+          (existingCitizen.role as UserRole) ||
+          (store.super_admins[cleanUid]
+            ? 'super_admin'
+            : store.admins[cleanUid]
+            ? 'admin'
+            : 'citizen');
 
       if (targetRole === 'super_admin') {
         res.status(403).json({ error: 'لا يمكن حظر حساب السوبر أدمن.' });
@@ -684,27 +756,45 @@ adminRoutes.post(
         return;
       }
 
-      const currentBlocked = Boolean(existingUser.isBlocked ?? false);
+      const currentBlocked = Boolean(existingUser.isBlocked ?? existingCitizen.isBlocked ?? false);
       const nextBlocked =
         typeof requestedBlocked === 'boolean' ? requestedBlocked : !currentBlocked;
       const nowIso = new Date().toISOString();
 
-      store.users[cleanUid] = {
-        ...existingUser,
-        uid: cleanUid,
+      if (store.users[cleanUid] || remoteUser) {
+        store.users[cleanUid] = {
+          ...existingUser,
+          uid: cleanUid,
+          isBlocked: nextBlocked,
+          updatedAt: nowIso,
+        };
+      }
+
+      store.citizens[cleanUid] = {
+        ...existingCitizen,
+        id: cleanUid,
         isBlocked: nextBlocked,
         updatedAt: nowIso,
       };
 
       writeLocalStore(store);
 
-      await restSetDoc(
-        'users',
-        cleanUid,
-        { uid: cleanUid, isBlocked: nextBlocked, updatedAt: nowIso },
-        caller.idToken,
-        true
-      );
+      await Promise.all([
+        restSetDoc(
+          'users',
+          cleanUid,
+          { uid: cleanUid, isBlocked: nextBlocked, updatedAt: nowIso },
+          caller.idToken,
+          true
+        ),
+        restSetDoc(
+          'citizens',
+          cleanUid,
+          { id: cleanUid, isBlocked: nextBlocked, updatedAt: nowIso },
+          caller.idToken,
+          true
+        ),
+      ]);
 
       appendAuditLog(
         {
@@ -728,6 +818,150 @@ adminRoutes.post(
       });
     } catch {
       res.status(500).json({ error: 'تعذر تحديث حالة الحظر.' });
+    }
+  }
+);
+
+/**
+ * 15b. Delete Citizen / User Permanently from Core Application (Admin & Super Admin)
+ */
+adminRoutes.post(
+  '/admin/delete-user',
+  authenticateUser,
+  async (req: Request, res: Response) => {
+    const caller = (req as any).user;
+    if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+      res.status(403).json({ error: 'غير مصرح.' });
+      return;
+    }
+
+    const { targetUid, targetEmail: bodyEmail } = req.body || {};
+    if (!targetUid || typeof targetUid !== 'string') {
+      res.status(400).json({ error: 'معرّف المستخدم مطلوب.' });
+      return;
+    }
+
+    const cleanUid = targetUid.trim();
+    if (cleanUid === caller.uid) {
+      res.status(400).json({ error: 'لا يمكنك حذف حسابك الحالي من هنا.' });
+      return;
+    }
+
+    try {
+      const store = readLocalStore();
+      const [remoteUser, remoteCitizen] = await Promise.all([
+        restGetDoc('users', cleanUid, caller.idToken),
+        restGetDoc('citizens', cleanUid, caller.idToken),
+      ]);
+
+      const existingUser = remoteUser || store.users[cleanUid] || {};
+      const existingCitizen = remoteCitizen || store.citizens[cleanUid] || {};
+      const targetEmail = String(
+        existingUser.email || existingCitizen.email || bodyEmail || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      const targetRole: UserRole = isDesignatedSuperAdminEmail(targetEmail)
+        ? 'super_admin'
+        : (existingUser.role as UserRole) ||
+          (existingCitizen.role as UserRole) ||
+          (store.super_admins[cleanUid]
+            ? 'super_admin'
+            : store.admins[cleanUid]
+            ? 'admin'
+            : 'citizen');
+
+      if (targetRole === 'super_admin') {
+        res.status(403).json({ error: 'لا يمكن حذف حساب السوبر أدمن.' });
+        return;
+      }
+
+      if (targetRole === 'admin' && caller.role !== 'super_admin') {
+        res.status(403).json({ error: 'حذف حساب المسؤول محصور بالسوبر أدمن فقط.' });
+        return;
+      }
+
+      delete store.users[cleanUid];
+      delete store.citizens[cleanUid];
+      delete store.admins[cleanUid];
+      delete store.super_admins[cleanUid];
+      delete store.admin_recovery_vault[cleanUid];
+
+      if (targetEmail) {
+        for (const [id, u] of Object.entries(store.users)) {
+          if (String(u?.email || '').trim().toLowerCase() === targetEmail) {
+            delete store.users[id];
+          }
+        }
+        for (const [id, c] of Object.entries(store.citizens)) {
+          if (String(c?.email || '').trim().toLowerCase() === targetEmail) {
+            delete store.citizens[id];
+          }
+        }
+      }
+
+      if (store.user_fcm_tokens) {
+        for (const [tokenId, tokenDoc] of Object.entries(store.user_fcm_tokens)) {
+          if (tokenDoc?.uid === cleanUid) {
+            delete store.user_fcm_tokens[tokenId];
+          }
+        }
+      }
+      writeLocalStore(store);
+
+      const deletePromises: Promise<any>[] = [
+        restDeleteDoc('users', cleanUid, caller.idToken).catch(() => {}),
+        restDeleteDoc('citizens', cleanUid, caller.idToken).catch(() => {}),
+        restDeleteDoc('admins', cleanUid, caller.idToken).catch(() => {}),
+      ];
+
+      if (targetEmail) {
+        deletePromises.push(
+          restListDocs('users', caller.idToken, 100)
+            .then((docs) =>
+              Promise.all(
+                docs
+                  .filter((d) => String(d.data?.email || '').trim().toLowerCase() === targetEmail)
+                  .map((d) => restDeleteDoc('users', d.id, caller.idToken).catch(() => {}))
+              )
+            )
+            .catch(() => {}),
+          restListDocs('citizens', caller.idToken, 100)
+            .then((docs) =>
+              Promise.all(
+                docs
+                  .filter((d) => String(d.data?.email || '').trim().toLowerCase() === targetEmail)
+                  .map((d) => restDeleteDoc('citizens', d.id, caller.idToken).catch(() => {}))
+              )
+            )
+            .catch(() => {})
+        );
+      }
+
+      await Promise.all(deletePromises);
+
+      appendAuditLog(
+        {
+          action: 'USER_DELETED_FROM_CORE_APP',
+          actorUid: caller.uid,
+          actorEmail: caller.email,
+          actorRole: caller.role,
+          targetUid: cleanUid,
+          targetEmail,
+          targetRole,
+          timestamp: new Date().toISOString(),
+        },
+        caller.idToken
+      );
+
+      res.json({
+        success: true,
+        targetUid: cleanUid,
+        message: 'تم حذف المواطن / المستخدم من أساس التطبيق بنجاح.',
+      });
+    } catch {
+      res.status(500).json({ error: 'فشل حذف المواطن من التطبيق.' });
     }
   }
 );

@@ -15,136 +15,64 @@ import {
   Send,
   HelpCircle,
 } from 'lucide-react';
-import {
-  CivicReport,
-  SECTOR_META,
-  ReportSector,
-  MunicipalDepartment,
-  RegisteredCitizen,
-  CommunitySurvey,
-  CitizenSurveyResponse,
-  isReportUrgencyConfirmed,
-} from '../../types/baadre';
+import { ReportSector } from '../../types/baadre';
+
+export interface ReportCardTotals {
+  total: number;
+  pending: number;
+  resolved: number;
+  rejected: number;
+  inProgress: number;
+  emergency: number;
+  completionRate: number;
+  reportingCitizens: number;
+}
+
+export interface GeneralSurveyStats {
+  totalSurveys: number;
+  publishedCount: number;
+  totalResponses: number;
+  totalQuestions: number;
+}
+
+export interface WeeklyAnalyticsItem {
+  day: string;
+  incoming: number;
+  resolved: number;
+}
+
+export interface SectorDistributionItem {
+  key: ReportSector;
+  badgeEmoji: string;
+  count: number;
+  percentage: number;
+}
 
 export interface AnalyticsTabViewProps {
-  reports: CivicReport[];
-  departments: MunicipalDepartment[];
-  citizens: RegisteredCitizen[];
-  surveys: CommunitySurvey[];
-  surveyResponses: CitizenSurveyResponse[];
-  language: 'ar' | 'ku' | 'en';
   isRTL: boolean;
   tr: (ar: string, ku: string, en: string) => string;
+  reportCardTotals: ReportCardTotals;
+  departmentsCount: number;
+  citizensCount: number;
+  generalSurveyStats: GeneralSurveyStats;
+  weeklyAnalyticsData: WeeklyAnalyticsItem[];
+  sectorDistribution: SectorDistributionItem[];
   getSectorLabel: (secKey: ReportSector) => string;
 }
 
-export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = React.memo(({
-  reports,
-  departments,
-  citizens,
-  surveys,
-  surveyResponses,
-  language,
+export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = ({
   isRTL,
   tr,
+  reportCardTotals,
+  departmentsCount,
+  citizensCount,
+  generalSurveyStats,
+  weeklyAnalyticsData,
+  sectorDistribution,
   getSectorLabel,
 }) => {
-  const reportCardTotals = React.useMemo(() => {
-    const total = reports.length;
-    const pending = reports.filter((rep) => rep.status === 'pending').length;
-    const resolved = reports.filter((rep) => rep.status === 'resolved').length;
-    const rejected = reports.filter((rep) => rep.status === 'rejected').length;
-    const inProgress = reports.filter(
-      (rep) =>
-        rep.status !== 'pending' &&
-        rep.status !== 'resolved' &&
-        rep.status !== 'rejected'
-    ).length;
-    const emergency = reports.filter(
-      (rep) => isReportUrgencyConfirmed(rep) && rep.urgency === 'emergency'
-    ).length;
-    const completionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
-    const reportingCitizens = new Set(
-      reports
-        .map((rep) => (rep.citizenPhone || rep.citizenName || rep.id).trim().toLowerCase())
-        .filter(Boolean)
-    ).size;
-
-    return {
-      total,
-      pending,
-      resolved,
-      rejected,
-      inProgress,
-      emergency,
-      completionRate,
-      reportingCitizens,
-    };
-  }, [reports]);
-
-  const generalSurveyStats = React.useMemo(() => {
-    const totalSurveys = surveys.length;
-    const publishedCount = surveys.filter((s) => s.isPublishedToCitizens).length;
-    const totalResponses = Math.max(
-      surveyResponses.length,
-      surveys.reduce((acc, s) => acc + (s.totalResponses || 0), 0)
-    );
-    const totalQuestions = surveys.reduce((acc, s) => acc + s.questions.length, 0);
-    return {
-      totalSurveys,
-      publishedCount,
-      totalResponses,
-      totalQuestions,
-    };
-  }, [surveys, surveyResponses]);
-
-  const sectorDistribution = React.useMemo(() => {
-    const counts: Record<ReportSector, number> = {
-      roads: 0,
-      sewage: 0,
-      sanitation: 0,
-      lighting: 0,
-      water: 0,
-      other: 0,
-    };
-    reports.forEach((r) => {
-      counts[r.sector] = (counts[r.sector] || 0) + 1;
-    });
-    return Object.values(SECTOR_META).map((sec) => ({
-      ...sec,
-      count: counts[sec.key] || 0,
-      percentage:
-        reports.length > 0 ? Math.round(((counts[sec.key] || 0) / reports.length) * 100) : 0,
-    }));
-  }, [reports]);
-
-  const weeklyAnalyticsData = React.useMemo(() => {
-    const dayLabels = [
-      tr('السبت', 'شەمە', 'Sat'),
-      tr('الأحد', 'یەك شەم', 'Sun'),
-      tr('الإثنين', 'دووشەم', 'Mon'),
-      tr('الثلاثاء', 'سێ شەم', 'Tue'),
-      tr('الأربعاء', 'چوار شەم', 'Wed'),
-      tr('الخميس', 'بێنچ شەم', 'Thu'),
-      tr('الجمعة', 'هەینی', 'Fri'),
-    ];
-    const counts = dayLabels.map((day) => ({ day, incoming: 0, resolved: 0 }));
-    reports.forEach((r) => {
-      const d = new Date(r.createdAt);
-      if (!Number.isNaN(d.getTime())) {
-        const idx = (d.getDay() + 1) % 7;
-        counts[idx].incoming += 1;
-        if (r.status === 'resolved') {
-          counts[idx].resolved += 1;
-        }
-      }
-    });
-    return counts;
-  }, [reports, language]);
-
   return (
     <div className="space-y-6">
-      {/* Top Control Header & Harmonious Borderless Stat Cards */}
       <div className="p-4 sm:p-6 rounded-3xl bg-white/90 backdrop-blur-2xl border-0 shadow-[0_10px_34px_rgba(30,142,147,0.08)] space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -157,7 +85,6 @@ export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = React.memo(({
           </div>
         </div>
 
-        {/* 9 مؤشرات بألوان بارزة قليلاً ومتناسقة وبدون إطارات */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {/* 1. اجمالي البلاغات */}
           <div className="px-4 py-3.5 rounded-2xl bg-gradient-to-l from-[#E6F2F6] to-[#F2F8FA] border-0 shadow-[0_4px_14px_rgba(30,142,147,0.06)] flex items-center justify-between gap-3.5 transition-all">
@@ -300,7 +227,7 @@ export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = React.memo(({
             </div>
             <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
               <span className="text-2xl font-black text-indigo-700 tabular-nums leading-none">
-                {departments.length}
+                {departmentsCount}
               </span>
             </div>
           </div>
@@ -319,7 +246,7 @@ export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = React.memo(({
             </div>
             <div className="min-w-[3.5rem] px-3.5 py-2 rounded-xl bg-white/90 border-0 flex items-center justify-center shrink-0 shadow-2xs">
               <span className="text-2xl font-black text-sky-700 tabular-nums leading-none">
-                {citizens.length}
+                {citizensCount}
               </span>
             </div>
           </div>
@@ -390,11 +317,7 @@ export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = React.memo(({
               {generalSurveyStats.publishedCount}
             </p>
             <p className="text-[11px] font-bold text-emerald-700">
-              {tr(
-                'الاستبيانات المنشورة',
-                'ڕاپرسییە بڵاوکراوەکان',
-                'Published Surveys'
-              )}
+              {tr('الاستبيانات المنشورة', 'ڕاپرسییە بڵاوکراوەکان', 'Published Surveys')}
             </p>
           </div>
 
@@ -422,11 +345,7 @@ export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = React.memo(({
               {generalSurveyStats.totalQuestions}
             </p>
             <p className="text-[11px] font-bold text-amber-700">
-              {tr(
-                'إجمالي الأسئلة المطروحة',
-                'کۆی پرسیارەکان',
-                'Total Questions Asked'
-              )}
+              {tr('إجمالي الأسئلة المطروحة', 'کۆی پرسیارەکان', 'Total Questions Asked')}
             </p>
           </div>
         </div>
@@ -555,4 +474,4 @@ export const AnalyticsTabView: React.FC<AnalyticsTabViewProps> = React.memo(({
       </div>
     </div>
   );
-});
+};

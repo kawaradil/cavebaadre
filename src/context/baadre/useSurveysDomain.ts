@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   collection,
   doc,
@@ -29,13 +29,19 @@ import {
 } from '../../types/baadre';
 import { CreateSurveyInput, CACHE_KEY_SURVEYS } from './types';
 
-export function useSurveysDomain(params: {
+interface UseSurveysDomainParams {
   canAccessAdmin: boolean;
-  hasFirestoreAdminAuth: boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
   currentUserUid?: string;
-}) {
-  const { canAccessAdmin, hasFirestoreAdminAuth, currentUserUid } = params;
+}
 
+export function useSurveysDomain({
+  canAccessAdmin,
+  isAdmin,
+  isSuperAdmin,
+  currentUserUid,
+}: UseSurveysDomainParams) {
   const [surveys, setSurveys] = useState<CommunitySurvey[]>(() => {
     try {
       const raw = localStorage.getItem(CACHE_KEY_SURVEYS);
@@ -51,22 +57,15 @@ export function useSurveysDomain(params: {
   const [answeredSurveyIds, setAnsweredSurveyIds] = useState<string[]>([]);
   const [dismissedSurveyIds, setDismissedSurveyIds] = useState<string[]>([]);
 
-  const surveysRef = useRef(surveys);
-  surveysRef.current = surveys;
-  const answeredSurveyIdsRef = useRef(answeredSurveyIds);
-  answeredSurveyIdsRef.current = answeredSurveyIds;
-
   useEffect(() => {
+    const hasFirestoreAdminAuth = Boolean(currentUserUid && (isAdmin || isSuperAdmin));
+
     let unsubSurveys = () => {};
     let unsubResponses = () => {};
 
     if (currentUserUid) {
       const surveysQuery = hasFirestoreAdminAuth
-        ? query(
-            collection(db, COLLECTIONS.SURVEYS),
-            orderBy('createdAt', 'desc'),
-            limit(50)
-          )
+        ? query(collection(db, COLLECTIONS.SURVEYS), orderBy('createdAt', 'desc'), limit(50))
         : query(
             collection(db, COLLECTIONS.SURVEYS),
             where('isPublishedToCitizens', '==', true),
@@ -135,7 +134,7 @@ export function useSurveysDomain(params: {
       unsubSurveys();
       unsubResponses();
     };
-  }, [hasFirestoreAdminAuth, currentUserUid]);
+  }, [currentUserUid, isAdmin, isSuperAdmin]);
 
   useEffect(() => {
     if (!currentUserUid || surveys.length === 0) {
@@ -170,7 +169,7 @@ export function useSurveysDomain(params: {
 
   const createSurvey = useCallback(
     (input: CreateSurveyInput): CommunitySurvey => {
-      const numericId = generateAutoNumericId(COLLECTIONS.SURVEYS, surveysRef.current);
+      const numericId = generateAutoNumericId(COLLECTIONS.SURVEYS, surveys);
       const now = new Date().toISOString();
       const newSurvey = prepareDocumentWithId<CommunitySurvey>(
         COLLECTIONS.SURVEYS,
@@ -208,7 +207,7 @@ export function useSurveysDomain(params: {
       });
       return newSurvey;
     },
-    [canAccessAdmin]
+    [surveys, canAccessAdmin]
   );
 
   const updateSurvey = useCallback(
@@ -248,15 +247,17 @@ export function useSurveysDomain(params: {
             },
             s.id
           );
-          setDoc(doc(db, COLLECTIONS.SURVEYS, updated.id), updated, { merge: true }).catch((err) => {
-            try {
-              handleFirestoreError(
-                err,
-                OperationType.UPDATE,
-                `${COLLECTIONS.SURVEYS}/${updated.id}`
-              );
-            } catch {}
-          });
+          setDoc(doc(db, COLLECTIONS.SURVEYS, updated.id), updated, { merge: true }).catch(
+            (err) => {
+              try {
+                handleFirestoreError(
+                  err,
+                  OperationType.UPDATE,
+                  `${COLLECTIONS.SURVEYS}/${updated.id}`
+                );
+              } catch {}
+            }
+          );
           return updated;
         })
       );
@@ -270,8 +271,7 @@ export function useSurveysDomain(params: {
       setSurveys((prev) =>
         prev.map((s) => {
           if (s.id !== surveyId) return s;
-          const nextPublished =
-            forceState !== undefined ? forceState : !s.isPublishedToCitizens;
+          const nextPublished = forceState !== undefined ? forceState : !s.isPublishedToCitizens;
           const nextStatus = nextPublished ? 'active' : 'closed';
           if (nextPublished) {
             setDismissedSurveyIds((ids) => ids.filter((id) => id !== surveyId));
@@ -319,11 +319,11 @@ export function useSurveysDomain(params: {
 
   const submitSurveyResponse = useCallback(
     (surveyId: string, selectedOptionsByQuestionId: Record<string, string>) => {
-      if (answeredSurveyIdsRef.current.includes(surveyId)) {
+      if (answeredSurveyIds.includes(surveyId)) {
         return;
       }
 
-      const targetSurvey = surveysRef.current.find((s) => s.id === surveyId);
+      const targetSurvey = surveys.find((s) => s.id === surveyId);
       const citizenUid =
         auth.currentUser?.uid ||
         (() => {
@@ -407,12 +407,8 @@ export function useSurveysDomain(params: {
         })
       );
 
-      setAnsweredSurveyIds((prev) =>
-        prev.includes(surveyId) ? prev : [...prev, surveyId]
-      );
-      setDismissedSurveyIds((prev) =>
-        prev.includes(surveyId) ? prev : [...prev, surveyId]
-      );
+      setAnsweredSurveyIds((prev) => (prev.includes(surveyId) ? prev : [...prev, surveyId]));
+      setDismissedSurveyIds((prev) => (prev.includes(surveyId) ? prev : [...prev, surveyId]));
 
       executeSurveyResponseTransaction({
         surveyId: String(surveyId),
@@ -429,13 +425,11 @@ export function useSurveysDomain(params: {
         } catch {}
       });
     },
-    []
+    [surveys, answeredSurveyIds]
   );
 
   const dismissSurveyPopup = useCallback((surveyId: string) => {
-    setDismissedSurveyIds((prev) =>
-      prev.includes(surveyId) ? prev : [...prev, surveyId]
-    );
+    setDismissedSurveyIds((prev) => (prev.includes(surveyId) ? prev : [...prev, surveyId]));
   }, []);
 
   const reopenPublishedSurveysPopup = useCallback(() => {
