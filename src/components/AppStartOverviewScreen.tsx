@@ -30,7 +30,7 @@ export const AppStartOverviewScreen: React.FC<AppStartOverviewScreenProps> = ({
       subtitle: 'منصتكم الميدانية لرصد الأعطال وتوثيق الإنجاز في ناحية باعدرى',
       aboutTitle: 'عمل التطبيق والمنظمة',
       aboutText:
-        'مبادرة رقمية تشرف عليها منظمة RABA في ناحية باعدرى لربط المواطنين بالدوائر الخدمية، استلام البلاغات الميدانية، ومتابعة معالجتها وتوثيق إنجازها بشفافية.',
+        'مبادرة رقمية تشرف عليها منظمة RABA و بدعم من منظمة النجدة الشعبية PAO و منظمة مساعدات الشعب النرويجي NPA في ناحية باعدرى لربط المواطنين بالدوائر الخدمية، استلام البلاغات الميدانية، ومتابعة معالجتها وتوثيق إنجازها بشفافية.',
       policyTitle: 'سياسة الخصوصية والأمان',
       policyText:
         'بياناتكم الشخصية ورقم الهاتف محفوظة بسرية تامة داخل النظام ولا تظهر للعامة أو لأي جهة خارجية، وتُستخدم حصراً للتواصل معكم ومتابعة إتمام البلاغ.',
@@ -64,7 +64,7 @@ export const AppStartOverviewScreen: React.FC<AppStartOverviewScreenProps> = ({
       subtitle: 'سەکۆی مەیدانی بۆ تۆمارکردنی کێشەکان و بەڵگەکردنی کارەکان لە باعەدرێ',
       aboutTitle: 'کاری ئەپڵیکەیشن و ڕێکخراو',
       aboutText:
-        'پڕۆژەیەکی دیجیتاڵییە لەژێر سەرپەرشتی ڕێکخراوی RABA لە ناحیەی باعەدرێ بۆ گەیاندنی دەنگی هاووڵاتیان بە فەرمانگە خزمەتگوزارییەکان و بەدواداچوونی چارەسەرکردنیان بە شەفافیەت.',
+        'پڕۆژەیەکی دیجیتاڵییە لەژێر سەرپەرشتی ڕێکخراوی RABA و بە پاڵپشتی ڕێکخراوی هاریکاری میللی PAO و ڕێکخراوی هاوکاری گەلی نەرویجی NPA لە ناحیەی باعەدرێ بۆ گەیاندنی دەنگی هاووڵاتیان بە فەرمانگە خزمەتگوزارییەکان و بەدواداچوونی چارەسەرکردنیان بە شەفافیەت.',
       policyTitle: 'سیاسەتی پاراستنی تایبەتمەندی',
       policyText:
         'زانیارییە کەسییەکانتان و ژمارەی مۆبایل بە تەواوی پارێزراون و بۆ هیچ لایەنێکی دەرەکی یان گشتی دەرناکەون، تەنها بۆ خزمەتکردن و بەدواداچوونی سکاڵاکەتان بەکاردێن.',
@@ -98,7 +98,7 @@ export const AppStartOverviewScreen: React.FC<AppStartOverviewScreenProps> = ({
       subtitle: 'Your civic platform for field reporting & verified impact in Baadre',
       aboutTitle: 'App Mission & RABA Organization',
       aboutText:
-        'A civic initiative supervised by RABA Organization in Baadre to connect citizens with municipal departments, streamline field reports, and transparently document completed works.',
+        'A civic initiative supervised by RABA Organization and supported by Popular Aid Organization (PAO) and Norwegian People’s Aid (NPA) in Baadre to connect citizens with municipal departments, streamline field reports, and transparently document completed works.',
       policyTitle: 'Privacy & Data Protection Policy',
       policyText:
         'Your personal details and phone number are strictly confidential, never shared publicly or with external parties, and used solely to follow up on your report.',
